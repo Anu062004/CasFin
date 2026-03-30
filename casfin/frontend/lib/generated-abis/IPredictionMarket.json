@@ -1,0 +1,8 @@
+[
+  "function finalized() view returns (bool)",
+  "function markDisputed()",
+  "function resolveMarket(uint8)",
+  "function resolved() view returns (bool)",
+  "function resolvesAt() view returns (uint256)",
+  "function settleDispute(uint8)"
+]

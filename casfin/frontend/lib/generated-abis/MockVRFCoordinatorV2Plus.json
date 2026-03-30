@@ -1,0 +1,8 @@
+[
+  "event Requested(uint256 indexed,address indexed)",
+  "function fulfillRequest(uint256,uint256)",
+  "function getStoredRequest(uint256) view returns (bytes32, uint256, uint16, uint32, uint32, bytes)",
+  "function nextRequestId() view returns (uint256)",
+  "function requestRandomWords(tuple(bytes32,uint256,uint16,uint32,uint32,bytes)) returns (uint256)",
+  "function requesters(uint256) view returns (address)"
+]

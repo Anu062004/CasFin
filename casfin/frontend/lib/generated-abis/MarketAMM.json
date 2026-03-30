@@ -1,0 +1,19 @@
+[
+  "constructor()",
+  "event OwnershipTransferStarted(address indexed,address indexed)",
+  "event OwnershipTransferred(address indexed,address indexed)",
+  "event PoolBound(address indexed)",
+  "function acceptOwnership()",
+  "function bindPool(address)",
+  "function currentPriceWad(uint8,uint256[]) view returns (uint256)",
+  "function initialize(address,uint256,uint256,uint256)",
+  "function outcomeCount() view returns (uint256)",
+  "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
+  "function pool() view returns (address)",
+  "function previewBuy(uint8,uint256,uint256[]) view returns (uint256, uint256)",
+  "function previewSell(uint8,uint256,uint256[]) view returns (uint256, uint256)",
+  "function spreadBps() view returns (uint256)",
+  "function transferOwnership(address)",
+  "function virtualLiquidityFloor() view returns (uint256)"
+]

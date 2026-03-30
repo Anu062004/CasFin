@@ -1,0 +1,4 @@
+[
+  "function getRandomness(uint256) view returns (uint256, bool)",
+  "function requestRandomness(bytes32) returns (uint256)"
+]

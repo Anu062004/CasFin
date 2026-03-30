@@ -1,0 +1,21 @@
+import CasinoVaultAbi from "@/lib/generated-abis/CasinoVault.json";
+import ChainlinkVRFAdapterAbi from "@/lib/generated-abis/ChainlinkVRFAdapter.json";
+import CoinFlipGameAbi from "@/lib/generated-abis/CoinFlipGame.json";
+import DiceGameAbi from "@/lib/generated-abis/DiceGame.json";
+import CrashGameAbi from "@/lib/generated-abis/CrashGame.json";
+import LiquidityPoolAbi from "@/lib/generated-abis/LiquidityPool.json";
+import MarketAMMAbi from "@/lib/generated-abis/MarketAMM.json";
+import MarketFactoryAbi from "@/lib/generated-abis/MarketFactory.json";
+import MarketResolverAbi from "@/lib/generated-abis/MarketResolver.json";
+import PredictionMarketAbi from "@/lib/generated-abis/PredictionMarket.json";
+
+export const VAULT_ABI = CasinoVaultAbi;
+export const RANDOMNESS_ROUTER_ABI = ChainlinkVRFAdapterAbi;
+export const COIN_FLIP_ABI = CoinFlipGameAbi;
+export const DICE_ABI = DiceGameAbi;
+export const CRASH_ABI = CrashGameAbi;
+export const LIQUIDITY_POOL_ABI = LiquidityPoolAbi;
+export const MARKET_AMM_ABI = MarketAMMAbi;
+export const MARKET_FACTORY_ABI = MarketFactoryAbi;
+export const PREDICTION_MARKET_ABI = PredictionMarketAbi;
+export const MARKET_RESOLVER_ABI = MarketResolverAbi;

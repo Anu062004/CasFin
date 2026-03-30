@@ -1,0 +1,4 @@
+[
+  "function routePlatformFee() payable",
+  "function routeResolverFee(address) payable"
+]

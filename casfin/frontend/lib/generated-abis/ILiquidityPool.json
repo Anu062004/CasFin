@@ -1,0 +1,6 @@
+[
+  "function accrueTraderFee() payable",
+  "function activeLiquidity() view returns (uint256)",
+  "function feeBps() view returns (uint256)",
+  "function isFinalized() view returns (bool)"
+]

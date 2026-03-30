@@ -1,0 +1,27 @@
+{
+  "name": "casfin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CasFin is a transparent onchain prediction market and casino protocol for Arbitrum.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:casino": "hardhat run scripts/deployCasinoStage.js --network arbitrumSepolia",
+    "deploy:prediction": "hardhat run scripts/deployPredictionStage.js --network arbitrumSepolia",
+    "deploy:all": "hardhat run scripts/deployAllStages.js --network arbitrumSepolia",
+    "verify": "hardhat verify --network arbitrumSepolia",
+    "keeper:start": "node keeper/index.js",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:start": "npm --prefix frontend run start"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
+    "@nomicfoundation/hardhat-verify": "^2.0.12",
+    "chai": "^4.5.0",
+    "dotenv": "^16.5.0",
+    "ethers": "^6.13.5",
+    "hardhat": "^2.24.2",
+    "hardhat-abi-exporter": "^2.11.0"
+  }
+}

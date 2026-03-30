@@ -1,0 +1,23 @@
+[
+  "constructor()",
+  "event DisputeFiled(address indexed,address indexed,uint256,bytes32)",
+  "event DisputeSettled(address indexed,uint8 indexed,bool)",
+  "event MinBondUpdated(uint256)",
+  "event OwnershipTransferStarted(address indexed,address indexed)",
+  "event OwnershipTransferred(address indexed,address indexed)",
+  "event Paused(address indexed)",
+  "event Unpaused(address indexed)",
+  "function acceptOwnership()",
+  "function disputes(address) view returns (address, uint256, bytes32, bool)",
+  "function fileDispute(address,bytes32) payable",
+  "function initialize(address,uint256)",
+  "function minBond() view returns (uint256)",
+  "function owner() view returns (address)",
+  "function pause()",
+  "function paused() view returns (bool)",
+  "function pendingOwner() view returns (address)",
+  "function setMinBond(uint256)",
+  "function settleDispute(address,uint8,bool)",
+  "function transferOwnership(address)",
+  "function unpause()"
+]

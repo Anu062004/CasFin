@@ -1,0 +1,21 @@
+[
+  "event HouseEdgeUpdated(uint16)",
+  "event MaxBetUpdated(uint128)",
+  "event OwnershipTransferStarted(address indexed,address indexed)",
+  "event OwnershipTransferred(address indexed,address indexed)",
+  "event Paused(address indexed)",
+  "event Unpaused(address indexed)",
+  "function acceptOwnership()",
+  "function houseEdgeBps() view returns (uint16)",
+  "function maxBetAmount() view returns (uint128)",
+  "function owner() view returns (address)",
+  "function pause()",
+  "function paused() view returns (bool)",
+  "function pendingOwner() view returns (address)",
+  "function randomnessRouter() view returns (address)",
+  "function setHouseEdgeBps(uint16)",
+  "function setMaxBetAmount(uint128)",
+  "function transferOwnership(address)",
+  "function unpause()",
+  "function vault() view returns (address)"
+]

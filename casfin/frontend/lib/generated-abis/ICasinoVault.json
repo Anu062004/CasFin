@@ -1,0 +1,7 @@
+[
+  "function balanceOf(address) view returns (uint128)",
+  "function lockedBalanceOf(address) view returns (uint128)",
+  "function reserveFunds(address,uint128) returns (uint128)",
+  "function settleBet(address,uint128,uint128) returns (uint128)",
+  "function withdraw(uint128)"
+]
