@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
@@ -12,13 +13,25 @@ import {
   loadCasinoState,
   loadPredictionState
 } from "@/lib/casfin-client";
+import type {
+  LastTransactionState,
+  StatusTone,
+  SyncWalletOptions,
+  WalletContextValue,
+  WalletSnapshot,
+  WalletType
+} from "@/lib/casfin-types";
 
-const WalletContext = createContext(null);
+const WalletContext = createContext<WalletContextValue | null>(null);
 
-export default function WalletProvider({ children }) {
+export default function WalletProvider({ children }: { children: ReactNode }) {
   const mountedRef = useRef(true);
-  const activeProviderRef = useRef(null);
-  const providerListenersRef = useRef({
+  const activeProviderRef = useRef<InjectedEthereumProvider | null>(null);
+  const providerListenersRef = useRef<{
+    provider: InjectedEthereumProvider | null;
+    handleAccountsChanged: ((accounts: string[]) => Promise<void>) | null;
+    handleChainChanged: (() => Promise<void>) | null;
+  }>({
     provider: null,
     handleAccountsChanged: null,
     handleChainChanged: null
@@ -26,18 +39,18 @@ export default function WalletProvider({ children }) {
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [account, setAccount] = useState("");
   const [walletBalance, setWalletBalance] = useState(0n);
-  const [chainId, setChainId] = useState(null);
+  const [chainId, setChainId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState("");
   const [statusMessage, setStatusMessage] = useState("Read-only data is live from Arbitrum Sepolia.");
-  const [statusTone, setStatusTone] = useState("info");
+  const [statusTone, setStatusTone] = useState<StatusTone>("info");
   const [statusEventId, setStatusEventId] = useState(0);
-  const [lastTransaction, setLastTransaction] = useState(null);
+  const [lastTransaction, setLastTransaction] = useState<LastTransactionState | null>(null);
   const [casinoLoadError, setCasinoLoadError] = useState("");
   const [predictionLoadError, setPredictionLoadError] = useState("");
   const [casinoState, setCasinoState] = useState(EMPTY_CASINO_STATE);
   const [predictionState, setPredictionState] = useState(EMPTY_PREDICTION_STATE);
 
-  function pushStatus(message, tone = "info") {
+  function pushStatus(message: string, tone: StatusTone = "info") {
     if (!mountedRef.current) {
       return;
     }
@@ -47,7 +60,7 @@ export default function WalletProvider({ children }) {
     setStatusEventId((current) => current + 1);
   }
 
-  function getInjectedProvider(walletType = "injected") {
+  function getInjectedProvider(walletType: WalletType = "injected") {
     if (typeof window === "undefined" || !window.ethereum) {
       return null;
     }
@@ -103,7 +116,7 @@ export default function WalletProvider({ children }) {
     };
   }
 
-  function attachProviderListeners(provider) {
+  function attachProviderListeners(provider: InjectedEthereumProvider) {
     if (!provider?.on || providerListenersRef.current.provider === provider) {
       return;
     }
@@ -129,7 +142,12 @@ export default function WalletProvider({ children }) {
     };
   }
 
-  async function syncWallet({ provider, providedAccounts, requestAccounts = false, walletType = "injected" } = {}) {
+  async function syncWallet({
+    provider,
+    providedAccounts,
+    requestAccounts = false,
+    walletType = "injected"
+  }: SyncWalletOptions = {}): Promise<WalletSnapshot> {
     const nextProvider = provider || getInjectedProvider(walletType);
 
     if (!nextProvider) {
@@ -185,7 +203,7 @@ export default function WalletProvider({ children }) {
     };
   }
 
-  async function refreshWalletState(options = {}) {
+  async function refreshWalletState(options: SyncWalletOptions = {}): Promise<WalletSnapshot> {
     const snapshot = await syncWallet(options);
 
     if (options.loadProtocol === false) {
@@ -329,7 +347,7 @@ export default function WalletProvider({ children }) {
     });
   }
 
-  async function ensureTargetNetwork() {
+  async function ensureTargetNetwork(): Promise<WalletSnapshot> {
     const provider = activeProviderRef.current || getInjectedProvider();
 
     if (!provider) {
@@ -364,7 +382,7 @@ export default function WalletProvider({ children }) {
     return syncWallet({ provider });
   }
 
-  async function connectWallet(walletType = "injected") {
+  async function connectWallet(walletType: WalletType = "injected"): Promise<void> {
     if (typeof window === "undefined" || !window.ethereum) {
       pushStatus("No wallet detected. Install MetaMask or Coinbase Wallet and try again.", "warning");
       window.open(
@@ -563,7 +581,7 @@ export default function WalletProvider({ children }) {
   );
 }
 
-export function useWallet() {
+export function useWallet(): WalletContextValue {
   const context = useContext(WalletContext);
 
   if (!context) {

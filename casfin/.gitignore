@@ -6,3 +6,8 @@ coverage
 .env.local
 .env.production
 deployments/
+*.tsbuildinfo
+frontend/.codex-build.err
+frontend/.codex-build.out
+frontend/.codex-build.err
+frontend/.codex-build.out

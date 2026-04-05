@@ -1,7 +1,7 @@
 import { buildExplorerUrl } from "@/lib/casfin-config";
 import { EMPTY_ADDRESS, formatAddress } from "@/lib/casfin-client";
 
-export function StatCard({ label, value, detail }) {
+export function StatCard({ label, value, detail }: any) {
   return (
     <article className="metric-card">
       <span className="metric-label">{label}</span>
@@ -11,7 +11,7 @@ export function StatCard({ label, value, detail }) {
   );
 }
 
-export function AddressLink({ address, label }) {
+export function AddressLink({ address, label }: any) {
   if (!address || address === EMPTY_ADDRESS) {
     return <span className="inline-muted">{label || "Not set"}</span>;
   }
@@ -23,7 +23,7 @@ export function AddressLink({ address, label }) {
   );
 }
 
-export function ActionButton({ children, disabled, onClick, variant = "primary" }) {
+export function ActionButton({ children, disabled, onClick, variant = "primary" }: any) {
   return (
     <button className={`action-button ${variant}`} disabled={disabled} onClick={onClick} type="button">
       {children}

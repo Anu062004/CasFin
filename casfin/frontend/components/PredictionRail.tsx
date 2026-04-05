@@ -93,7 +93,7 @@ export default function PredictionRail({
                 onChange={(event) =>
                   setCreateMarketForm((current) => ({ ...current, description: event.target.value }))
                 }
-                rows="4"
+                rows={4}
                 value={createMarketForm.description}
               />
             </label>

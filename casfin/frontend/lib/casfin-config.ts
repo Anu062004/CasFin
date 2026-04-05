@@ -1,4 +1,31 @@
-export const CASFIN_CONFIG = {
+interface CasfinConfig {
+  appName: string;
+  chainId: number;
+  chainIdHex: string;
+  chainName: string;
+  explorerBaseUrl: string;
+  publicRpcUrl: string;
+  operatorAddress: string;
+  addresses: {
+    casinoToken: string;
+    stakingPool: string;
+    casinoVault: string;
+    randomnessRouter: string;
+    coinFlipGame: string;
+    diceGame: string;
+    crashGame: string;
+    marketFactory: string;
+    feeDistributor: string;
+    disputeRegistry: string;
+  };
+  predictionDefaults: {
+    disputeWindowHours: number;
+    initialLiquidity: string;
+    outcomes: string;
+  };
+}
+
+export const CASFIN_CONFIG: CasfinConfig = {
   appName: "CasFin",
   chainId: 421614,
   chainIdHex: "0x66eee",
@@ -25,7 +52,7 @@ export const CASFIN_CONFIG = {
   }
 };
 
-export function buildExplorerUrl(kind, value) {
+export function buildExplorerUrl(kind: string, value?: string | null): string {
   if (!value) {
     return "#";
   }

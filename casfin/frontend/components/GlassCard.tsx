@@ -8,7 +8,7 @@ export default function GlassCard({
   stagger = 0,
   style,
   title
-}) {
+}: any) {
   const classes = ["glass-card", "stagger-card", className].filter(Boolean).join(" ");
   const mergedStyle = { "--stagger-index": stagger, ...style };
   const hasHeader = eyebrow || title || description || action;

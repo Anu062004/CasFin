@@ -6,7 +6,7 @@ export default function GlassInput({
   inputClassName = "",
   label,
   ...props
-}) {
+}: any) {
   const Element = as;
   const fieldClassName = ["glass-field", className].filter(Boolean).join(" ");
   const controlClassName = [

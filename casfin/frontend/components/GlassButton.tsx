@@ -7,7 +7,7 @@ export default function GlassButton({
   size = "md",
   variant = "primary",
   ...props
-}) {
+}: any) {
   const classes = [
     "glass-button",
     `is-${variant}`,

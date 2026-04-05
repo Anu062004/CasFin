@@ -117,7 +117,7 @@ export default function MarketCard({
                   style={{
                     width: `${Math.max(outcomeShare, outcomeShare > 0 ? 8 : 0)}%`,
                     "--outcome-color": OUTCOME_COLORS[index % OUTCOME_COLORS.length]
-                  }}
+                  } as React.CSSProperties}
                 />
               </div>
               <p className="outcome-copy">

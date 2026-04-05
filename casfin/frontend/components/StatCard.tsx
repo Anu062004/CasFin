@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import GlassCard from "@/components/GlassCard";
 
-export default function StatCard({ className = "", detail, label, stagger = 0, value }) {
+export default function StatCard({ className = "", detail, label, stagger = 0, value }: any) {
   const [flashing, setFlashing] = useState(false);
 
   useEffect(() => {
