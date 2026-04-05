@@ -1,0 +1,19 @@
+[
+  "function allow(uint256,address)",
+  "function allowGlobal(uint256)",
+  "function allowTransient(uint256,address)",
+  "function createDecryptTask(uint256,address)",
+  "function createRandomTask(uint8,uint256,int32) returns (uint256)",
+  "function createTask(uint8,uint8,uint256[],uint256[]) returns (uint256)",
+  "function getDecryptResult(uint256) view returns (uint256)",
+  "function getDecryptResultSafe(uint256) view returns (uint256, bool)",
+  "function isAllowed(uint256,address) returns (bool)",
+  "function isPubliclyAllowed(uint256) view returns (bool)",
+  "function publishDecryptResult(uint256,uint256,bytes)",
+  "function publishDecryptResultBatch(uint256[],uint256[],bytes[])",
+  "function verifyDecryptResult(uint256,uint256,bytes) view returns (bool)",
+  "function verifyDecryptResultBatch(uint256[],uint256[],bytes[]) view returns (bool)",
+  "function verifyDecryptResultBatchSafe(uint256[],uint256[],bytes[]) view returns (bool[])",
+  "function verifyDecryptResultSafe(uint256,uint256,bytes) view returns (bool)",
+  "function verifyInput(tuple(uint256,uint8,uint8,bytes),address) returns (uint256)"
+]

@@ -1,0 +1,5 @@
+[
+  "function authorizeGame(address,bool)",
+  "function reserveFunds(address,bytes32) returns (bytes32)",
+  "function settleBet(address,bytes32,bytes32)"
+]

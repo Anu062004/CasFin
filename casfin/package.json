@@ -7,6 +7,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:casino": "hardhat run scripts/deployCasinoStage.js --network arbitrumSepolia",
+    "deploy:fhenix": "hardhat run scripts/deployFhenix.js --network fhenixHelium",
     "deploy:prediction": "hardhat run scripts/deployPredictionStage.js --network arbitrumSepolia",
     "deploy:all": "hardhat run scripts/deployAllStages.js --network arbitrumSepolia",
     "verify": "hardhat verify --network arbitrumSepolia",
@@ -16,6 +17,7 @@
     "frontend:start": "npm --prefix frontend run start"
   },
   "devDependencies": {
+    "@fhenixprotocol/cofhe-contracts": "^0.1.3",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-verify": "^2.0.12",
     "chai": "^4.5.0",

@@ -1,0 +1,4 @@
+[
+  "error InvalidHexCharacter(bytes1)",
+  "error SecurityZoneOutOfBounds(int32)"
+]

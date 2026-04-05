@@ -1,25 +1,29 @@
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import {
-  COIN_FLIP_ABI,
-  CRASH_ABI,
-  DICE_ABI,
+  ENCRYPTED_COIN_FLIP_ABI,
+  ENCRYPTED_CRASH_ABI,
+  ENCRYPTED_DICE_ABI,
+  ENCRYPTED_VAULT_ABI,
   LIQUIDITY_POOL_ABI,
   MARKET_FACTORY_ABI,
   MARKET_RESOLVER_ABI,
   PREDICTION_MARKET_ABI,
-  RANDOMNESS_ROUTER_ABI,
-  VAULT_ABI
+  RANDOMNESS_ROUTER_ABI
 } from "@/lib/casfin-abis";
 
 export const publicProvider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
 export const EMPTY_ADDRESS = ethers.ZeroAddress;
 
 export const EMPTY_CASINO_STATE = {
+  isFhe: false,
   vaultOwner: "",
   vaultBalance: 0n,
   playerBalance: 0n,
   playerLockedBalance: 0n,
+  playerBalanceHandle: null,
+  playerLockedBalanceHandle: null,
+  pendingWithdrawal: null,
   router: {
     owner: "",
     latestRequestId: null,
@@ -182,11 +186,26 @@ export function extractError(error) {
   const message =
     error?.shortMessage ||
     error?.reason ||
+    error?.error?.message ||
     error?.info?.error?.message ||
     error?.message ||
     "Transaction failed.";
 
-  return message.replace("execution reverted: ", "").replace("Error: ", "");
+  const normalizedMessage = message.replace("execution reverted: ", "").replace("Error: ", "");
+
+  if (/insufficient funds/i.test(normalizedMessage)) {
+    return "Insufficient ETH in the connected wallet for the requested amount and gas. Switch MetaMask to a funded account or reduce the amount.";
+  }
+
+  if (/InvalidEncryptedInput|encrypted input proof/i.test(normalizedMessage)) {
+    return "This FHE action needs an encrypted input proof. The current frontend does not generate CoFHE payloads yet.";
+  }
+
+  if (/WITHDRAWAL_PENDING|WIN_FLAG_PENDING/i.test(normalizedMessage)) {
+    return "The encrypted task is still pending at the validator. Wait a bit and try again.";
+  }
+
+  return normalizedMessage;
 }
 
 function mapCoinBet(id, bet) {
@@ -196,12 +215,14 @@ function mapCoinBet(id, bet) {
 
   return {
     id,
-    player: bet.player,
-    lockedAmount: bet.lockedAmount,
-    guessHeads: bet.guessHeads,
-    requestId: bet.requestId,
-    resolved: bet.resolved,
-    won: bet.won
+    player: bet.player ?? bet[0],
+    lockedAmount: bet.lockedAmount ?? 0n,
+    lockedHandle: serializeHandle(bet.lockedHandle ?? bet[1]),
+    guessHeads: bet.guessHeads ?? null,
+    requestId: bet.requestId ?? bet[3],
+    resolved: bet.resolved ?? bet[4],
+    resolutionPending: bet.resolutionPending ?? bet[5] ?? false,
+    won: bet.won ?? bet[7] ?? false
   };
 }
 
@@ -212,13 +233,15 @@ function mapDiceBet(id, bet) {
 
   return {
     id,
-    player: bet.player,
-    lockedAmount: bet.lockedAmount,
-    guess: Number(bet.guess),
-    requestId: bet.requestId,
-    resolved: bet.resolved,
-    rolled: Number(bet.rolled),
-    won: bet.won
+    player: bet.player ?? bet[0],
+    lockedAmount: bet.lockedAmount ?? 0n,
+    lockedHandle: serializeHandle(bet.lockedHandle ?? bet[1]),
+    guess: bet.guess !== undefined ? Number(bet.guess) : null,
+    requestId: bet.requestId ?? bet[3],
+    resolved: bet.resolved ?? bet[4],
+    resolutionPending: bet.resolutionPending ?? bet[5] ?? false,
+    rolled: Number(bet.rolled ?? bet[7] ?? 0),
+    won: bet.won ?? bet[8] ?? false
   };
 }
 
@@ -229,10 +252,10 @@ function mapCrashRound(id, round) {
 
   return {
     id,
-    exists: round.exists,
-    requestId: round.requestId,
-    crashMultiplierBps: Number(round.crashMultiplierBps),
-    closed: round.closed
+    exists: round.exists ?? round[0],
+    requestId: round.requestId ?? round[1],
+    crashMultiplierBps: Number(round.crashMultiplierBps ?? round[2]),
+    closed: round.closed ?? round[3]
   };
 }
 
@@ -242,12 +265,21 @@ function mapCrashPlayerBet(bet) {
   }
 
   return {
-    lockedAmount: bet.lockedAmount,
-    cashOutMultiplierBps: Number(bet.cashOutMultiplierBps),
-    exists: bet.exists,
-    settled: bet.settled,
-    won: bet.won
+    lockedAmount: 0n,
+    lockedHandle: serializeHandle(bet.lockedHandle ?? bet[0]),
+    cashOutMultiplierBps: Number(bet.cashOutMultiplierBps ?? bet[1]),
+    exists: bet.exists ?? bet[3],
+    settled: bet.settled ?? bet[4],
+    won: bet.won ?? bet[5]
   };
+}
+
+function serializeHandle(handle) {
+  if (!handle) {
+    return null;
+  }
+
+  return typeof handle === "string" ? handle : ethers.hexlify(handle);
 }
 
 function getLatestRequestMeta(latestCoinBet, latestDiceBet, latestCrashRound) {
@@ -271,21 +303,19 @@ function getLatestRequestMeta(latestCoinBet, latestDiceBet, latestCrashRound) {
 }
 
 export async function loadCasinoState(currentAccount) {
-  const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, VAULT_ABI, publicProvider);
+  const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, publicProvider);
   const router = new ethers.Contract(CASFIN_CONFIG.addresses.randomnessRouter, RANDOMNESS_ROUTER_ABI, publicProvider);
-  const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, COIN_FLIP_ABI, publicProvider);
-  const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, DICE_ABI, publicProvider);
-  const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, CRASH_ABI, publicProvider);
+  const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, publicProvider);
+  const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, publicProvider);
+  const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, publicProvider);
 
   const [
     vaultOwner,
     vaultBalance,
     routerOwner,
     coinHouseEdgeBps,
-    coinMaxBetAmount,
     coinNextBetId,
     diceHouseEdgeBps,
-    diceMaxBetAmount,
     diceNextBetId,
     crashNextRoundId,
     crashMaxCashOutMultiplierBps
@@ -294,10 +324,8 @@ export async function loadCasinoState(currentAccount) {
     publicProvider.getBalance(CASFIN_CONFIG.addresses.casinoVault),
     router.owner(),
     coin.houseEdgeBps(),
-    coin.maxBetAmount(),
     coin.nextBetId(),
     dice.houseEdgeBps(),
-    dice.maxBetAmount(),
     dice.nextBetId(),
     crash.nextRoundId(),
     crash.maxCashOutMultiplierBps()
@@ -315,19 +343,29 @@ export async function loadCasinoState(currentAccount) {
   const latestRequestMeta = getLatestRequestMeta(latestCoinBet, latestDiceBet, latestCrashRound);
   const rawLatestRequest = latestRequestMeta ? await router.requests(latestRequestMeta.requestId) : null;
 
-  const [playerBalance, playerLockedBalance, latestCrashPlayerBet] = currentAccount
+  const [playerBalanceHandle, playerLockedBalanceHandle, pendingWithdrawal, latestCrashPlayerBet] = currentAccount
     ? await Promise.all([
-        vault.balanceOf(currentAccount),
-        vault.lockedBalanceOf(currentAccount),
+        vault.getEncryptedBalance.staticCall({ from: currentAccount }),
+        vault.getEncryptedLockedBalance.staticCall({ from: currentAccount }),
+        vault.getPendingWithdrawal.staticCall({ from: currentAccount }),
         latestCrashRound ? crash.playerBets(latestCrashRound.id, currentAccount) : Promise.resolve(null)
       ])
-    : [0n, 0n, null];
+    : [null, null, null, null];
 
   return {
+    isFhe: true,
     vaultOwner,
     vaultBalance,
-    playerBalance,
-    playerLockedBalance,
+    playerBalance: 0n,
+    playerLockedBalance: 0n,
+    playerBalanceHandle: serializeHandle(playerBalanceHandle),
+    playerLockedBalanceHandle: serializeHandle(playerLockedBalanceHandle),
+    pendingWithdrawal: pendingWithdrawal
+      ? {
+          amountHandle: serializeHandle(pendingWithdrawal[0]),
+          exists: pendingWithdrawal[1]
+        }
+      : null,
     router: {
       owner: routerOwner,
       latestRequestId: latestRequestMeta?.requestId ?? null,
@@ -343,13 +381,13 @@ export async function loadCasinoState(currentAccount) {
     },
     coin: {
       houseEdgeBps: Number(coinHouseEdgeBps),
-      maxBetAmount: coinMaxBetAmount,
+      maxBetAmount: 0n,
       nextBetId: coinNextBetId,
       latestBet: latestCoinBet
     },
     dice: {
       houseEdgeBps: Number(diceHouseEdgeBps),
-      maxBetAmount: diceMaxBetAmount,
+      maxBetAmount: 0n,
       nextBetId: diceNextBetId,
       latestBet: latestDiceBet
     },
