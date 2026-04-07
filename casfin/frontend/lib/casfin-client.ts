@@ -224,6 +224,10 @@ export function extractError(error) {
     return "The CoFHE session is not connected. Reconnect the wallet on Arbitrum Sepolia and try again.";
   }
 
+  if (/CoFHE client failed to initialize within timeout|encrypted CoFHE session is still loading|Initializing CoFHE|Warming encrypted session/i.test(normalizedMessage)) {
+    return "The encrypted CoFHE session is still initializing. Wait a moment for TFHE to finish booting, then try again.";
+  }
+
   if (/InvalidEncryptedInput|encrypted input proof/i.test(normalizedMessage)) {
     return "This FHE action needs a valid encrypted CoFHE proof from the connected wallet session.";
   }

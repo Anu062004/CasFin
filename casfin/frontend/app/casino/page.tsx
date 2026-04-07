@@ -15,7 +15,12 @@ import { useCofhe } from "@/lib/cofhe-provider";
 type CasinoSection = "coin" | "dice" | "crash";
 
 export default function CasinoPage() {
-  const { connected: cofheConnected, ready: cofheReady } = useCofhe();
+  const {
+    connected: cofheConnected,
+    ready: cofheReady,
+    sessionReady: cofheSessionReady,
+    sessionInitializing: cofheSessionInitializing
+  } = useCofhe();
   const {
     account,
     casinoLoadError,
@@ -46,9 +51,13 @@ export default function CasinoPage() {
     ? "Not connected"
     : !isCorrectChain
       ? "Switch required"
-      : cofheConnected
+      : cofheSessionReady
         ? "Ready"
-        : cofheReady
+        : cofheSessionInitializing
+          ? "Initializing TFHE"
+          : cofheConnected
+            ? "Warming up"
+            : cofheReady
           ? "Starting"
           : "Loading";
 

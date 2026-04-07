@@ -223,6 +223,8 @@ export interface WalletContextValue {
   isCorrectChain: boolean;
   isOperator: boolean;
   walletBlocked: boolean;
+  cofheSessionReady: boolean;
+  cofheSessionInitializing: boolean;
   connectWallet: (walletType?: WalletType) => Promise<void>;
   disconnectWallet: () => void;
   ensureTargetNetwork: () => Promise<WalletSnapshot>;

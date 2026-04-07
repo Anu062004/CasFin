@@ -16,7 +16,13 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointsRef = useRef<{ x: number; y: number }[]>([]);
   const frameRef = useRef<number | null>(null);
-  const { encryptUint128, connected: cofheConnected, ready: cofheReady } = useCofhe();
+  const {
+    encryptUint128,
+    connected: cofheConnected,
+    ready: cofheReady,
+    sessionReady: cofheSessionReady,
+    sessionInitializing: cofheSessionInitializing
+  } = useCofhe();
   const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
 
   const latestRound = casinoState.crash.latestRound;
@@ -194,11 +200,15 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
               ? "Connect wallet to play"
               : !isCorrectChain
                 ? "Switch to Arbitrum Sepolia"
-                : !cofheReady
+                : cofheSessionReady
+                  ? "Place crash bet"
+                  : cofheSessionInitializing
+                    ? "Initializing CoFHE..."
+                    : !cofheReady
                   ? "Initializing encrypted session"
                   : !cofheConnected
                     ? "Start encrypted session"
-                    : "Place crash bet"}
+                    : "Warming encrypted session"}
         </button>
       </div>
 

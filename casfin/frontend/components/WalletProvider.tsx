@@ -34,6 +34,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const activeProviderRef = useRef<InjectedEthereumProvider | null>(null);
   const cofheReadyRef = useRef(false);
   const cofheConnectedRef = useRef(false);
+  const cofheSessionReadyRef = useRef(false);
   const providerListenersRef = useRef<{
     provider: InjectedEthereumProvider | null;
     handleAccountsChanged: ((accounts: string[]) => Promise<void>) | null;
@@ -43,7 +44,15 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     handleAccountsChanged: null,
     handleChainChanged: null
   });
-  const { connect: connectCofhe, disconnect: disconnectCofhe, ready: cofheReady, connected: cofheConnected } = useCofhe();
+  const {
+    connect: connectCofhe,
+    disconnect: disconnectCofhe,
+    ready: cofheReady,
+    connected: cofheConnected,
+    sessionReady: cofheSessionReady,
+    sessionInitializing: cofheSessionInitializing,
+    ensureSessionReady: ensureCofheSessionReady
+  } = useCofhe();
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [account, setAccount] = useState("");
   const [walletBalance, setWalletBalance] = useState(0n);
@@ -232,7 +241,8 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     cofheReadyRef.current = cofheReady;
     cofheConnectedRef.current = cofheConnected;
-  }, [cofheConnected, cofheReady]);
+    cofheSessionReadyRef.current = cofheSessionReady;
+  }, [cofheConnected, cofheReady, cofheSessionReady]);
 
   const waitForCofheReady = useCallback(async (timeoutMs = 5000) => {
     if (cofheReadyRef.current) {
@@ -287,13 +297,19 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       if (cofheConnectedRef.current) {
+        if (!cofheSessionReadyRef.current) {
+          pushStatus("Finalizing the encrypted CoFHE session for this wallet.", "info");
+          await ensureCofheSessionReady();
+        }
+
         return;
       }
 
       pushStatus("Starting the encrypted CoFHE session for this wallet.", "info");
       await connectCofheSession(provider, nextAccount);
+      await ensureCofheSessionReady();
     },
-    [account, chainId, connectCofheSession]
+    [account, chainId, connectCofheSession, ensureCofheSessionReady]
   );
 
   async function ensureWalletNetworkConfig(provider: InjectedEthereumProvider) {
@@ -621,12 +637,12 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       await loadProtocolState(readySnapshot.account);
 
       if (readySnapshot.account && readySnapshot.chainId === CASFIN_CONFIG.chainId) {
-        await connectCofheSession(provider, readySnapshot.account);
+        await ensureEncryptedSession(readySnapshot.account);
       }
 
       pushStatus(
         readySnapshot.account
-          ? `Wallet connected on ${CASFIN_CONFIG.chainName}. Write actions unlocked.`
+          ? `Wallet connected on ${CASFIN_CONFIG.chainName}. Encrypted actions are ready.`
           : "Connection cancelled.",
         readySnapshot.account ? "success" : "warning"
       );
@@ -675,8 +691,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setPendingAction(label);
-    pushStatus(`${label} is preparing your encrypted request. Approve it in MetaMask when prompted.`, "info");
+    pushStatus(`Preparing ${label.toLowerCase()} on ${CASFIN_CONFIG.chainName}.`, "info");
 
     try {
       const walletSnapshot = await refreshWalletState({ loadProtocol: false, requestAccounts: true });
@@ -685,7 +700,9 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error("No wallet account is connected in MetaMask.");
       }
 
-      const nextAccount = (await ensureTargetNetwork()).account || walletSnapshot.account;
+      const networkSnapshot =
+        walletSnapshot.chainId === CASFIN_CONFIG.chainId ? walletSnapshot : await ensureTargetNetwork();
+      const nextAccount = networkSnapshot.account || walletSnapshot.account;
       const provider = activeProviderRef.current;
 
       if (!provider) {
@@ -693,12 +710,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       await ensureWalletBalance(provider, nextAccount);
-      try {
-        await connectCofheSession(provider, nextAccount);
-      } catch (error) {
-        logBackgroundWalletError(`Failed to refresh CoFHE session for ${label}.`, error);
-      }
+      await ensureEncryptedSession(nextAccount);
 
+      setPendingAction(label);
+      pushStatus(`${label} is ready. Approve it in MetaMask when prompted.`, "info");
       const browserProvider = new ethers.BrowserProvider(provider);
       const signer = await browserProvider.getSigner(nextAccount);
       const transaction = await handler(createValidatedSigner(signer, label));
@@ -766,11 +781,24 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    connectCofheSession(activeProviderRef.current, account).catch((error) => {
+    if (cofheSessionReady || cofheSessionInitializing) {
+      return;
+    }
+
+    ensureEncryptedSession(account).catch((error) => {
       console.error("[WalletProvider] Failed to connect CoFHE session.", error);
       pushStatus("Wallet connected, but the encrypted session could not start. Refresh the wallet connection and try again.", "warning");
     });
-  }, [account, chainId, cofheConnected, cofheReady, connectCofheSession, disconnectCofhe]);
+  }, [
+    account,
+    chainId,
+    cofheConnected,
+    cofheReady,
+    cofheSessionInitializing,
+    cofheSessionReady,
+    disconnectCofhe,
+    ensureEncryptedSession
+  ]);
 
   useEffect(() => {
     loadProtocolState(account).catch((error) => {
@@ -800,7 +828,9 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const isConnected = Boolean(account);
   const isCorrectChain = chainId === CASFIN_CONFIG.chainId;
   const isOperator = Boolean(account) && account.toLowerCase() === CASFIN_CONFIG.operatorAddress.toLowerCase();
-  const walletBlocked = Boolean(pendingAction);
+  const walletBlocked =
+    Boolean(pendingAction)
+    || (isConnected && isCorrectChain && (!cofheSessionReady || cofheSessionInitializing));
 
   return (
     <WalletContext.Provider
@@ -813,6 +843,8 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         isCorrectChain,
         isOperator,
         walletBlocked,
+        cofheSessionReady,
+        cofheSessionInitializing,
         connectWallet,
         disconnectWallet,
         ensureTargetNetwork,

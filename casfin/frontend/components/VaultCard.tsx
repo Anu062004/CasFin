@@ -23,7 +23,7 @@ export default function VaultCard({
   setVaultForm,
   stagger = 0,
   vaultForm,
-  walletBlocked: _walletBlocked
+  walletBlocked
 }) {
   const { decryptForView, encryptUint128, FheTypes, connected: cofheConnected } = useCofhe();
   const { connectWallet, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
@@ -43,7 +43,7 @@ export default function VaultCard({
         : `${formatEth(casinoState.playerBalance)} ETH`;
   const lockedBalanceLabel = usesEncryptedVault ? "Encrypted" : `${formatEth(casinoState.playerLockedBalance)} ETH`;
   const hasPendingWithdrawal = Boolean(casinoState.pendingWithdrawal?.exists);
-  const actionsBusy = Boolean(pendingAction);
+  const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked);
 
   async function ensureWalletActionReady(context: string) {
     try {
