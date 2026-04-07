@@ -1,437 +1,141 @@
-# CasFin
+# CasFin: The Next-Generation Encrypted Web3 Casino
 
-CasFin is a multi-rail onchain finance project that combines:
+CasFin is a cutting-edge, fully on-chain Web3 casino and prediction market platform. Moving beyond traditional "provably fair" platforms, CasFin integrates **Fully Homomorphic Encryption (FHE)** via the Fhenix protocol to ensure that gameplay, player balances, and the resolution of wagers remain entirely private from external observers on the blockchain.
 
-- a prediction market protocol with factory-based market deployment, AMM pricing, LP shares, resolver flows, and dispute handling
-- a casino protocol with a shared vault, staking, and randomness-driven games such as coin flip, dice, and crash
-- an encrypted FHE-oriented casino rail built around Fhenix-compatible contracts and keeper-assisted resolution
-- a unified Next.js frontend for wallet connection, live protocol reads, and transaction flows
+## Why CasFin? The Problem With Web3 Casinos
 
-The project targets Arbitrum Sepolia for the main application flow and includes deployment artifacts for both transparent and encrypted casino rails.
+In traditional Web3 casinos on transparent blockchains (like Ethereum or Arbitrum), everything is public:
+- **Public Balances:** Anyone can scan a wallet to see how much liquidity a player has.
+- **Public Bets:** The asset wagered, the multiplier targeting, and the specific gamestate of an active bet are visible to MEV bots and analytical tools.
+- **Predatory Tracking:** Trackers can copy or socially engineer frequent winners and high-rollers based on on-chain analytics.
 
-## What The Project Includes
+**CasFin solves this.** By utilizing Fhenix and the **CoFHE (Client-side FHE)** SDK, player deposits and wagers are submitted entirely as encrypted states (`eUint128`, `eUint32`). Smart contracts perform computations over these encrypted states without decrypting them. Data is only decrypted on the client side via the CoFHE SDK when a user's local wallet authorizes the session.
 
-CasFin is not a single contract. It is a full-stack repo with:
+---
 
-- Solidity contracts for markets, casino games, vaults, fees, disputes, staking, and token issuance
-- Hardhat deployment and verification scripts
-- keeper processes for post-randomness settlement flows
-- a frontend application in Next.js
-- generated ABI exports consumed directly by the frontend
-- checked-in deployment outputs under `deployments/`
+## What We Built: Core Protocol Features
 
-## Core Product Rails
+### 1. FHE-Encrypted Casino Games
+Powered by Fhenix-compatible contracts, all bets, randomness outcomes, and payouts are calculated confidentially:
+- **Dark Coin Flip:** Pick heads or tails via an encrypted `eUint8` wager. 
+- **Encrypted Dice:** Choose your payout multiplier and roll under a target without the mempool knowing your strategy.
+- **Confidential Crash:** Escalate your multiplier without revealing your cash-out target to anyone.
 
-### 1. Prediction Markets
+### 2. The Unified Encrypted Vault
+Instead of approving ERC20 or native ETH for every single bet, players deposit into the `EncryptedCasinoVault`. 
+- **One Balance:** Deposit once, and use that encrypted aggregate balance across all games.
+- **Private Withdrawal:** Withdraw requests are initiated while balances remain encrypted, ensuring no mid-flight frontrunning. 
 
-The prediction rail supports:
+### 3. Asynchronous Resolution (Keepers)
+Since FHE calculations are complex, randomness distribution relies on an async 2-transaction architecture.
+- Users submit an encrypted game input.
+- A Node.js backend "Keeper Bot" listens to events, checks randomness conditions, and calls the `finalize(encGameId)` function to compute the outcome and payout on-chain.
 
-- factory-driven market creation
-- outcome-based AMM trading
-- LP capital provisioning
-- manual or oracle-backed resolution patterns
-- dispute registration and settlement
-- fee distribution across protocol participants
+### 4. Transparent Prediction Markets
+CasFin also hosts a factory-deployed prediction market system allowing manual/oracle-driven AMM markets:
+- Market Factory for frictionless deployment.
+- Automated Market Maker (AMM) logic for LP pools.
+- Dispute Registries & Fee Distributors.
 
-Main contracts:
+---
 
-- `contracts/MarketFactory.sol`
-- `contracts/PredictionMarket.sol`
-- `contracts/MarketAMM.sol`
-- `contracts/LiquidityPool.sol`
-- `contracts/MarketResolver.sol`
-- `contracts/FeeDistributor.sol`
-- `contracts/DisputeRegistry.sol`
+## The "Midnight Nebula" UX/UI Design System
 
-### 2. Transparent Casino
+CasFin isn't just technologically advanced—it features a premium, startup-grade UI. 
+- **Global Cinematic Video Background:** A looping, deep-space cinematic background layered underneath the application.
+- **Glassmorphism Components:** All cards, game panels, and navigation items are rendered using semi-transparent CSS (`rgba(...)` with `backdrop-filter: blur(18px)`), allowing the video background to dynamically bleed through the layout. 
+- **Fhenix Data Visualizer:** Glowing CSS animations provide a visual pulse for the "Fhenix Engine", communicating the complex cryptography happening under the hood to the user gracefully.
 
-The transparent casino rail supports:
+---
 
-- a shared user vault
-- locked-balance accounting per active bet
-- coin flip, dice, and crash gameplay
-- staking and reward notification hooks
-- randomness through a router abstraction
+## Technology Stack
 
-Main contracts:
+- **Smart Contracts:** Solidity `^0.8.24` (Hardhat framework)
+- **Encryption Engine:** Fhenix Protocol, TFHE library, `fhEVM`
+- **Frontend App:** Next.js 15 (App Router), React 19, TypeScript
+- **Web3 Integrations:** Ethers v6, Wagmi, RainbowKit, CoFHE SDK
+- **Backend Keepers:** Node.js, `ts-node` for asynchronous contract interaction
+- **Network:** Designed for Arbitrum Sepolia
 
-- `contracts/casino/CasinoVault.sol`
-- `contracts/casino/CasinoRandomnessRouter.sol`
-- `contracts/casino/ChainlinkVRFAdapter.sol`
-- `contracts/games/CoinFlipGame.sol`
-- `contracts/games/DiceGame.sol`
-- `contracts/games/CrashGame.sol`
-- `contracts/token/CasinoToken.sol`
-- `contracts/staking/StakingPool.sol`
-
-### 3. Encrypted FHE Casino
-
-The encrypted rail is intended for FHE-compatible flows where user balances and bet inputs can be represented as encrypted handles rather than plain Solidity values.
-
-Main contracts:
-
-- `contracts/fhenix/EncryptedCasinoVault.sol`
-- `contracts/fhenix/EncryptedCoinFlip.sol`
-- `contracts/fhenix/EncryptedDiceGame.sol`
-- `contracts/fhenix/EncryptedCrashGame.sol`
-
-This rail also includes:
-
-- frontend helpers for encrypted-state reads
-- a dedicated FHE keeper process for request/finalize resolution handling
+---
 
 ## Repository Structure
 
 ```text
 casfin/
 |- contracts/          Solidity contracts for all protocol rails
-|- scripts/            Hardhat deployment and orchestration scripts
-|- keeper/             Runtime settlement/automation processes
+|- scripts/            Hardhat deployment scripts
+|- keeper/             Runtime Node.js keepers for FHE async settlement
 |- test/               Hardhat test suite
-|- frontend/           Next.js application
-|- deployments/        Checked-in deployment output JSON files
-|- subgraph/           Indexing-related workspace
-|- hardhat.config.ts   Hardhat configuration
-`- package.json        Root scripts for compile, test, deploy, and frontend ops
+|- frontend/           Next.js 15 application + CoFHE React context
+|- hardhat.config.ts   Hardhat environment
+|- .env.example        Environment requirements
 ```
 
-## Frontend
+---
 
-The frontend lives in `frontend/` and is now TypeScript-based.
+## Local Development Workflow
 
-It includes:
+### 1. Installation
 
-- app-router pages for landing, casino, predictions, and wallet
-- typed client helpers for protocol reads
-- wallet/provider state management
-- generated ABI consumption from `frontend/lib/generated-abis/`
-- UI flows for prediction markets, casino vault actions, and encrypted casino status
-
-Primary frontend technologies:
-
-- Next.js 15
-- React 19
-- TypeScript
-- Ethers v6
-- Wagmi
-- RainbowKit
-
-## Tooling And Language Setup
-
-The repo now uses TypeScript across:
-
-- frontend pages, components, and client helpers
-- Hardhat config
-- deployment scripts
-- keeper scripts
-- tests
-
-Root runtime helpers for TypeScript execution:
-
-- `ts-node`
-- `tsx`
-- `typescript`
-
-Frontend TypeScript config:
-
-- `frontend/tsconfig.json`
-- `frontend/next-env.d.ts`
-- `frontend/global.d.ts`
-- `frontend/lib/casfin-types.ts`
-
-Root TypeScript config:
-
-- `tsconfig.json`
-
-## Local Development
-
-### Install Root Dependencies
-
+Install standard repo dependencies and frontend libraries.
 ```bash
 npm install
-```
-
-### Install Frontend Dependencies
-
-```bash
 npm --prefix frontend install
 ```
 
-### Compile Contracts
+### 2. Compiling the Protocol
 
+Compiling the contracts automatically runs ABI extraction scripts sending the necessary types/ABIs directly into the `frontend/lib/generated-abis/` folder so the Next.js app stays perfectly synced with the solidity layout.
 ```bash
 npm run compile
 ```
 
-On compile, ABI artifacts are exported automatically into:
+### 3. Environment Setup
 
-```text
-frontend/lib/generated-abis/
-```
+* **Root Variables (Hardhat & Keepers)**: Create `.env` using `.env.example` as a template. You need an `ARBITRUM_SEPOLIA_RPC_URL` (Infura is recommended for stability) and a `PRIVATE_KEY` for deployment/keeper operations.
+* **Frontend Variables**: Create `frontend/.env.local`. Set `NEXT_PUBLIC_ARB_SEPOLIA_RPC_URL` and map the deployed contract addresses (Vault, CoinFlip, Dice, etc.) to the respective environment variables.
 
-### Run Tests
+### 4. Running the Ecosystem 
 
-```bash
-npm test
-```
+You will need two terminal tabs open simultaneously for the casino to function locally:
 
-### Run Frontend
-
+**Tab 1 - The Web App:**
 ```bash
 npm run frontend:dev
 ```
+Application will boot up at `http://localhost:3000`.
 
-### Build Frontend
-
-```bash
-npm run frontend:build
-```
-
-## Environment Variables
-
-Use `.env` for root Hardhat, keeper, and deployment settings.
-
-Minimum root network values:
-
-```bash
-ARBITRUM_SEPOLIA_RPC_URL=
-PRIVATE_KEY=
-ARBISCAN_API_KEY=
-```
-
-### Casino / VRF Deployment Variables
-
-```bash
-FORCE_MANUAL_ROUTER=false
-VRF_COORDINATOR_ADDRESS=
-VRF_KEY_HASH=
-VRF_SUBSCRIPTION_ID=
-VRF_REQUEST_CONFIRMATIONS=3
-VRF_CALLBACK_GAS_LIMIT=250000
-VRF_NUM_WORDS=1
-VRF_NATIVE_PAYMENT=true
-```
-
-### Prediction Deployment Variables
-
-```bash
-PREDICTION_OWNER_ADDRESS=
-PREDICTION_TREASURY_ADDRESS=
-PREDICTION_APPROVED_CREATOR_ADDRESS=
-PREDICTION_MIN_DISPUTE_BOND_ETH=0.1
-PREDICTION_PLATFORM_FEE_BPS=100
-PREDICTION_LP_FEE_BPS=50
-PREDICTION_RESOLVER_FEE_BPS=50
-PREDICTION_STAKING_POOL_ADDRESS=
-PREDICTION_STAKING_SHARE_BPS=0
-```
-
-### Transparent Keeper Variables
-
-```bash
-CASINO_RANDOMNESS_ROUTER_ADDRESS=
-COIN_FLIP_GAME_ADDRESS=
-DICE_GAME_ADDRESS=
-CRASH_GAME_ADDRESS=
-KEEPER_POLL_MS=15000
-KEEPER_CRASH_PLAYERS=
-```
-
-### Encrypted / FHE Keeper Variables
-
-```bash
-ENCRYPTED_COIN_FLIP_ADDRESS=
-ENCRYPTED_DICE_GAME_ADDRESS=
-ENCRYPTED_CRASH_GAME_ADDRESS=
-ENCRYPTED_CASINO_RANDOMNESS_ROUTER_ADDRESS=
-FHE_COIN_FLIP_ADDRESS=
-FHE_DICE_ADDRESS=
-FHE_CRASH_ADDRESS=
-KEEPER_POLL_MS=15000
-KEEPER_RESOLUTION_DELAY_MS=30000
-KEEPER_CRASH_PLAYERS=
-```
-
-### Frontend Variables
-
-Frontend runtime values are read from `frontend/.env.local`.
-
-Examples used in the frontend code include:
-
-```bash
-NEXT_PUBLIC_ARB_SEPOLIA_RPC_URL=
-NEXT_PUBLIC_ARB_SEPOLIA_CHAIN_ID=421614
-NEXT_PUBLIC_FHE_VAULT_ADDRESS=
-NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS=
-NEXT_PUBLIC_FHE_DICE_ADDRESS=
-NEXT_PUBLIC_FHE_CRASH_ADDRESS=
-```
-
-## Deployment Scripts
-
-### Casino Stage
-
-Deploy the transparent casino rail:
-
-```bash
-npm run deploy:casino
-```
-
-This deploys:
-
-- `CasinoToken`
-- `StakingPool`
-- `CasinoVault`
-- a randomness router
-- `CoinFlipGame`
-- `DiceGame`
-- `CrashGame`
-
-### Prediction Stage
-
-Deploy the prediction infrastructure:
-
-```bash
-npm run deploy:prediction
-```
-
-This deploys:
-
-- implementation contracts
-- `MarketFactory`
-- fee/dispute clone endpoints
-- optional creator approval and staking share config
-
-### Full Stack
-
-Deploy both rails together:
-
-```bash
-npm run deploy:all
-```
-
-### FHE Casino Deployment
-
-Deploy the encrypted casino contracts:
-
-```bash
-npm run deploy:fhenix
-```
-
-## Keepers
-
-### Transparent Keeper
-
-Runs the transparent casino settlement loop:
-
-```bash
-npm run keeper:start
-```
-
-Responsibilities:
-
-- polls randomness readiness
-- resolves pending coin flip bets
-- resolves pending dice bets
-- closes crash rounds when randomness is ready
-- settles tracked crash player bets
-
-### FHE Keeper
-
-Runs the encrypted resolution loop:
-
+**Tab 2 - The FHE Keeper Bot:**
+Without the Keeper, your bets will sit in a "pending" requested state indefinitely. The Keeper distributes randomness and finalizes the encrypted state.
 ```bash
 npm run keeper:start:fhe
 ```
 
-Responsibilities:
+---
 
-- requests encrypted bet resolution after randomness is available
-- waits for the configured resolution delay
-- finalizes encrypted resolutions
-- closes encrypted crash rounds
-- settles tracked encrypted crash player bets
+## Deployment Stages
 
-## Deployment Artifacts
+Ensure `PRIVATE_KEY` has enough Arbitrum Sepolia ETH before deploying.
 
-Deployment outputs are written to:
-
-```text
-deployments/<network>/
+**1. Vanilla / Transparent Stage** (Predictions & Legacy Casino)
+```bash
+npm run deploy:prediction
+npm run deploy:casino
 ```
 
-Current checked-in examples include:
-
-- `deployments/arbitrumSepolia/casino-stage.json`
-- `deployments/arbitrumSepolia/full-stack.json`
-- `deployments/arbitrumSepolia/fhe-casino.json`
-- `deployments/hardhat/full-stack.json`
-- `deployments/hardhat/prediction-stage.json`
-
-These files record:
-
-- deployed addresses
-- tx hashes
-- gas usage
-- factory clone addresses
-- configuration transactions
-
-## ABI Export Strategy
-
-Contract ABIs are exported via `hardhat-abi-exporter` into:
-
-```text
-frontend/lib/generated-abis/
+**2. Fhenix Encrypted Architecture**
+Deploys the `EncryptedCasinoVault` and all encrypted game channels.
+```bash
+npm run deploy:fhenix
 ```
 
-This allows the frontend and keeper utilities to stay aligned with the Solidity code in the same repository.
+All successful testnet/mainnet deployments save JSON snapshots inside the `deployments/<network>/` directory so you can trace addresses and logic hashes easily.
 
-## Security And Privacy Notes
+---
 
-### Transparent Rail
+## Security Scope
 
-The transparent prediction and casino rails do not provide privacy.
-
-Assume the following are public:
-
-- balances
-- bets
-- shares
-- market state
-- resolver actions
-- fee flows
-
-### Encrypted Rail
-
-The encrypted FHE rail is intended to reduce plaintext exposure for selected user values, but it still depends on:
-
-- correct FHE-compatible contract usage
-- offchain or client-generated encrypted payloads
-- keeper/finalization flows
-- network and integration maturity
-
-The current frontend includes encrypted-state awareness, but full encrypted input generation is still a separate concern from standard transparent transaction flows.
-
-## Project Status
-
-CasFin currently includes:
-
-- checked-in deployment artifacts
-- a TypeScript frontend
-- TypeScript deployment, keeper, and test entrypoints
-- prediction market infrastructure
-- transparent casino infrastructure
-- encrypted casino contracts and related operational scripts
-
-## Suggested Workflow For Contributors
-
-1. Install root and frontend dependencies.
-2. Configure `.env` and `frontend/.env.local`.
-3. Compile contracts to refresh ABIs.
-4. Run tests.
-5. Launch the frontend.
-6. Use deployment scripts only after network credentials and randomness configuration are set correctly.
-
-## License / Usage
-
-No explicit license file is included in this repository snapshot. Treat usage, redistribution, and commercial handling as undefined until a project license is added.
+* **Transparent Markets:** Predictions and legacy casino systems are explicitly public.
+* **Encrypted Casino:** Protects the inputs/balances via Fully Homomorphic Encryption. **Important restriction:** Because CoFHE is actively developing, handling decryption relies on wallet/local security. Ensure proper CORS and domain allowances in production for keychain usage. 
+* *Note: This codebase is unaudited and intended as an advanced demonstration of FHE application infrastructure.*
