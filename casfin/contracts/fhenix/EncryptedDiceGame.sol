@@ -4,9 +4,9 @@ pragma solidity ^0.8.25;
 import {Ownable} from "../base/Ownable.sol";
 import {Pausable} from "../base/Pausable.sol";
 import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
-import {ICasinoRandomnessRouter} from "../interfaces/ICasinoRandomnessRouter.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
+import {GameRandomnessLib} from "./GameRandomness.sol";
 import {FHE, InEuint128, InEuint8, TASK_MANAGER_ADDRESS, ebool, euint8, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
 
@@ -15,16 +15,15 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         address player;
         euint128 lockedHandle;
         euint8 encGuess;
-        uint256 requestId;
+        euint8 rolledHandle;
         bool resolved;
         bool resolutionPending;
         ebool pendingWonFlag;
-        uint8 rolled;
         bool won;
+        uint8 rolled;
     }
 
     IEncryptedCasinoVault public immutable vault;
-    ICasinoRandomnessRouter public immutable randomnessRouter;
     uint16 public immutable houseEdgeBps;
 
     uint256 public nextBetId;
@@ -36,18 +35,16 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
     euint128 private ENCRYPTED_BPS_DENOMINATOR;
     euint128 private ENCRYPTED_NET_PAYOUT_BPS;
 
-    event EncryptedDiceBetPlaced(uint256 indexed betId, address indexed player, uint256 indexed requestId);
-    event ResolutionRequested(uint256 indexed betId, address indexed player, uint8 rolled);
+    event EncryptedDiceBetPlaced(uint256 indexed betId, address indexed player);
+    event ResolutionRequested(uint256 indexed betId, address indexed player);
     event EncryptedDiceBetResolved(uint256 indexed betId, address indexed player, uint8 rolled, bool won);
 
-    constructor(address initialOwner, address vaultAddress, address routerAddress, uint16 initialHouseEdgeBps) {
+    constructor(address initialOwner, address vaultAddress, uint16 initialHouseEdgeBps) {
         require(vaultAddress != address(0), "ZERO_VAULT");
-        require(routerAddress != address(0), "ZERO_RANDOMNESS");
         require(initialHouseEdgeBps < MathLib.BPS_DENOMINATOR, "BAD_HOUSE_EDGE");
 
         _initializeOwner(initialOwner);
         vault = IEncryptedCasinoVault(vaultAddress);
-        randomnessRouter = ICasinoRandomnessRouter(routerAddress);
         houseEdgeBps = initialHouseEdgeBps;
 
         // Dice reuses encrypted zero for failed reserves and losing payouts.
@@ -81,12 +78,19 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
     {
         // The guess is verified to be in range [1,6] homomorphically - no plaintext check needed
         euint8 requestedGuess = FHE.asEuint8(encGuess);
-        ebool guessAbove0 = FHE.gte(requestedGuess, FHE.asEuint8(1));
-        ebool guessBelow7 = FHE.lte(requestedGuess, FHE.asEuint8(6));
+        euint8 one = FHE.asEuint8(1);
+        FHE.allowThis(one);
+        euint8 six = FHE.asEuint8(6);
+        FHE.allowThis(six);
+        ebool guessAbove0 = FHE.gte(requestedGuess, one);
+        FHE.allowThis(guessAbove0);
+        ebool guessBelow7 = FHE.lte(requestedGuess, six);
+        FHE.allowThis(guessBelow7);
         // Safe guess: out-of-range inputs collapse to 1 (valid auto-correction)
         ebool validGuess = FHE.and(guessAbove0, guessBelow7);
+        FHE.allowThis(validGuess);
         // The encrypted range check chooses the stored guess without revealing whether correction was needed.
-        euint8 safeGuess = FHE.select(validGuess, requestedGuess, FHE.asEuint8(1));
+        euint8 safeGuess = FHE.select(validGuess, requestedGuess, one);
         // The game must retain access to the encrypted guess for later resolution
         FHE.allowThis(safeGuess);
 
@@ -94,29 +98,29 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         euint128 requestedAmount = FHE.asEuint128(encAmount);
         // The vault needs access to consume the encrypted amount during reserveFunds.
         FHE.allow(requestedAmount, address(vault));
+        euint8 rolledHandle = GameRandomnessLib.randomDiceRoll();
 
         euint128 lockedHandle = vault.reserveFunds(msg.sender, requestedAmount);
-        uint256 requestId = randomnessRouter.requestRandomness(keccak256("ENCRYPTED_DICE"));
 
         betId = nextBetId++;
         bets[betId] = EncryptedBet({
             player: msg.sender,
             lockedHandle: lockedHandle,
             encGuess: safeGuess,
-            requestId: requestId,
+            rolledHandle: rolledHandle,
             resolved: false,
             resolutionPending: false,
             // WARNING: Zero-handle - must never be read via FHE.getDecryptResultSafe
             // unless resolutionPending is true. The guard in finalizeResolution enforces this.
             pendingWonFlag: ebool.wrap(bytes32(0)),
-            rolled: 0,
-            won: false
+            won: false,
+            rolled: 0
         });
 
         // The game must retain access to the stored encrypted stake for later payout settlement.
         FHE.allowThis(lockedHandle);
 
-        emit EncryptedDiceBetPlaced(betId, msg.sender, requestId);
+        emit EncryptedDiceBetPlaced(betId, msg.sender);
     }
 
     function requestResolution(uint256 betId) external nonReentrant whenNotPaused onlyResolver {
@@ -125,22 +129,14 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         require(!bet.resolved, "BET_RESOLVED");
         require(!bet.resolutionPending, "RESOLUTION_PENDING");
 
-        (uint256 randomWord, bool ready) = randomnessRouter.getRandomness(bet.requestId);
-        require(ready, "RANDOMNESS_PENDING");
-
-        uint8 rolled = uint8(randomWord % 6) + 1;
-        bet.rolled = rolled;
-        // Compare the revealed plaintext roll to the encrypted guess homomorphically
-        euint8 encRolled = FHE.asEuint8(rolled);
-        ebool encWonFlag = FHE.eq(bet.encGuess, encRolled);
-        // The game must retain access to the stored encrypted win flag for later finalization.
+        ebool encWonFlag = FHE.eq(bet.encGuess, bet.rolledHandle);
         FHE.allowThis(encWonFlag);
         bet.pendingWonFlag = encWonFlag;
         bet.resolutionPending = true;
-        // The CoFHE runtime needs an explicit decrypt task so the result can be fetched in a later transaction.
         _requestDecrypt(encWonFlag);
+        _requestDecrypt(bet.rolledHandle);
 
-        emit ResolutionRequested(betId, bet.player, rolled);
+        emit ResolutionRequested(betId, bet.player);
     }
 
     function finalizeResolution(uint256 betId) external nonReentrant whenNotPaused onlyResolver {
@@ -152,6 +148,8 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         // The contract retrieves the decrypted win flag only after the earlier decrypt task has completed.
         (bool won, bool decrypted) = FHE.getDecryptResultSafe(bet.pendingWonFlag);
         require(decrypted, "WIN_FLAG_PENDING");
+        (uint8 rolled, bool rollReady) = FHE.getDecryptResultSafe(bet.rolledHandle);
+        require(rollReady, "ROLL_PENDING");
 
         // Winning returns start from the encrypted 6x gross payout.
         euint128 grossReturn = FHE.mul(bet.lockedHandle, ENCRYPTED_SIX);
@@ -170,8 +168,9 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         bet.resolved = true;
         bet.resolutionPending = false;
         bet.won = won;
+        bet.rolled = rolled;
 
-        emit EncryptedDiceBetResolved(betId, bet.player, bet.rolled, won);
+        emit EncryptedDiceBetResolved(betId, bet.player, rolled, won);
     }
 
     function setResolver(address resolver, bool allowed) external onlyOwner {
@@ -198,5 +197,9 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
     function _requestDecrypt(ebool value) internal {
         // The CoFHE runtime needs an explicit decrypt task so the result can be fetched in a later transaction.
         ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(ebool.unwrap(value))), address(this));
+    }
+
+    function _requestDecrypt(euint8 value) internal {
+        ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(euint8.unwrap(value))), address(this));
     }
 }

@@ -1,0 +1,5 @@
+[
+  "function getPriceNoOlderThan(bytes32,uint256) view returns (tuple(int64,uint64,int32,uint256))",
+  "function getUpdateFee(bytes[]) view returns (uint256)",
+  "function updatePriceFeeds(bytes[]) payable"
+]

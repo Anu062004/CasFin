@@ -3,13 +3,12 @@ const { ethers } = require("ethers");
 const encryptedCoinFlipAbi = require("../frontend/lib/generated-abis/EncryptedCoinFlip.json");
 const encryptedDiceAbi = require("../frontend/lib/generated-abis/EncryptedDiceGame.json");
 const encryptedCrashAbi = require("../frontend/lib/generated-abis/EncryptedCrashGame.json");
+const encryptedPredictionMarketAbi = require("../frontend/lib/generated-abis/EncryptedPredictionMarket.json");
+const encryptedMarketFactoryAbi = require("../frontend/lib/generated-abis/EncryptedMarketFactory.json");
+const encryptedMarketResolverAbi = require("../frontend/lib/generated-abis/EncryptedMarketResolver.json");
 
-const ROUTER_ABI = [
-  "function getRandomness(uint256 requestId) view returns (uint256 randomWord, bool ready)"
-];
-
-const provider = new ethers.JsonRpcProvider(process.env.ARBITRUM_SEPOLIA_RPC_URL);
-const signer = new ethers.Wallet(process.env.PRIVATE_KEY || "", provider);
+const provider = new ethers.JsonRpcProvider(process.env.FHENIX_RPC_URL || "https://api.helium.fhenix.zone");
+const signer = new ethers.Wallet(process.env.FHENIX_PRIVATE_KEY || process.env.PRIVATE_KEY || "", provider);
 
 const pollIntervalMs = Number(process.env.KEEPER_POLL_MS || 15000);
 const resolutionDelayMs = Number(process.env.KEEPER_RESOLUTION_DELAY_MS || 30000);
@@ -17,17 +16,18 @@ const trackedCrashPlayers = (process.env.KEEPER_CRASH_PLAYERS || "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const configuredPredictionMarkets = (process.env.ENCRYPTED_MARKET_ADDRESSES || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 const resolutionRequestedAt = new Map();
 
-function requiredEnvAny(...names) {
-  for (const name of names) {
-    const value = process.env[name];
-    if (value) {
-      return value;
-    }
+function optionalContract(address, abi) {
+  if (!address || !ethers.isAddress(address) || address === ethers.ZeroAddress) {
+    return null;
   }
 
-  throw new Error(`Missing required environment variable: ${names.join(" or ")}`);
+  return new ethers.Contract(address, abi, signer);
 }
 
 function sleep(ms) {
@@ -41,7 +41,6 @@ function formatError(error) {
 function getBetState(bet) {
   return {
     player: bet[0],
-    requestId: bet[3],
     resolved: bet[4],
     resolutionPending: bet[5],
     won: bet[7] ?? bet[8] ?? false
@@ -49,30 +48,31 @@ function getBetState(bet) {
 }
 
 async function buildContracts() {
-  const coinFlip = new ethers.Contract(
-    requiredEnvAny("ENCRYPTED_COIN_FLIP_ADDRESS", "FHE_COIN_FLIP_ADDRESS"),
-    encryptedCoinFlipAbi,
-    signer
+  const coinFlip = optionalContract(
+    process.env.ENCRYPTED_COIN_FLIP_ADDRESS || process.env.FHE_COIN_FLIP_ADDRESS,
+    encryptedCoinFlipAbi
   );
-  const dice = new ethers.Contract(
-    requiredEnvAny("ENCRYPTED_DICE_GAME_ADDRESS", "FHE_DICE_ADDRESS"),
-    encryptedDiceAbi,
-    signer
+  const dice = optionalContract(
+    process.env.ENCRYPTED_DICE_GAME_ADDRESS || process.env.FHE_DICE_ADDRESS,
+    encryptedDiceAbi
   );
-  const crash = new ethers.Contract(
-    requiredEnvAny("ENCRYPTED_CRASH_GAME_ADDRESS", "FHE_CRASH_ADDRESS"),
-    encryptedCrashAbi,
-    signer
+  const crash = optionalContract(
+    process.env.ENCRYPTED_CRASH_GAME_ADDRESS || process.env.FHE_CRASH_ADDRESS,
+    encryptedCrashAbi
   );
-  const routerAddress = process.env.ENCRYPTED_CASINO_RANDOMNESS_ROUTER_ADDRESS
-    || process.env.CASINO_RANDOMNESS_ROUTER_ADDRESS
-    || await coinFlip.randomnessRouter();
-  const router = new ethers.Contract(routerAddress, ROUTER_ABI, signer);
+  const predictionFactory = optionalContract(
+    process.env.ENCRYPTED_PREDICTION_FACTORY_ADDRESS || process.env.FHE_MARKET_FACTORY_ADDRESS,
+    encryptedMarketFactoryAbi
+  );
 
-  return { coinFlip, dice, crash, router, routerAddress };
+  return { coinFlip, dice, crash, predictionFactory };
 }
 
-async function processEncryptedBets(label, game, router) {
+async function processEncryptedBets(label, game) {
+  if (!game) {
+    return;
+  }
+
   const nextBetId = await game.nextBetId();
 
   for (let betId = 0n; betId < nextBetId; betId += 1n) {
@@ -87,11 +87,6 @@ async function processEncryptedBets(label, game, router) {
       }
 
       if (!bet.resolutionPending) {
-        const [, ready] = await router.getRandomness(bet.requestId);
-        if (!ready) {
-          continue;
-        }
-
         const tx = await game.requestResolution(betId);
         console.log(`[${label}] requestResolution(${betId}) -> ${tx.hash}`);
         await tx.wait();
@@ -122,35 +117,58 @@ async function processEncryptedBets(label, game, router) {
   }
 }
 
-async function processCrashRounds(contracts) {
-  const nextRoundId = await contracts.crash.nextRoundId();
+async function processCrashRounds(crash) {
+  if (!crash) {
+    return;
+  }
+
+  const nextRoundId = await crash.nextRoundId();
 
   for (let roundId = 0n; roundId < nextRoundId; roundId += 1n) {
+    const requestKey = `Crash:${roundId.toString()}`;
+
     try {
-      const round = await contracts.crash.rounds(roundId);
+      const round = await crash.rounds(roundId);
       const exists = round[0];
-      const requestId = round[1];
-      const closed = round[3];
+      const closeRequested = round[2];
+      const closed = round[4];
 
       if (!exists) {
         continue;
       }
 
+      if (!closeRequested) {
+        const tx = await crash.closeRound(roundId);
+        console.log(`[Crash] closeRound(${roundId}) -> ${tx.hash}`);
+        await tx.wait();
+        resolutionRequestedAt.set(requestKey, Date.now());
+        continue;
+      }
+
       if (!closed) {
-        const [, ready] = await contracts.router.getRandomness(requestId);
-        if (!ready) {
+        if (!resolutionRequestedAt.has(requestKey)) {
+          resolutionRequestedAt.set(requestKey, Date.now());
           continue;
         }
 
-        const tx = await contracts.crash.closeRound(roundId);
-        console.log(`[Crash] closeRound(${roundId}) -> ${tx.hash}`);
-        await tx.wait();
-        continue;
+        if (Date.now() - resolutionRequestedAt.get(requestKey) < resolutionDelayMs) {
+          continue;
+        }
+
+        try {
+          const tx = await crash.finalizeRound(roundId);
+          console.log(`[Crash] finalizeRound(${roundId}) -> ${tx.hash}`);
+          await tx.wait();
+          resolutionRequestedAt.delete(requestKey);
+        } catch (error) {
+          console.log(`[Crash] finalizeRound(${roundId}) pending: ${formatError(error)}`);
+          continue;
+        }
       }
 
       for (const player of trackedCrashPlayers) {
         try {
-          const bet = await contracts.crash.playerBets(roundId, player);
+          const bet = await crash.playerBets(roundId, player);
           const existsForPlayer = bet[3];
           const settled = bet[4];
 
@@ -158,7 +176,7 @@ async function processCrashRounds(contracts) {
             continue;
           }
 
-          const tx = await contracts.crash.settleBet(roundId, player);
+          const tx = await crash.settleBet(roundId, player);
           console.log(`[Crash] settleBet(${roundId}, ${player}) -> ${tx.hash}`);
           await tx.wait();
         } catch (error) {
@@ -171,26 +189,121 @@ async function processCrashRounds(contracts) {
   }
 }
 
+async function getPredictionMarketAddresses(predictionFactory) {
+  const addresses = new Set(configuredPredictionMarkets);
+
+  if (predictionFactory) {
+    const totalMarkets = Number(await predictionFactory.totalMarkets());
+
+    for (let index = 0; index < totalMarkets; index += 1) {
+      addresses.add(await predictionFactory.allMarkets(index));
+    }
+  }
+
+  return [...addresses].filter((value) => ethers.isAddress(value) && value !== ethers.ZeroAddress);
+}
+
+async function processPredictionMarkets(predictionFactory) {
+  const marketAddresses = await getPredictionMarketAddresses(predictionFactory);
+
+  for (const marketAddress of marketAddresses) {
+    const market = new ethers.Contract(marketAddress, encryptedPredictionMarketAbi, signer);
+
+    try {
+      const [resolvesAt, resolved, resolverAddress, nextPositionId] = await Promise.all([
+        market.resolvesAt(),
+        market.resolved(),
+        market.resolver(),
+        market.nextPositionId()
+      ]);
+
+      if (!resolved && Number(resolvesAt) <= Math.floor(Date.now() / 1000)) {
+        try {
+          const resolver = new ethers.Contract(resolverAddress, encryptedMarketResolverAbi, signer);
+          const tx = await resolver.requestResolution();
+          console.log(`[Prediction] requestResolution(${marketAddress}) -> ${tx.hash}`);
+          await tx.wait();
+        } catch (error) {
+          console.log(`[Prediction] requestResolution(${marketAddress}) skipped: ${formatError(error)}`);
+        }
+      }
+
+      for (let positionId = 0n; positionId < nextPositionId; positionId += 1n) {
+        const requestKey = `Prediction:${marketAddress}:${positionId.toString()}`;
+
+        try {
+          const position = await market.positions(positionId);
+          const player = position[0];
+          const claimRequested = position[4];
+          const claimed = position[5];
+
+          if (!player || player === ethers.ZeroAddress || claimed) {
+            resolutionRequestedAt.delete(requestKey);
+            continue;
+          }
+
+          if (!claimRequested) {
+            resolutionRequestedAt.delete(requestKey);
+            continue;
+          }
+
+          if (!resolutionRequestedAt.has(requestKey)) {
+            resolutionRequestedAt.set(requestKey, Date.now());
+            continue;
+          }
+
+          if (Date.now() - resolutionRequestedAt.get(requestKey) < resolutionDelayMs) {
+            continue;
+          }
+
+          try {
+            const tx = await market.finalizeClaimWinnings(positionId);
+            console.log(`[Prediction] finalizeClaimWinnings(${marketAddress}, ${positionId}) -> ${tx.hash}`);
+            await tx.wait();
+            resolutionRequestedAt.delete(requestKey);
+          } catch (error) {
+            console.log(
+              `[Prediction] finalizeClaimWinnings(${marketAddress}, ${positionId}) pending: ${formatError(error)}`
+            );
+          }
+        } catch (error) {
+          console.error(`[Prediction] market ${marketAddress} position ${positionId} failed: ${formatError(error)}`);
+        }
+      }
+    } catch (error) {
+      console.error(`[Prediction] market ${marketAddress} failed: ${formatError(error)}`);
+    }
+  }
+}
+
 async function tick(contracts) {
-  await processEncryptedBets("CoinFlip", contracts.coinFlip, contracts.router);
-  await processEncryptedBets("Dice", contracts.dice, contracts.router);
-  await processCrashRounds(contracts);
+  await processEncryptedBets("CoinFlip", contracts.coinFlip);
+  await processEncryptedBets("Dice", contracts.dice);
+  await processCrashRounds(contracts.crash);
+  await processPredictionMarkets(contracts.predictionFactory);
 }
 
 async function main() {
-  if (!process.env.PRIVATE_KEY || process.env.PRIVATE_KEY === "your_private_key_here") {
-    throw new Error("Set PRIVATE_KEY before starting the FHE keeper.");
+  if (
+    (!process.env.PRIVATE_KEY || process.env.PRIVATE_KEY === "your_private_key_here")
+    && (!process.env.FHENIX_PRIVATE_KEY || process.env.FHENIX_PRIVATE_KEY === "your_private_key_here")
+  ) {
+    throw new Error("Set PRIVATE_KEY or FHENIX_PRIVATE_KEY before starting the FHE keeper.");
   }
 
   const contracts = await buildContracts();
 
   console.log("CasFin FHE keeper started");
   console.log("Signer:", await signer.getAddress());
-  console.log("RPC:", process.env.ARBITRUM_SEPOLIA_RPC_URL);
-  console.log("Router:", contracts.routerAddress);
-  console.log("CoinFlip:", contracts.coinFlip.target);
-  console.log("Dice:", contracts.dice.target);
-  console.log("Crash:", contracts.crash.target);
+  console.log("RPC:", process.env.FHENIX_RPC_URL || "https://api.helium.fhenix.zone");
+  console.log("CoinFlip:", contracts.coinFlip?.target || "not configured");
+  console.log("Dice:", contracts.dice?.target || "not configured");
+  console.log("Crash:", contracts.crash?.target || "not configured");
+  console.log("Prediction Factory:", contracts.predictionFactory?.target || "not configured");
+  console.log(
+    "Explicit prediction markets:",
+    configuredPredictionMarkets.length > 0 ? configuredPredictionMarkets.join(", ") : "none"
+  );
   console.log("Poll interval (ms):", pollIntervalMs);
   console.log("Resolution delay (ms):", resolutionDelayMs);
   console.log("Tracked crash players:", trackedCrashPlayers.length > 0 ? trackedCrashPlayers.join(", ") : "none");

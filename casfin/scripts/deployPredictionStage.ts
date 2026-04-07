@@ -13,6 +13,10 @@ const {
 } = require("./deployUtils");
 
 async function main() {
+  if (network.name !== "arbitrumSepolia") {
+    throw new Error("RUN_WITH_ARBITRUM_SEPOLIA_NETWORK");
+  }
+
   const [deployer] = await ethers.getSigners();
   const owner = getRequiredAddress(ethers, "PREDICTION_OWNER_ADDRESS", deployer.address);
   const treasury = getRequiredAddress(ethers, "PREDICTION_TREASURY_ADDRESS", deployer.address);
@@ -27,7 +31,8 @@ async function main() {
   const minDisputeBond = getBigIntWeiFromEth(ethers, "PREDICTION_MIN_DISPUTE_BOND_ETH", "0.1");
   const stakingShareBps = getNumber("PREDICTION_STAKING_SHARE_BPS", 0);
 
-  console.log("Deploying prediction stage from:", deployer.address);
+  console.log("Deploying encrypted prediction stage from:", deployer.address);
+  console.log("Network:", network.name);
   console.log("Owner:", owner);
   console.log("Treasury:", treasury);
 
@@ -35,26 +40,26 @@ async function main() {
   for (const name of [
     "FeeDistributor",
     "DisputeRegistry",
-    "MarketAMM",
-    "LiquidityPool",
-    "PredictionMarket",
-    "MarketResolver"
+    "EncryptedMarketAMM",
+    "EncryptedLiquidityPool",
+    "EncryptedPredictionMarket",
+    "EncryptedMarketResolver"
   ]) {
     implementations[name] = await deployContract(ethers, name);
     console.log(`${name} implementation:`, implementations[name].address);
   }
 
-  const factory = await deployContract(ethers, "MarketFactory", [
+  const factory = await deployContract(ethers, "EncryptedMarketFactory", [
     owner,
     treasury,
     feeConfig,
     minDisputeBond,
     implementations.FeeDistributor.address,
     implementations.DisputeRegistry.address,
-    implementations.MarketAMM.address,
-    implementations.LiquidityPool.address,
-    implementations.PredictionMarket.address,
-    implementations.MarketResolver.address
+    implementations.EncryptedMarketAMM.address,
+    implementations.EncryptedLiquidityPool.address,
+    implementations.EncryptedPredictionMarket.address,
+    implementations.EncryptedMarketResolver.address
   ]);
 
   const configTxs = {};
@@ -77,7 +82,7 @@ async function main() {
 
   const feeDistributor = await factory.contract.feeDistributor();
   const disputeRegistry = await factory.contract.disputeRegistry();
-  const marketFactoryArtifact = await artifacts.readArtifact("MarketFactory");
+  const marketFactoryArtifact = await artifacts.readArtifact("EncryptedMarketFactory");
   const runtimeBytes = (marketFactoryArtifact.deployedBytecode.length - 2) / 2;
   const verification = await verifyMany(hre, [...Object.values(implementations), factory]);
 

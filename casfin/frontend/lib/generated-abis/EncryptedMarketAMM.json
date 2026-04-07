@@ -1,0 +1,19 @@
+[
+  "constructor()",
+  "error SecurityZoneOutOfBounds(int32)",
+  "event OwnershipTransferStarted(address indexed,address indexed)",
+  "event OwnershipTransferred(address indexed,address indexed)",
+  "event PoolBound(address indexed)",
+  "function acceptOwnership()",
+  "function bindPool(address)",
+  "function encPreviewBuy(uint8,bytes32,bytes32[]) returns (bytes32)",
+  "function encPreviewSell(uint8,bytes32,bytes32[]) returns (bytes32)",
+  "function initialize(address,uint256,uint256,uint256)",
+  "function outcomeCount() view returns (uint256)",
+  "function owner() view returns (address)",
+  "function pendingOwner() view returns (address)",
+  "function pool() view returns (address)",
+  "function spreadBps() view returns (uint256)",
+  "function transferOwnership(address)",
+  "function virtualLiquidityFloor() view returns (uint256)"
+]

@@ -4,9 +4,9 @@ pragma solidity ^0.8.25;
 import {Ownable} from "../base/Ownable.sol";
 import {Pausable} from "../base/Pausable.sol";
 import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
-import {ICasinoRandomnessRouter} from "../interfaces/ICasinoRandomnessRouter.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
+import {GameRandomnessLib} from "./GameRandomness.sol";
 import {FHE, InEbool, InEuint128, TASK_MANAGER_ADDRESS, ebool, euint8, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
 
@@ -15,7 +15,7 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         address player;
         euint128 lockedHandle;
         ebool encGuessHeads;
-        uint256 requestId;
+        ebool outcomeHeads;
         bool resolved;
         bool resolutionPending;
         ebool pendingWonFlag;
@@ -23,7 +23,6 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
     }
 
     IEncryptedCasinoVault public immutable vault;
-    ICasinoRandomnessRouter public immutable randomnessRouter;
     uint16 public immutable houseEdgeBps;
 
     uint256 public nextBetId;
@@ -35,18 +34,16 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
     euint128 private ENCRYPTED_BPS_DENOMINATOR;
     euint128 private ENCRYPTED_NET_PAYOUT_BPS;
 
-    event EncryptedBetPlaced(uint256 indexed betId, address indexed player, uint256 indexed requestId);
+    event EncryptedBetPlaced(uint256 indexed betId, address indexed player);
     event ResolutionRequested(uint256 indexed betId, address indexed player);
     event EncryptedBetResolved(uint256 indexed betId, address indexed player, bool won);
 
-    constructor(address initialOwner, address vaultAddress, address routerAddress, uint16 initialHouseEdgeBps) {
+    constructor(address initialOwner, address vaultAddress, uint16 initialHouseEdgeBps) {
         require(vaultAddress != address(0), "ZERO_VAULT");
-        require(routerAddress != address(0), "ZERO_RANDOMNESS");
         require(initialHouseEdgeBps < MathLib.BPS_DENOMINATOR, "BAD_HOUSE_EDGE");
 
         _initializeOwner(initialOwner);
         vault = IEncryptedCasinoVault(vaultAddress);
-        randomnessRouter = ICasinoRandomnessRouter(routerAddress);
         houseEdgeBps = initialHouseEdgeBps;
 
         // Coin flip reuses encrypted zero for failed reserves and losing payouts.
@@ -85,16 +82,16 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         ebool encryptedGuess = FHE.asEbool(encGuessHeads);
         // The game must retain access to the stored encrypted guess for later resolution.
         FHE.allowThis(encryptedGuess);
+        ebool outcomeHeads = GameRandomnessLib.randomCoinFlip();
 
         euint128 lockedHandle = vault.reserveFunds(msg.sender, requestedAmount);
-        uint256 requestId = randomnessRouter.requestRandomness(keccak256("ENCRYPTED_COIN_FLIP"));
 
         betId = nextBetId++;
         bets[betId] = EncryptedBet({
             player: msg.sender,
             lockedHandle: lockedHandle,
             encGuessHeads: encryptedGuess,
-            requestId: requestId,
+            outcomeHeads: outcomeHeads,
             resolved: false,
             resolutionPending: false,
             // WARNING: Zero-handle - must never be read via FHE.getDecryptResultSafe
@@ -106,7 +103,7 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         // The game must retain access to the stored encrypted stake for later payout settlement.
         FHE.allowThis(lockedHandle);
 
-        emit EncryptedBetPlaced(betId, msg.sender, requestId);
+        emit EncryptedBetPlaced(betId, msg.sender);
     }
 
     function requestResolution(uint256 betId) external nonReentrant whenNotPaused onlyResolver {
@@ -114,14 +111,11 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         require(bet.player != address(0), "UNKNOWN_BET");
         require(!bet.resolved, "BET_RESOLVED");
         require(!bet.resolutionPending, "RESOLUTION_PENDING");
-
-        (uint256 randomWord, bool ready) = randomnessRouter.getRandomness(bet.requestId);
-        require(ready, "RANDOMNESS_PENDING");
-
-        ebool outcomeHeads = FHE.asEbool(randomWord % 2 == 0);
         // Cast booleans to euint8 for comparison since FHE.eq(ebool, ebool) may not be available.
         euint8 guessAsUint = FHE.asEuint8(bet.encGuessHeads);
-        euint8 outcomeAsUint = FHE.asEuint8(outcomeHeads);
+        FHE.allowThis(guessAsUint);
+        euint8 outcomeAsUint = FHE.asEuint8(bet.outcomeHeads);
+        FHE.allowThis(outcomeAsUint);
         ebool encWonFlag = FHE.eq(guessAsUint, outcomeAsUint);
         // The game must retain access to the stored encrypted win flag for later finalization.
         FHE.allowThis(encWonFlag);

@@ -4,15 +4,17 @@ pragma solidity ^0.8.25;
 import {Ownable} from "../base/Ownable.sol";
 import {Pausable} from "../base/Pausable.sol";
 import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
-import {ICasinoRandomnessRouter} from "../interfaces/ICasinoRandomnessRouter.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
-import {FHE, InEuint128, ebool, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {GameRandomnessLib} from "./GameRandomness.sol";
+import {FHE, InEuint128, TASK_MANAGER_ADDRESS, ebool, euint32, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
 
 contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
     struct Round {
         bool exists;
-        uint256 requestId;
+        euint32 crashMultiplierHandle;
+        bool closeRequested;
         uint32 crashMultiplierBps;
         bool closed;
     }
@@ -29,10 +31,9 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
     uint32 public constant MIN_CASHOUT_BPS = 11_000;
 
     IEncryptedCasinoVault public immutable vault;
-    ICasinoRandomnessRouter public immutable randomnessRouter;
     uint16 public immutable houseEdgeBps;
 
-    uint32 public maxCashOutMultiplierBps = 50_000;
+    uint32 public maxCashOutMultiplierBps;
     uint256 public nextRoundId;
 
     mapping(uint256 => Round) public rounds;
@@ -43,21 +44,22 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
     euint128 private ENCRYPTED_BPS_DENOMINATOR;
     euint128 private ENCRYPTED_NET_PAYOUT_BPS;
 
-    event RoundStarted(uint256 indexed roundId, uint256 indexed requestId);
+    event RoundStarted(uint256 indexed roundId);
+    event RoundCloseRequested(uint256 indexed roundId);
     event RoundClosed(uint256 indexed roundId, uint32 crashMultiplierBps);
     event CrashBetPlaced(uint256 indexed roundId, address indexed player);
     event CrashBetSettled(uint256 indexed roundId, address indexed player, bool won);
     event MaxCashOutUpdated(uint32 maxCashOutMultiplierBps);
 
-    constructor(address initialOwner, address vaultAddress, address routerAddress, uint16 initialHouseEdgeBps) {
+    constructor(address initialOwner, address vaultAddress, uint16 initialHouseEdgeBps, uint32 initialMaxCashOutMultiplierBps) {
         require(vaultAddress != address(0), "ZERO_VAULT");
-        require(routerAddress != address(0), "ZERO_RANDOMNESS");
         require(initialHouseEdgeBps < MathLib.BPS_DENOMINATOR, "BAD_HOUSE_EDGE");
+        require(initialMaxCashOutMultiplierBps >= MIN_CASHOUT_BPS, "BAD_MAX_CASHOUT");
 
         _initializeOwner(initialOwner);
         vault = IEncryptedCasinoVault(vaultAddress);
-        randomnessRouter = ICasinoRandomnessRouter(routerAddress);
         houseEdgeBps = initialHouseEdgeBps;
+        maxCashOutMultiplierBps = initialMaxCashOutMultiplierBps;
 
         // Crash reuses encrypted zero for failed reserves and losing payouts.
         ENCRYPTED_ZERO = FHE.asEuint128(0);
@@ -71,6 +73,8 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         ENCRYPTED_NET_PAYOUT_BPS = FHE.asEuint128(MathLib.BPS_DENOMINATOR - initialHouseEdgeBps);
         // The game keeps access because the payout factor is reused in every settlement.
         FHE.allowThis(ENCRYPTED_NET_PAYOUT_BPS);
+
+        emit MaxCashOutUpdated(initialMaxCashOutMultiplierBps);
     }
 
     modifier onlyResolver() {
@@ -86,10 +90,14 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
 
     function startRound() external onlyOwner nonReentrant whenNotPaused returns (uint256 roundId) {
         roundId = nextRoundId++;
-        uint256 requestId = randomnessRouter.requestRandomness(keccak256(abi.encodePacked("ENCRYPTED_CRASH", roundId)));
-
-        rounds[roundId] = Round({exists: true, requestId: requestId, crashMultiplierBps: 0, closed: false});
-        emit RoundStarted(roundId, requestId);
+        rounds[roundId] = Round({
+            exists: true,
+            crashMultiplierHandle: euint32.wrap(bytes32(0)),
+            closeRequested: false,
+            crashMultiplierBps: 0,
+            closed: false
+        });
+        emit RoundStarted(roundId);
     }
 
     function placeBet(uint256 roundId, InEuint128 calldata encAmount, uint32 cashOutMultiplierBps)
@@ -100,6 +108,7 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         Round storage round = rounds[roundId];
         require(round.exists, "UNKNOWN_ROUND");
         require(!round.closed, "ROUND_CLOSED");
+        require(!round.closeRequested, "ROUND_CLOSE_PENDING");
         require(cashOutMultiplierBps >= MIN_CASHOUT_BPS, "BAD_CASHOUT");
         require(cashOutMultiplierBps <= maxCashOutMultiplierBps, "CASHOUT_TOO_HIGH");
         require(!playerBets[roundId][msg.sender].exists, "BET_EXISTS");
@@ -115,8 +124,6 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         // The game must retain access to reuse this during settlement
         FHE.allowThis(encCashOutBps);
 
-        // cashOutMultiplierBps is stored as plaintext internally for gas-efficient settlement comparison.
-        // It is NOT emitted in events to preserve player strategy privacy.
         playerBets[roundId][msg.sender] = PlayerBet({
             lockedHandle: lockedHandle,
             cashOutMultiplierBps: cashOutMultiplierBps,
@@ -138,14 +145,29 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         Round storage round = rounds[roundId];
         require(round.exists, "UNKNOWN_ROUND");
         require(!round.closed, "ROUND_CLOSED");
+        require(!round.closeRequested, "ROUND_CLOSE_PENDING");
 
-        (uint256 randomWord, bool ready) = randomnessRouter.getRandomness(round.requestId);
-        require(ready, "RANDOMNESS_PENDING");
+        euint32 crashMultiplierHandle = GameRandomnessLib.randomCrashMultiplierBps();
+        round.crashMultiplierHandle = crashMultiplierHandle;
+        round.closeRequested = true;
+        _requestDecrypt(crashMultiplierHandle);
+
+        emit RoundCloseRequested(roundId);
+    }
+
+    function finalizeRound(uint256 roundId) external nonReentrant whenNotPaused onlyResolver {
+        Round storage round = rounds[roundId];
+        require(round.exists, "UNKNOWN_ROUND");
+        require(round.closeRequested, "ROUND_CLOSE_NOT_REQUESTED");
+        require(!round.closed, "ROUND_CLOSED");
+
+        (uint32 crashMultiplierBps, bool ready) = FHE.getDecryptResultSafe(round.crashMultiplierHandle);
+        require(ready, "ROUND_PENDING");
 
         round.closed = true;
-        round.crashMultiplierBps = _deriveCrashMultiplier(randomWord);
+        round.crashMultiplierBps = crashMultiplierBps;
 
-        emit RoundClosed(roundId, round.crashMultiplierBps);
+        emit RoundClosed(roundId, crashMultiplierBps);
     }
 
     function settleBet(uint256 roundId, address player) external nonReentrant whenNotPaused onlyResolver {
@@ -165,9 +187,7 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         // Basis-point division keeps the gross return encrypted before house edge is applied.
         euint128 grossReturn = FHE.div(grossNumerator, ENCRYPTED_BPS_DENOMINATOR);
         euint128 winReturn = _applyHouseEdge(grossReturn);
-        // The public win flag is converted into an encrypted selector so payout choice stays inside FHE.select.
         ebool encWon = FHE.asEbool(won);
-        // Losing paths resolve to encrypted zero without branching on ciphertext.
         euint128 returnHandle = FHE.select(encWon, winReturn, ENCRYPTED_ZERO);
 
         // The vault needs access to consume the encrypted return during settlement.
@@ -201,11 +221,7 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         return FHE.div(netNumerator, ENCRYPTED_BPS_DENOMINATOR);
     }
 
-    function _deriveCrashMultiplier(uint256 randomWord) internal pure returns (uint32) {
-        if (randomWord % 25 == 0) {
-            return 10_000;
-        }
-
-        return uint32(10_000 + (((randomWord % 900) + 1) * 100));
+    function _requestDecrypt(euint32 value) internal {
+        ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(euint32.unwrap(value))), address(this));
     }
 }

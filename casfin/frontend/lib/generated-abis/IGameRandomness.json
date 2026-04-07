@@ -1,0 +1,18 @@
+[
+  "function drawCard() returns (bytes32)",
+  "function finalizeWinnerReveal(uint256) returns (address)",
+  "function flipCoin() returns (bytes32)",
+  "function generateBoard(uint8) returns (bytes32[])",
+  "function generateStats() returns (bytes32, bytes32, bytes32)",
+  "function getBoardSize(address) view returns (uint8)",
+  "function getBoardTile(uint256) view returns (bytes32)",
+  "function getLastCoinFlip() view returns (bytes32)",
+  "function getLastDiceRoll() view returns (bytes32)",
+  "function getPlayerCard() view returns (bytes32)",
+  "function getPlayerLoot() view returns (bytes32)",
+  "function getPlayerStats() view returns (bytes32, bytes32, bytes32)",
+  "function pickWinner(address[]) returns (uint256)",
+  "function requestWinnerReveal(uint256)",
+  "function rollDice() returns (bytes32)",
+  "function rollLoot() returns (bytes32)"
+]

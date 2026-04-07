@@ -4,7 +4,8 @@ pragma solidity ^0.8.24;
 library PredictionTypes {
     enum OracleType {
         Manual,
-        Chainlink
+        Chainlink,
+        Pyth
     }
 
     struct FeeConfig {

@@ -9,6 +9,11 @@ const configuredFhenixPrivateKey =
   process.env.FHENIX_PRIVATE_KEY && process.env.FHENIX_PRIVATE_KEY !== "your_private_key_here"
     ? process.env.FHENIX_PRIVATE_KEY
     : null;
+const fhenixAccounts = configuredFhenixPrivateKey
+  ? [configuredFhenixPrivateKey]
+  : configuredPrivateKey
+    ? [configuredPrivateKey]
+    : [];
 
 module.exports = {
   networks: {
@@ -16,17 +21,12 @@ module.exports = {
     arbitrumSepolia: {
       url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
       chainId: 421614,
-      accounts: configuredPrivateKey ? [configuredPrivateKey] : []
+      accounts: fhenixAccounts
     },
     fhenixHelium: {
       url: process.env.FHENIX_RPC_URL || "https://api.helium.fhenix.zone",
       chainId: 8008135,
-      accounts: configuredFhenixPrivateKey ? [configuredFhenixPrivateKey] : []
-    }
-  },
-  etherscan: {
-    apiKey: {
-      arbitrumSepolia: process.env.ARBISCAN_API_KEY || ""
+      accounts: fhenixAccounts
     }
   },
   solidity: {

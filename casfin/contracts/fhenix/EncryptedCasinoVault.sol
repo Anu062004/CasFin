@@ -26,11 +26,11 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     event Deposited(address indexed player);
     event BetSettled(address indexed player);
     event GameAuthorized(address indexed game, bool allowed);
-    event HouseBankrollFunded(address indexed funder, uint256 amount);
+    event HouseBankrollFunded(address indexed funder);
     event WithdrawalRequested(address indexed player);
-    event Withdrawn(address indexed player, uint256 amount);
-    event MaxBetUpdated(uint128 newMaxBetWei);
-    event HouseFundsWithdrawn(address indexed to, uint256 amount);
+    event Withdrawn(address indexed player);
+    event MaxBetUpdated();
+    event HouseFundsWithdrawn(address indexed to);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
@@ -67,7 +67,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
 
     function fundHouseBankroll() external payable onlyOwner whenNotPaused {
         require(msg.value > 0, "ZERO_DEPOSIT");
-        emit HouseBankrollFunded(msg.sender, msg.value);
+        emit HouseBankrollFunded(msg.sender);
     }
 
     function getEncryptedBalance() external view returns (euint128) {
@@ -174,7 +174,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         // The vault must retain access to the updated encrypted limit for later reserve checks.
         ENCRYPTED_MAX_BET = FHE.asEuint128(newMaxBetWei);
         FHE.allowThis(ENCRYPTED_MAX_BET);
-        emit MaxBetUpdated(newMaxBetWei);
+        emit MaxBetUpdated();
     }
 
     function withdrawHouseFunds(uint256 amount) external onlyOwner nonReentrant {
@@ -184,7 +184,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         (bool ok,) = owner.call{value: amount}("");
         require(ok, "TRANSFER_FAILED");
 
-        emit HouseFundsWithdrawn(owner, amount);
+        emit HouseFundsWithdrawn(owner);
     }
 
     function pause() external onlyOwner {
@@ -233,7 +233,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         (bool ok,) = player.call{value: plaintextAmount}("");
         require(ok, "WITHDRAW_TRANSFER_FAILED");
 
-        emit Withdrawn(player, plaintextAmount);
+        emit Withdrawn(player);
     }
 
     receive() external payable {}
