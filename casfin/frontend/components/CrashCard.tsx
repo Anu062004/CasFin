@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_CRASH_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth, parseRequiredInteger, parseCashOutMultiplier, formatMultiplier } from "@/lib/casfin-client";
+import { useCofhe } from "@/lib/cofhe-provider";
 
 const RECENT_ROUNDS_MOCK = [
   { val: "3.21", won: true }, { val: "1.08", won: false }, { val: "7.44", won: true },
@@ -20,6 +21,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
   const canvasRef = useRef(null);
   const pointsRef = useRef([]);
   const frameRef = useRef(null);
+  const { encryptUint128, connected: cofheConnected } = useCofhe();
 
   const latestRound = casinoState.crash.latestRound;
   const roundId = latestRound?.id?.toString() || "—";
@@ -129,20 +131,20 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
           </div>
           <button
             className="game-action-btn crash-action-btn"
-            disabled={walletBlocked || isBetPending || usesEncryptedGame}
+            disabled={walletBlocked || isBetPending || !cofheConnected}
             onClick={() =>
               runTransaction("Place crash bet", async (signer) => {
                 const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
-                void crash;
-                void parseRequiredInteger(roundId, "Round id");
-                void parseRequiredEth(amount, "Crash amount");
-                void parseCashOutMultiplier(cashOutMultiplier);
-                throw new Error("Encrypted crash bets require a signed FHE input proof. This frontend does not generate CoFHE bet payloads yet.");
+                const currentRoundId = parseRequiredInteger(roundId, "Round id");
+                const amountWei = parseRequiredEth(amount, "Crash amount");
+                const targetCashOut = parseCashOutMultiplier(cashOutMultiplier);
+                const encAmount = await encryptUint128(amountWei);
+                return crash.placeBet(currentRoundId, encAmount, targetCashOut);
               })
             }
             type="button"
           >
-            {isBetPending ? "PLACING..." : usesEncryptedGame ? "ENCRYPTED INPUT REQUIRED" : "PLACE BET"}
+            {isBetPending ? "PLACING..." : !cofheConnected ? "CONNECT WALLET" : "PLACE BET"}
           </button>
         </div>
 
@@ -206,7 +208,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
         </div>
       </div>
       {usesEncryptedGame ? (
-        <p className="game-footer-text">Crash round start, close, and settle remain callable. Player bet placement still needs encrypted FHE input payloads.</p>
+        <p className="game-footer-text">Crash bets now submit CoFHE-encrypted stake amounts when the wallet is connected on Arbitrum Sepolia.</p>
       ) : null}
     </div>
   );

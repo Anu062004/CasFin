@@ -45,7 +45,7 @@ export default function HomePage() {
     }, INTRO_FADE_MS);
   }
 
-  function enterApp(route) {
+  function enterApp(route: string) {
     if (appEntered) return;
     setAppEntered(true);
     exitTimerRef.current = window.setTimeout(() => {
@@ -83,15 +83,23 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Content revealed after intro */}
+        {/* 2 buttons revealed after intro — positioned at bottom of screen */}
         <div className={`landing-overlay ${introFinished ? "is-visible" : ""}`}>
           <div className="landing-center-content">
             <div className="landing-actions">
-              <button className="land-btn land-btn-primary" onClick={() => enterApp("/casino")} type="button">
+              <button
+                className="land-btn land-btn-primary"
+                onClick={() => enterApp("/casino")}
+                type="button"
+              >
                 Enter Casino
               </button>
-              <button className="land-btn land-btn-secondary" onClick={() => enterApp("/predictions")} type="button">
-                Explore Predictions
+              <button
+                className="land-btn land-btn-secondary"
+                onClick={() => enterApp("/predictions")}
+                type="button"
+              >
+                Predictions
               </button>
             </div>
           </div>

@@ -4,17 +4,20 @@ import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_COIN_FLIP_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth } from "@/lib/casfin-client";
+import { useCofhe } from "@/lib/cofhe-provider";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 
 export default function CoinFlipCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
   const [amount, setAmount] = useState("0.01");
   const [guessHeads, setGuessHeads] = useState(true);
-  const [resolveBetId, setResolveBetId] = useState("");
   const [isFlipping, setIsFlipping] = useState(false);
+  const { encryptUint128, encryptBool, connected: cofheConnected } = useCofhe();
   const latestBet = casinoState.coin.latestBet;
-  const latestBetId = casinoState.coin.nextBetId > 0n ? (casinoState.coin.nextBetId - 1n).toString() : "0";
-  const usesEncryptedGame = casinoState.isFhe;
+  const resolveBetId = "";
+  const setResolveBetId = (_value?: string) => {};
+  const latestBetId = "0";
+  const usesEncryptedGame = true;
 
   const houseEdge = casinoState.coin.houseEdgeBps ? (Number(casinoState.coin.houseEdgeBps) / 100).toFixed(0) : "2";
   const latestBetStatus = !latestBet
@@ -37,14 +40,18 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
 
   async function handleFlip() {
     setIsFlipping(true);
-    await runTransaction("Place coin flip bet", async (signer) => {
-      const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
-      void coin;
-      void parseRequiredEth(amount, "Bet amount");
-      void guessHeads;
-      throw new Error("Encrypted coin flip bets require a signed FHE input proof. This frontend does not generate CoFHE bet payloads yet.");
-    });
-    setIsFlipping(false);
+
+    try {
+      await runTransaction("Place coin flip bet", async (signer) => {
+        const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
+        const amountWei = parseRequiredEth(amount, "Bet amount");
+        const encAmount = await encryptUint128(amountWei);
+        const encGuess = await encryptBool(guessHeads);
+        return coin.placeBet(encAmount, encGuess);
+      });
+    } finally {
+      setIsFlipping(false);
+    }
   }
 
   const isFlipPending = pendingAction === "Place coin flip bet";
@@ -104,11 +111,11 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
 
       <button
         className="game-action-btn coin-action-btn"
-        disabled={walletBlocked || isFlipPending || usesEncryptedGame}
+        disabled={walletBlocked || isFlipPending || !cofheConnected}
         onClick={handleFlip}
         type="button"
       >
-        {isFlipPending ? "FLIPPING..." : usesEncryptedGame ? "ENCRYPTED INPUT REQUIRED" : "FLIP COIN"}
+        {isFlipPending ? "FLIPPING..." : !cofheConnected ? "CONNECT WALLET" : "FLIP COIN"}
       </button>
 
       <div className="resolve-row">

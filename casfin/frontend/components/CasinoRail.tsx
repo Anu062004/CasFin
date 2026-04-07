@@ -1,3 +1,5 @@
+"use client";
+
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import {
@@ -10,8 +12,14 @@ import {
   parseRequiredEth,
   parseRequiredInteger
 } from "@/lib/casfin-client";
-import { COIN_FLIP_ABI, CRASH_ABI, DICE_ABI, VAULT_ABI } from "@/lib/casfin-abis";
+import {
+  ENCRYPTED_COIN_FLIP_ABI,
+  ENCRYPTED_CRASH_ABI,
+  ENCRYPTED_DICE_ABI,
+  ENCRYPTED_VAULT_ABI
+} from "@/lib/casfin-abis";
 import { ActionButton, AddressLink } from "@/components/ProtocolBits";
+import { useCofhe } from "@/lib/cofhe-provider";
 
 export default function CasinoRail({
   casinoState,
@@ -31,6 +39,8 @@ export default function CasinoRail({
   vaultForm,
   walletBlocked
 }) {
+  const { encryptUint128, encryptUint8, encryptBool, connected: cofheConnected } = useCofhe();
+
   return (
     <div className="rail-grid">
       <section className="stack-column">
@@ -74,8 +84,8 @@ export default function CasinoRail({
                 disabled={walletBlocked}
                 onClick={() =>
                   runTransaction("Vault deposit", async (signer) => {
-                    const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, VAULT_ABI, signer);
-                    return vault.deposit({ value: parseRequiredEth(vaultForm.depositAmount, "Deposit") });
+                    const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
+                    return vault.depositETH({ value: parseRequiredEth(vaultForm.depositAmount, "Deposit") });
                   })
                 }
               >
@@ -91,11 +101,15 @@ export default function CasinoRail({
                 value={vaultForm.withdrawAmount}
               />
               <ActionButton
-                disabled={walletBlocked}
+                disabled={walletBlocked || !cofheConnected}
                 onClick={() =>
                   runTransaction("Withdraw vault balance", async (signer) => {
-                    const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, VAULT_ABI, signer);
-                    return vault.withdraw(parseRequiredEth(vaultForm.withdrawAmount, "Withdrawal"));
+                    const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
+                    const withdrawWei = casinoState.pendingWithdrawal?.exists
+                      ? 0n
+                      : parseRequiredEth(vaultForm.withdrawAmount, "Withdraw amount");
+                    const encAmount = await encryptUint128(withdrawWei);
+                    return vault.withdrawETH(encAmount);
                   })
                 }
               >
@@ -116,7 +130,7 @@ export default function CasinoRail({
                 disabled={walletBlocked}
                 onClick={() =>
                   runTransaction("Fund house bankroll", async (signer) => {
-                    const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, VAULT_ABI, signer);
+                    const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
                     return vault.fundHouseBankroll({ value: parseRequiredEth(vaultForm.bankrollAmount, "Bankroll") });
                   })
                 }
@@ -176,11 +190,14 @@ export default function CasinoRail({
                 </button>
               </div>
               <ActionButton
-                disabled={walletBlocked}
+                disabled={walletBlocked || !cofheConnected}
                 onClick={() =>
                   runTransaction("Place coin flip bet", async (signer) => {
-                    const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, COIN_FLIP_ABI, signer);
-                    return coin.placeBet(parseRequiredEth(coinForm.amount, "Bet amount"), coinForm.guessHeads);
+                    const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
+                    const amountWei = parseRequiredEth(coinForm.amount, "Bet amount");
+                    const encAmount = await encryptUint128(amountWei);
+                    const encGuess = await encryptBool(coinForm.guessHeads);
+                    return coin.placeBet(encAmount, encGuess);
                   })
                 }
               >
@@ -200,8 +217,8 @@ export default function CasinoRail({
                 disabled={walletBlocked}
                 onClick={() =>
                   runTransaction("Resolve coin flip bet", async (signer) => {
-                    const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, COIN_FLIP_ABI, signer);
-                    return coin.resolveBet(parseRequiredInteger(coinForm.resolveBetId || latestCoinBetId, "Bet id"));
+                    const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
+                    return coin.requestResolution(parseRequiredInteger(coinForm.resolveBetId || latestCoinBetId, "Bet id"));
                   })
                 }
                 variant="secondary"
@@ -237,14 +254,20 @@ export default function CasinoRail({
                 value={diceForm.guess}
               />
               <ActionButton
-                disabled={walletBlocked}
+                disabled={walletBlocked || !cofheConnected}
                 onClick={() =>
                   runTransaction("Place dice bet", async (signer) => {
-                    const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, DICE_ABI, signer);
-                    return dice.placeBet(
-                      parseRequiredEth(diceForm.amount, "Bet amount"),
-                      parseRequiredInteger(diceForm.guess, "Guess")
-                    );
+                    const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
+                    const amountWei = parseRequiredEth(diceForm.amount, "Bet amount");
+                    const guessValue = parseRequiredInteger(diceForm.guess, "Guess");
+
+                    if (guessValue < 1 || guessValue > 6) {
+                      throw new Error("Guess must be between 1 and 6.");
+                    }
+
+                    const encAmount = await encryptUint128(amountWei);
+                    const encGuess = await encryptUint8(guessValue);
+                    return dice.placeBet(encAmount, encGuess);
                   })
                 }
               >
@@ -264,8 +287,8 @@ export default function CasinoRail({
                 disabled={walletBlocked}
                 onClick={() =>
                   runTransaction("Resolve dice bet", async (signer) => {
-                    const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, DICE_ABI, signer);
-                    return dice.resolveBet(parseRequiredInteger(diceForm.resolveBetId || latestDiceBetId, "Bet id"));
+                    const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
+                    return dice.requestResolution(parseRequiredInteger(diceForm.resolveBetId || latestDiceBetId, "Bet id"));
                   })
                 }
                 variant="secondary"
@@ -315,7 +338,7 @@ export default function CasinoRail({
                   disabled={walletBlocked}
                   onClick={() =>
                     runTransaction("Start crash round", async (signer) => {
-                      const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, CRASH_ABI, signer);
+                      const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
                       return crash.startRound();
                     })
                   }
@@ -346,15 +369,15 @@ export default function CasinoRail({
                 value={crashForm.cashOutMultiplier}
               />
               <ActionButton
-                disabled={walletBlocked}
+                disabled={walletBlocked || !cofheConnected}
                 onClick={() =>
                   runTransaction("Place crash bet", async (signer) => {
-                    const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, CRASH_ABI, signer);
-                    return crash.placeBet(
-                      parseRequiredInteger(crashForm.roundId || latestCrashRoundId, "Round id"),
-                      parseRequiredEth(crashForm.amount, "Crash amount"),
-                      parseCashOutMultiplier(crashForm.cashOutMultiplier)
-                    );
+                    const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
+                    const roundId = parseRequiredInteger(crashForm.roundId || latestCrashRoundId, "Round id");
+                    const amountWei = parseRequiredEth(crashForm.amount, "Crash amount");
+                    const cashOut = parseCashOutMultiplier(crashForm.cashOutMultiplier);
+                    const encAmount = await encryptUint128(amountWei);
+                    return crash.placeBet(roundId, encAmount, cashOut);
                   })
                 }
               >
@@ -381,7 +404,7 @@ export default function CasinoRail({
                   disabled={walletBlocked}
                   onClick={() =>
                     runTransaction("Close crash round", async (signer) => {
-                      const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, CRASH_ABI, signer);
+                      const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
                       return crash.closeRound(parseRequiredInteger(crashForm.roundId || latestCrashRoundId, "Round id"));
                     })
                   }
@@ -393,7 +416,7 @@ export default function CasinoRail({
                   disabled={walletBlocked || !ethers.isAddress(crashForm.settlePlayer)}
                   onClick={() =>
                     runTransaction("Settle crash bet", async (signer) => {
-                      const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, CRASH_ABI, signer);
+                      const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
                       return crash.settleBet(
                         parseRequiredInteger(crashForm.roundId || latestCrashRoundId, "Round id"),
                         crashForm.settlePlayer

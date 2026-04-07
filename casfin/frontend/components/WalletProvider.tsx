@@ -1,9 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
+import { useCofhe } from "@/lib/cofhe-provider";
 import {
   EMPTY_CASINO_STATE,
   EMPTY_PREDICTION_STATE,
@@ -11,7 +13,8 @@ import {
   formatAddress,
   formatEth,
   loadCasinoState,
-  loadPredictionState
+  loadPredictionState,
+  pollingProvider
 } from "@/lib/casfin-client";
 import type {
   LastTransactionState,
@@ -23,8 +26,10 @@ import type {
 } from "@/lib/casfin-types";
 
 const WalletContext = createContext<WalletContextValue | null>(null);
+const SKIPPED_PROTOCOL_LOAD = Symbol("SKIPPED_PROTOCOL_LOAD");
 
 export default function WalletProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const mountedRef = useRef(true);
   const activeProviderRef = useRef<InjectedEthereumProvider | null>(null);
   const providerListenersRef = useRef<{
@@ -36,12 +41,13 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     handleAccountsChanged: null,
     handleChainChanged: null
   });
+  const { connect: connectCofhe, disconnect: disconnectCofhe, ready: cofheReady, connected: cofheConnected } = useCofhe();
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [account, setAccount] = useState("");
   const [walletBalance, setWalletBalance] = useState(0n);
   const [chainId, setChainId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState("");
-  const [statusMessage, setStatusMessage] = useState("Read-only data is live from Arbitrum Sepolia.");
+  const [statusMessage, setStatusMessage] = useState(`Read-only data is live from ${CASFIN_CONFIG.chainName}.`);
   const [statusTone, setStatusTone] = useState<StatusTone>("info");
   const [statusEventId, setStatusEventId] = useState(0);
   const [lastTransaction, setLastTransaction] = useState<LastTransactionState | null>(null);
@@ -49,6 +55,53 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const [predictionLoadError, setPredictionLoadError] = useState("");
   const [casinoState, setCasinoState] = useState(EMPTY_CASINO_STATE);
   const [predictionState, setPredictionState] = useState(EMPTY_PREDICTION_STATE);
+  const targetChainParams = {
+    chainId: CASFIN_CONFIG.chainIdHex,
+    chainName: CASFIN_CONFIG.chainName,
+    rpcUrls: [CASFIN_CONFIG.walletRpcUrl],
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    blockExplorerUrls: [CASFIN_CONFIG.explorerBaseUrl]
+  };
+
+  function getProtocolScope() {
+    if (!pathname || pathname === "/") {
+      return { shouldLoadCasino: true, shouldLoadPrediction: true };
+    }
+
+    if (pathname.startsWith("/casino") || pathname.startsWith("/wallet")) {
+      return { shouldLoadCasino: true, shouldLoadPrediction: false };
+    }
+
+    if (pathname.startsWith("/predictions")) {
+      return { shouldLoadCasino: false, shouldLoadPrediction: true };
+    }
+
+    return { shouldLoadCasino: true, shouldLoadPrediction: true };
+  }
+
+  function applyProtocolLoadResults(casinoResult, predictionResult) {
+    if (!mountedRef.current) {
+      return;
+    }
+
+    if (casinoResult.status === "fulfilled") {
+      if (casinoResult.value !== SKIPPED_PROTOCOL_LOAD) {
+        setCasinoState(casinoResult.value);
+      }
+      setCasinoLoadError("");
+    } else {
+      setCasinoLoadError(extractError(casinoResult.reason));
+    }
+
+    if (predictionResult.status === "fulfilled") {
+      if (predictionResult.value !== SKIPPED_PROTOCOL_LOAD) {
+        setPredictionState(predictionResult.value);
+      }
+      setPredictionLoadError("");
+    } else {
+      setPredictionLoadError(extractError(predictionResult.reason));
+    }
+  }
 
   function pushStatus(message: string, tone: StatusTone = "info") {
     if (!mountedRef.current) {
@@ -58,6 +111,29 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     setStatusMessage(message);
     setStatusTone(tone);
     setStatusEventId((current) => current + 1);
+  }
+
+  function logBackgroundWalletError(context: string, error: unknown) {
+    console.warn(`[WalletProvider] ${context}`, error);
+  }
+
+  function getBalanceFallback(nextAccount: string) {
+    if (!account || account.toLowerCase() !== nextAccount.toLowerCase()) {
+      return 0n;
+    }
+
+    return walletBalance;
+  }
+
+  async function getWalletBalanceWithFallback(provider: InjectedEthereumProvider, nextAccount: string) {
+    const browserProvider = new ethers.BrowserProvider(provider);
+
+    try {
+      return await browserProvider.getBalance(nextAccount);
+    } catch (error) {
+      logBackgroundWalletError(`Failed to refresh balance for ${nextAccount}.`, error);
+      return getBalanceFallback(nextAccount);
+    }
   }
 
   function getInjectedProvider(walletType: WalletType = "injected") {
@@ -90,6 +166,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    disconnectCofhe();
     setWalletAvailable(false);
     setAccount("");
     setWalletBalance(0n);
@@ -124,13 +201,21 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     detachProviderListeners();
 
     const handleAccountsChanged = async (accounts) => {
-      const snapshot = await syncWallet({ provider, providedAccounts: accounts });
-      await loadProtocolState(snapshot.account);
+      try {
+        const snapshot = await syncWallet({ provider, providedAccounts: accounts });
+        await loadProtocolState(snapshot.account);
+      } catch (error) {
+        logBackgroundWalletError("Failed to handle accountsChanged.", error);
+      }
     };
 
     const handleChainChanged = async () => {
-      const snapshot = await syncWallet({ provider });
-      await loadProtocolState(snapshot.account);
+      try {
+        const snapshot = await syncWallet({ provider });
+        await loadProtocolState(snapshot.account);
+      } catch (error) {
+        logBackgroundWalletError("Failed to handle chainChanged.", error);
+      }
     };
 
     provider.on("accountsChanged", handleAccountsChanged);
@@ -140,6 +225,38 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       handleAccountsChanged,
       handleChainChanged
     };
+  }
+
+  const connectCofheSession = useCallback(
+    async (provider: InjectedEthereumProvider, targetAccount?: string) => {
+      if (!cofheReady || !provider || !targetAccount) {
+        return;
+      }
+
+      const browserProvider = new ethers.BrowserProvider(provider);
+      const signer = await browserProvider.getSigner(targetAccount);
+      await connectCofhe(browserProvider, signer);
+    },
+    [cofheReady, connectCofhe]
+  );
+
+  async function ensureWalletNetworkConfig(provider: InjectedEthereumProvider) {
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [targetChainParams]
+      });
+    } catch (error) {
+      if (error?.code === 4001) {
+        throw error;
+      }
+
+      if (error?.code === -32601 || /not supported/i.test(String(error?.message || ""))) {
+        return;
+      }
+
+      logBackgroundWalletError("Failed to refresh wallet network configuration.", error);
+    }
   }
 
   async function syncWallet({
@@ -177,8 +294,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     let nextBalance = 0n;
 
     if (nextAccount) {
-      const browserProvider = new ethers.BrowserProvider(nextProvider);
-      nextBalance = await browserProvider.getBalance(nextAccount);
+      nextBalance = await getWalletBalanceWithFallback(nextProvider, nextAccount);
     }
 
     if (!mountedRef.current) {
@@ -219,8 +335,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return 0n;
     }
 
-    const browserProvider = new ethers.BrowserProvider(provider);
-    const nextBalance = await browserProvider.getBalance(currentAccount);
+    const nextBalance = await getWalletBalanceWithFallback(provider, currentAccount);
 
     if (mountedRef.current) {
       setWalletBalance(nextBalance);
@@ -242,9 +357,13 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       const gasPrice = await provider.send("eth_gasPrice", []);
       return ethers.toBigInt(gasPrice);
     } catch {
-      const latestBlock = await provider.getBlock("latest");
-      if (latestBlock?.baseFeePerGas != null) {
-        return latestBlock.baseFeePerGas * 2n;
+      try {
+        const latestBlock = await provider.getBlock("latest");
+        if (latestBlock?.baseFeePerGas != null) {
+          return latestBlock.baseFeePerGas * 2n;
+        }
+      } catch (error) {
+        logBackgroundWalletError("Failed to estimate fee per gas from wallet provider.", error);
       }
     }
 
@@ -272,17 +391,20 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         gasPrice
       };
     } catch {
-      const latestBlock = await provider.getBlock("latest");
-      const baseFeePerGas = latestBlock?.baseFeePerGas ?? 0n;
+      try {
+        const latestBlock = await provider.getBlock("latest");
+        const baseFeePerGas = latestBlock?.baseFeePerGas ?? 0n;
 
-      if (baseFeePerGas > 0n) {
-        return {
-          ...nextRequest,
-          maxFeePerGas: baseFeePerGas * 2n,
-          maxPriorityFeePerGas: 0n
-        };
+        if (baseFeePerGas > 0n) {
+          return {
+            ...nextRequest,
+            maxFeePerGas: baseFeePerGas * 2n,
+            maxPriorityFeePerGas: 0n
+          };
+        }
+      } catch (error) {
+        logBackgroundWalletError("Failed to apply wallet fee overrides.", error);
       }
-
       return nextRequest;
     }
   }
@@ -295,7 +417,14 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const currentBalance = await provider.getBalance(currentAccount);
+    let currentBalance = 0n;
+
+    try {
+      currentBalance = await provider.getBalance(currentAccount);
+    } catch (error) {
+      logBackgroundWalletError(`Skipping balance precheck for ${label}.`, error);
+      return;
+    }
 
     if (mountedRef.current) {
       setWalletBalance(currentBalance);
@@ -355,7 +484,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       throw new Error("A wallet is required for write actions.");
     }
 
+    pushStatus(`Approve the ${CASFIN_CONFIG.chainName} network change in your wallet if prompted.`, "info");
+
     try {
+      await ensureWalletNetworkConfig(provider);
       await provider.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: CASFIN_CONFIG.chainIdHex }]
@@ -365,17 +497,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
+      await ensureWalletNetworkConfig(provider);
       await provider.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-            chainId: CASFIN_CONFIG.chainIdHex,
-            chainName: CASFIN_CONFIG.chainName,
-            rpcUrls: [CASFIN_CONFIG.publicRpcUrl],
-            nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-            blockExplorerUrls: [CASFIN_CONFIG.explorerBaseUrl]
-          }
-        ]
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: CASFIN_CONFIG.chainIdHex }]
       });
     }
 
@@ -401,15 +526,54 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    activeProviderRef.current = provider;
+    attachProviderListeners(provider);
+    setWalletAvailable(true);
+
     try {
-      const { account: nextAccount } = await refreshWalletState({
-        loadProtocol: true,
+      pushStatus("Approve the wallet connection request in MetaMask or Coinbase Wallet.", "info");
+
+      if (walletType === "metamask") {
+        try {
+          await provider.request({
+            method: "wallet_requestPermissions",
+            params: [{ eth_accounts: {} }]
+          });
+        } catch (error) {
+          if (error?.code === 4001) {
+            throw error;
+          }
+
+          if (error?.code !== -32601) {
+            logBackgroundWalletError("MetaMask permission prompt could not be opened.", error);
+          }
+        }
+      }
+
+      const snapshot = await syncWallet({
         provider,
         requestAccounts: true,
         walletType
       });
 
-      pushStatus(nextAccount ? "Wallet connected. Write actions unlocked." : "Connection cancelled.", "info");
+      let readySnapshot = snapshot;
+
+      if (snapshot.account && snapshot.chainId !== CASFIN_CONFIG.chainId) {
+        readySnapshot = await ensureTargetNetwork();
+      }
+
+      await loadProtocolState(readySnapshot.account);
+
+      if (readySnapshot.account && readySnapshot.chainId === CASFIN_CONFIG.chainId) {
+        await connectCofheSession(provider, readySnapshot.account);
+      }
+
+      pushStatus(
+        readySnapshot.account
+          ? `Wallet connected on ${CASFIN_CONFIG.chainName}. Write actions unlocked.`
+          : "Connection cancelled.",
+        readySnapshot.account ? "success" : "warning"
+      );
     } catch (error) {
       pushStatus(extractError(error), "error");
     }
@@ -418,6 +582,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   function disconnectWallet() {
     activeProviderRef.current = null;
     detachProviderListeners();
+    disconnectCofhe();
     setAccount("");
     setWalletBalance(0n);
     setChainId(null);
@@ -429,38 +594,33 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }
 
   async function loadProtocolState(currentAccount = account) {
+    const { shouldLoadCasino, shouldLoadPrediction } = getProtocolScope();
     const [casinoResult, predictionResult] = await Promise.allSettled([
-      loadCasinoState(currentAccount),
-      loadPredictionState(currentAccount)
+      shouldLoadCasino ? loadCasinoState(currentAccount) : Promise.resolve(SKIPPED_PROTOCOL_LOAD),
+      shouldLoadPrediction ? loadPredictionState(currentAccount) : Promise.resolve(SKIPPED_PROTOCOL_LOAD)
     ]);
 
-    if (!mountedRef.current) {
-      return;
-    }
+    applyProtocolLoadResults(casinoResult, predictionResult);
+  }
 
-    if (casinoResult.status === "fulfilled") {
-      setCasinoState(casinoResult.value);
-      setCasinoLoadError("");
-    } else {
-      setCasinoLoadError(extractError(casinoResult.reason));
-    }
+  async function loadPolledProtocolState(currentAccount = account) {
+    const { shouldLoadCasino, shouldLoadPrediction } = getProtocolScope();
+    const [casinoResult, predictionResult] = await Promise.allSettled([
+      shouldLoadCasino ? loadCasinoState(currentAccount, pollingProvider) : Promise.resolve(SKIPPED_PROTOCOL_LOAD),
+      shouldLoadPrediction ? loadPredictionState(currentAccount, pollingProvider) : Promise.resolve(SKIPPED_PROTOCOL_LOAD)
+    ]);
 
-    if (predictionResult.status === "fulfilled") {
-      setPredictionState(predictionResult.value);
-      setPredictionLoadError("");
-    } else {
-      setPredictionLoadError(extractError(predictionResult.reason));
-    }
+    applyProtocolLoadResults(casinoResult, predictionResult);
   }
 
   async function runTransaction(label, handler) {
-    if (!walletAvailable) {
+    if (!walletAvailable && !getInjectedProvider()) {
       pushStatus("Connect a wallet before sending transactions.", "warning");
       return;
     }
 
     setPendingAction(label);
-    pushStatus(`${label} is waiting for wallet confirmation.`, "info");
+    pushStatus(`${label} is preparing your encrypted request. Approve it in MetaMask when prompted.`, "info");
 
     try {
       const walletSnapshot = await refreshWalletState({ loadProtocol: false, requestAccounts: true });
@@ -477,6 +637,11 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       await ensureWalletBalance(provider, nextAccount);
+      try {
+        await connectCofheSession(provider, nextAccount);
+      } catch (error) {
+        logBackgroundWalletError(`Failed to refresh CoFHE session for ${label}.`, error);
+      }
 
       const browserProvider = new ethers.BrowserProvider(provider);
       const signer = await browserProvider.getSigner(nextAccount);
@@ -488,7 +653,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         status: "submitted",
         timestamp: Date.now()
       });
-      pushStatus(`${label} submitted to Arbitrum Sepolia.`, "info");
+      pushStatus(`${label} submitted to ${CASFIN_CONFIG.chainName}.`, "info");
 
       await transaction.wait();
 
@@ -521,7 +686,9 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    boot();
+    boot().catch((error) => {
+      logBackgroundWalletError("Initial wallet boot failed.", error);
+    });
 
     return () => {
       disposed = true;
@@ -531,10 +698,43 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!cofheReady) {
+      return;
+    }
+
+    if (!account || chainId !== CASFIN_CONFIG.chainId || !activeProviderRef.current) {
+      if (cofheConnected) {
+        disconnectCofhe();
+      }
+
+      return;
+    }
+
+    connectCofheSession(activeProviderRef.current, account).catch((error) => {
+      console.error("[WalletProvider] Failed to connect CoFHE session.", error);
+      pushStatus("Wallet connected, but the encrypted session could not start. Refresh the wallet connection and try again.", "warning");
+    });
+  }, [account, chainId, cofheConnected, cofheReady, connectCofheSession, disconnectCofhe]);
+
+  useEffect(() => {
+    loadProtocolState(account).catch((error) => {
+      logBackgroundWalletError("Route-specific protocol refresh failed.", error);
+    });
+  }, [account, pathname]);
+
+  useEffect(() => {
     const interval = window.setInterval(() => {
-      refreshWalletState({ loadProtocol: false });
-      loadProtocolState(account);
-    }, 20000);
+      if (document.hidden) {
+        return;
+      }
+
+      refreshWalletState({ loadProtocol: false }).catch((error) => {
+        logBackgroundWalletError("Periodic wallet refresh failed.", error);
+      });
+      loadPolledProtocolState(account).catch((error) => {
+        logBackgroundWalletError("Periodic protocol refresh failed.", error);
+      });
+    }, 45000);
 
     return () => {
       window.clearInterval(interval);
@@ -544,7 +744,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const isConnected = Boolean(account);
   const isCorrectChain = chainId === CASFIN_CONFIG.chainId;
   const isOperator = Boolean(account) && account.toLowerCase() === CASFIN_CONFIG.operatorAddress.toLowerCase();
-  const walletBlocked = Boolean(pendingAction) || !isConnected || !isCorrectChain;
+  const walletBlocked = Boolean(pendingAction);
 
   return (
     <WalletContext.Provider

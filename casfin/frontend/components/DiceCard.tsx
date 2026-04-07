@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_DICE_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
+import { useCofhe } from "@/lib/cofhe-provider";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
@@ -14,6 +15,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
   const [resolveBetId, setResolveBetId] = useState("");
   const [isRolling, setIsRolling] = useState(false);
   const [rolledFace, setRolledFace] = useState(null);
+  const { encryptUint128, encryptUint8, connected: cofheConnected } = useCofhe();
   const latestBet = casinoState.dice.latestBet;
   const latestBetId = casinoState.dice.nextBetId > 0n ? (casinoState.dice.nextBetId - 1n).toString() : "0";
   const usesEncryptedGame = casinoState.isFhe;
@@ -35,14 +37,24 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
   async function handleRoll() {
     setIsRolling(true);
     setRolledFace(null);
-    await runTransaction("Place dice bet", async (signer) => {
-      const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
-      void dice;
-      void parseRequiredEth(amount, "Bet amount");
-      void parseRequiredInteger(String(guess), "Guess");
-      throw new Error("Encrypted dice bets require a signed FHE input proof. This frontend does not generate CoFHE bet payloads yet.");
-    });
-    setIsRolling(false);
+
+    try {
+      await runTransaction("Place dice bet", async (signer) => {
+        const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
+        const amountWei = parseRequiredEth(amount, "Bet amount");
+        const guessValue = parseRequiredInteger(String(guess), "Guess");
+
+        if (guessValue < 1 || guessValue > 6) {
+          throw new Error("Guess must be between 1 and 6.");
+        }
+
+        const encAmount = await encryptUint128(amountWei);
+        const encGuess = await encryptUint8(guessValue);
+        return dice.placeBet(encAmount, encGuess);
+      });
+    } finally {
+      setIsRolling(false);
+    }
   }
 
   const isRollPending = pendingAction === "Place dice bet";
@@ -99,11 +111,11 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
 
       <button
         className="game-action-btn dice-action-btn"
-        disabled={walletBlocked || isRollPending || usesEncryptedGame}
+        disabled={walletBlocked || isRollPending || !cofheConnected}
         onClick={handleRoll}
         type="button"
       >
-        {isRollPending ? "ROLLING..." : usesEncryptedGame ? "ENCRYPTED INPUT REQUIRED" : "ROLL DICE"}
+        {isRollPending ? "ROLLING..." : !cofheConnected ? "CONNECT WALLET" : "ROLL DICE"}
       </button>
 
       <div className="resolve-row">

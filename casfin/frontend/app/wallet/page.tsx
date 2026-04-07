@@ -33,36 +33,33 @@ export default function WalletPage() {
     withdrawAmount: "0.01",
     bankrollAmount: "0.10"
   });
+
   const availableBalanceLabel = casinoState.isFhe ? "Encrypted" : `${formatEth(casinoState.playerBalance)} ETH`;
   const lockedBalanceLabel = casinoState.isFhe ? "Encrypted" : `${formatEth(casinoState.playerLockedBalance)} ETH`;
 
   function handlePrimaryAction() {
-    if (!isConnected) {
-      connectWallet();
-      return;
-    }
-
+    if (!isConnected) { void connectWallet(); return; }
     if (!isCorrectChain) {
-      ensureTargetNetwork();
+      void ensureTargetNetwork().catch((e) => console.warn("[WalletPage]", e));
       return;
     }
-
-    refreshWalletState({ loadProtocol: true, requestAccounts: true });
+    void refreshWalletState({ loadProtocol: true, requestAccounts: true }).catch((e) =>
+      console.warn("[WalletPage]", e)
+    );
   }
 
   return (
     <main className="page-shell is-narrow">
+      {/* ── Balance hero ── */}
       <GlassCard className="wallet-hero" stagger={1}>
         <p className="wallet-balance-label">Your Balance</p>
         <h1 className="wallet-balance-value">{availableBalanceLabel}</h1>
         <p className="wallet-balance-subtitle">
-          Locked balance: {lockedBalanceLabel}
-          {isConnected ? ` • ${formatAddress(account)}` : " • Connect a wallet to unlock live transactions"}
+          Locked: {lockedBalanceLabel}
+          {isConnected ? ` · ${formatAddress(account)}` : " · Connect wallet to begin"}
         </p>
-        {casinoState.isFhe ? (
-          <p className="wallet-balance-subtitle">This encrypted vault exposes per-player balance handles, not plaintext ETH values, to the frontend.</p>
-        ) : null}
-        <div className="wallet-hero-actions">
+
+        <div className="wallet-hero-actions" style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
           <GlassButton disabled={Boolean(pendingAction)} onClick={handlePrimaryAction}>
             {!isConnected ? "Connect Wallet" : !isCorrectChain ? "Switch Network" : "Refresh Wallet"}
           </GlassButton>
@@ -81,10 +78,11 @@ export default function WalletPage() {
 
       {casinoLoadError ? (
         <GlassCard className="notice-card tone-danger" stagger={2}>
-          <p>Unable to refresh wallet data: {casinoLoadError}</p>
+          <p>{casinoLoadError}</p>
         </GlassCard>
       ) : null}
 
+      {/* ── Main layout ── */}
       <div className="wallet-layout">
         <VaultCard
           casinoState={casinoState}
@@ -100,45 +98,40 @@ export default function WalletPage() {
         />
 
         <div className="wallet-side-column">
-          <GlassCard eyebrow="Network" stagger={4} title="Current connection">
+          <GlassCard eyebrow="Network" stagger={4} title="Connection">
             <div className="info-pairs">
-              <div className="info-pair">
-                <span>Account</span>
-                <strong>{isConnected ? formatAddress(account) : "Not connected"}</strong>
-              </div>
-              <div className="info-pair">
-                <span>Wallet ETH</span>
-                <strong>{isConnected ? `${formatEth(walletBalance)} ETH` : "0 ETH"}</strong>
-              </div>
-              <div className="info-pair">
-                <span>Chain</span>
-                <strong>{isConnected ? CASFIN_CONFIG.chainName : "Not connected"}</strong>
-              </div>
-              <div className="info-pair">
-                <span>Chain ID</span>
-                <strong>{chainId === null ? "None" : String(chainId)}</strong>
-              </div>
-              <div className="info-pair">
-                <span>Mode</span>
-                <strong>{isCorrectChain ? "Write Enabled" : "Read Only"}</strong>
-              </div>
+              {[
+                ["Account", isConnected ? formatAddress(account) : "Not connected"],
+                ["Wallet ETH", isConnected ? `${formatEth(walletBalance)} ETH` : "0 ETH"],
+                ["Chain", isConnected ? CASFIN_CONFIG.chainName : "Not connected"],
+                ["Chain ID", chainId === null ? "None" : String(chainId)],
+                ["Mode", isCorrectChain ? "Write Enabled" : "Read Only"]
+              ].map(([label, value]) => (
+                <div className="info-pair" key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
             </div>
 
-            <GlassButton disabled={Boolean(pendingAction)} onClick={handlePrimaryAction} variant="secondary">
-              {!isConnected ? "Connect" : !isCorrectChain ? "Switch Network" : "Refresh"}
-            </GlassButton>
+            <div style={{ marginTop: "1rem" }}>
+              <GlassButton disabled={Boolean(pendingAction)} onClick={handlePrimaryAction} variant="secondary">
+                {!isConnected ? "Connect" : !isCorrectChain ? "Switch Network" : "Refresh"}
+              </GlassButton>
+            </div>
           </GlassCard>
 
-          <GlassCard eyebrow="History" stagger={5} title="Latest transaction status">
+          <GlassCard eyebrow="History" stagger={5} title="Last Transaction">
             <div className="history-list">
-              <div className="history-row">
-                <span>Status</span>
-                <strong>{statusMessage}</strong>
-              </div>
-              <div className="history-row">
-                <span>Pending Action</span>
-                <strong>{pendingAction || "None"}</strong>
-              </div>
+              {[
+                ["Status", statusMessage],
+                ["Pending", pendingAction || "None"]
+              ].map(([label, value]) => (
+                <div className="history-row" key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
               <div className="history-row">
                 <span>Last Tx</span>
                 {lastTransaction?.hash ? (
@@ -146,7 +139,7 @@ export default function WalletPage() {
                     {lastTransaction.label}
                   </a>
                 ) : (
-                  <strong>No transaction submitted yet</strong>
+                  <strong>None</strong>
                 )}
               </div>
             </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
+import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { formatAddress, formatEth } from "@/lib/casfin-client";
 
 const NAV_LINKS = [
@@ -32,7 +33,7 @@ export default function Navbar() {
 
   const walletLabel = isConnected ? formatAddress(account) : "Connect";
   const networkClass = !isConnected ? "is-neutral" : isCorrectChain ? "is-online" : "is-offline";
-  const networkLabel = !isConnected ? "Not connected" : isCorrectChain ? "Arbitrum Sepolia" : "Wrong Network";
+  const networkLabel = !isConnected ? "Not connected" : isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network";
 
   function closeMenu() { setMenuOpen(false); }
 
@@ -46,14 +47,21 @@ export default function Navbar() {
       return;
     }
 
-    void refreshWalletState({ loadProtocol: false, requestAccounts: isConnected });
+    void refreshWalletState({ loadProtocol: false, requestAccounts: isConnected }).catch((error) => {
+      console.warn("[Navbar] Failed to refresh wallet state for modal.", error);
+    });
   }, [isConnected, walletModalOpen]);
 
   return (
     <>
       <header className={`site-navbar ${pathname === "/" ? "is-home" : ""}`}>
         <div className="navbar-inner">
-          {/* No branding — just nav links on left */}
+          {/* CasFin logo — click to return to landing page */}
+          <Link href="/" className="navbar-brand" aria-label="Back to home">
+            <span className="navbar-mark">C</span>
+            <span className="navbar-wordmark">CasFin</span>
+          </Link>
+
           <nav aria-label="Primary" className="navbar-links">
             {NAV_LINKS.map((link) => (
               <Link
@@ -70,7 +78,13 @@ export default function Navbar() {
             {isConnected && (
               <button
                 className={`network-pill ${networkClass}`}
-                onClick={() => !isCorrectChain && ensureTargetNetwork()}
+                onClick={() => {
+                  if (!isCorrectChain) {
+                    void ensureTargetNetwork().catch((error) => {
+                      console.warn("[Navbar] Failed to switch network.", error);
+                    });
+                  }
+                }}
                 type="button"
               >
                 <span className="network-dot" />
@@ -124,13 +138,18 @@ export default function Navbar() {
                 <p className="wm-network-row">Balance: {formatEth(walletBalance)} ETH</p>
                 <p className="wm-network-row">
                   <span className={`wm-net-dot ${isCorrectChain ? "dot-ok" : "dot-bad"}`} />
-                  {isCorrectChain ? "Arbitrum Sepolia" : "Wrong Network"}
+                  {isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network"}
                 </p>
                 <div className="wm-connected-actions">
                   {!isCorrectChain && (
                     <button
                       className="wm-action-btn wm-switch-btn"
-                      onClick={() => { ensureTargetNetwork(); setWalletModalOpen(false); }}
+                      onClick={() => {
+                        void ensureTargetNetwork().catch((error) => {
+                          console.warn("[Navbar] Failed to switch network from modal.", error);
+                        });
+                        setWalletModalOpen(false);
+                      }}
                       type="button"
                     >
                       Switch to Arbitrum Sepolia
@@ -157,7 +176,10 @@ export default function Navbar() {
               <div className="wm-options">
                 <button
                   className="wm-wallet-option"
-                  onClick={() => { connectWallet("metamask"); setWalletModalOpen(false); }}
+                  onClick={() => {
+                    void connectWallet("metamask");
+                    setWalletModalOpen(false);
+                  }}
                   type="button"
                 >
                   <span className="wm-wallet-icon">🦊</span>
@@ -170,7 +192,10 @@ export default function Navbar() {
 
                 <button
                   className="wm-wallet-option"
-                  onClick={() => { connectWallet("coinbase"); setWalletModalOpen(false); }}
+                  onClick={() => {
+                    void connectWallet("coinbase");
+                    setWalletModalOpen(false);
+                  }}
                   type="button"
                 >
                   <span className="wm-wallet-icon">🔵</span>
@@ -183,7 +208,10 @@ export default function Navbar() {
 
                 <button
                   className="wm-wallet-option"
-                  onClick={() => { connectWallet("injected"); setWalletModalOpen(false); }}
+                  onClick={() => {
+                    void connectWallet("injected");
+                    setWalletModalOpen(false);
+                  }}
                   type="button"
                 >
                   <span className="wm-wallet-icon">💎</span>
@@ -195,7 +223,7 @@ export default function Navbar() {
                 </button>
 
                 <p className="wm-footnote">
-                  By connecting you agree to use this app at your own risk on Arbitrum Sepolia testnet.
+                  By connecting you agree to use this app at your own risk on Arbitrum Sepolia.
                 </p>
               </div>
             )}
