@@ -4,8 +4,7 @@ import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ethers } from "ethers";
-import type { ConnectedWallet } from "@privy-io/react-auth";
-import { usePrivyWallet } from "@/components/PrivyAppProvider";
+import { usePrivyWallet, type WalletAdapter } from "@/components/PrivyAppProvider";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { useCofhe } from "@/lib/cofhe-provider";
 import {
@@ -83,7 +82,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const privyWallet = usePrivyWallet();
   const mountedRef = useRef(true);
-  const activeWalletRef = useRef<ConnectedWallet | null>(null);
+  const activeWalletRef = useRef<WalletAdapter | null>(null);
   const activeProviderRef = useRef<WalletRpcProvider | null>(null);
   const cofheReadyRef = useRef(false);
   const cofheConnectedRef = useRef(false);
@@ -117,7 +116,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     blockExplorerUrls: [CASFIN_CONFIG.explorerBaseUrl]
   };
-  const privyReady = privyWallet.configured && privyWallet.ready && privyWallet.walletsReady;
+  const walletConnectorReady = privyWallet.configured && privyWallet.ready && privyWallet.walletsReady;
 
   function getProtocolScope() {
     if (!pathname || pathname === "/") {
@@ -200,7 +199,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     setChainId(null);
   }
 
-  async function getActiveWalletProvider(wallet: ConnectedWallet | null = activeWalletRef.current) {
+  async function getActiveWalletProvider(wallet: WalletAdapter | null = activeWalletRef.current) {
     if (!wallet) {
       activeProviderRef.current = null;
       return null;
@@ -226,8 +225,8 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setWalletAvailable(privyReady);
-  }, [privyReady]);
+    setWalletAvailable(walletConnectorReady);
+  }, [walletConnectorReady]);
 
   const waitForCofheReady = useCallback(async (timeoutMs = 5000) => {
     if (cofheReadyRef.current) {
@@ -303,7 +302,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }: SyncWalletOptions = {}): Promise<WalletSnapshot> {
     const currentWallet = activeWalletRef.current || privyWallet.wallet;
 
-    if (!privyReady || !currentWallet) {
+    if (!walletConnectorReady || !currentWallet) {
       resetWalletConnectionState();
       return {
         provider: null,
@@ -640,11 +639,11 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       throw new Error(
         privyWallet.configured
           ? "A wallet is required for write actions."
-          : "Privy is not configured. Set NEXT_PUBLIC_PRIVY_APP_ID and redeploy the frontend."
+          : "No supported wallet was detected. Install MetaMask or set NEXT_PUBLIC_PRIVY_APP_ID and redeploy."
       );
     }
 
-    pushStatus(`Approve the ${CASFIN_CONFIG.chainName} network change in the wallet modal if prompted.`, "info");
+    pushStatus(`Approve the ${CASFIN_CONFIG.chainName} network change in your wallet if prompted.`, "info");
 
     try {
       await currentWallet.switchChain(CASFIN_CONFIG.chainId);
@@ -683,16 +682,21 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
   async function connectWallet(): Promise<void> {
     if (!privyWallet.configured) {
-      pushStatus("Privy is not configured. Add NEXT_PUBLIC_PRIVY_APP_ID to the frontend environment and redeploy.", "warning");
+      pushStatus("No supported wallet was detected. Install MetaMask or add NEXT_PUBLIC_PRIVY_APP_ID to the frontend environment.", "warning");
       return;
     }
 
-    if (!privyReady) {
+    if (!walletConnectorReady) {
       pushStatus("Wallet connect is still loading. Wait a moment and try again.", "info");
       return;
     }
 
-    pushStatus(`Continue in Privy to connect a wallet on ${CASFIN_CONFIG.chainName}.`, "info");
+    pushStatus(
+      privyWallet.usingPrivy
+        ? `Continue in Privy to connect a wallet on ${CASFIN_CONFIG.chainName}.`
+        : `Approve the connection request in your wallet extension for ${CASFIN_CONFIG.chainName}.`,
+      "info"
+    );
     privyWallet.openConnectWallet();
   }
 
@@ -748,7 +752,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       const walletSnapshot = await refreshWalletState({ loadProtocol: false });
 
       if (!walletSnapshot.account) {
-        throw new Error("No wallet account is connected in Privy.");
+        throw new Error("No wallet account is connected.");
       }
 
       const networkSnapshot =
@@ -764,7 +768,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       await ensureEncryptedSession(nextAccount);
 
       setPendingAction(label);
-      pushStatus(`${label} is ready. Approve it in the wallet modal when prompted.`, "info");
+      pushStatus(`${label} is ready. Approve it in your wallet when prompted.`, "info");
       const browserProvider = new ethers.BrowserProvider(provider);
       const signer = await browserProvider.getSigner(nextAccount);
       const transaction = await handler(createValidatedSigner(signer, label));
@@ -805,7 +809,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!privyWallet.configured || !privyReady) {
+    if (!privyWallet.configured || !walletConnectorReady) {
       if (!privyWallet.configured) {
         resetWalletConnectionState();
       }
@@ -829,20 +833,20 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     return () => {
       disposed = true;
     };
-  }, [privyReady, privyWallet.configured, privyWallet.wallet?.address, privyWallet.wallet?.chainId]);
+  }, [walletConnectorReady, privyWallet.configured, privyWallet.wallet?.address, privyWallet.wallet?.chainId]);
 
   useEffect(() => {
-    if (!privyReady && !privyWallet.wallet) {
+    if (!walletConnectorReady && !privyWallet.wallet) {
       return;
     }
 
-    if (privyReady && !privyWallet.wallet && (account || chainId !== null)) {
+    if (walletConnectorReady && !privyWallet.wallet && (account || chainId !== null)) {
       resetWalletConnectionState();
       loadProtocolState("").catch((error) => {
         logBackgroundWalletError("Failed to refresh read-only protocol state after disconnect.", error);
       });
     }
-  }, [account, chainId, privyReady, privyWallet.wallet]);
+  }, [account, chainId, walletConnectorReady, privyWallet.wallet]);
 
   useEffect(() => {
     if (!cofheReady) {
