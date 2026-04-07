@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import pLimit from "p-limit";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import {
   ENCRYPTED_COIN_FLIP_ABI,
@@ -9,20 +10,24 @@ import {
   MARKET_RESOLVER_ABI,
   PREDICTION_MARKET_ABI
 } from "@/lib/casfin-abis";
+import { createLoadBalancedProvider } from "@/lib/loadBalancedTransport";
 
 const ARBITRUM_SEPOLIA_NETWORK = {
   chainId: CASFIN_CONFIG.chainId,
   name: "arbitrum-sepolia"
 } as const;
 
-function createStaticRpcProvider(rpcUrl: string) {
-  return new ethers.JsonRpcProvider(rpcUrl, ARBITRUM_SEPOLIA_NETWORK, { staticNetwork: true });
+const sharedReadProvider = createLoadBalancedProvider(ARBITRUM_SEPOLIA_NETWORK);
+const predictionReadLimit = pLimit(4);
+
+function schedulePredictionRead<T>(task: () => Promise<T>) {
+  return predictionReadLimit(task);
 }
 
-export const publicProvider = createStaticRpcProvider(CASFIN_CONFIG.publicRpcUrl);
-export const pollingProvider = createStaticRpcProvider(CASFIN_CONFIG.pollingRpcUrl);
-export const fheReadProvider = createStaticRpcProvider(CASFIN_CONFIG.fheRpcUrl);
-export const walletReadProvider = createStaticRpcProvider(CASFIN_CONFIG.walletRpcUrl);
+export const publicProvider = sharedReadProvider;
+export const pollingProvider = sharedReadProvider;
+export const fheReadProvider = sharedReadProvider;
+export const walletReadProvider = sharedReadProvider;
 export const EMPTY_ADDRESS = ethers.ZeroAddress;
 
 export const EMPTY_CASINO_STATE = {
@@ -212,7 +217,7 @@ export function extractError(error) {
       normalizedMessage
     )
   ) {
-    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_READ_RPC_URL, NEXT_PUBLIC_FHE_RPC_URL, NEXT_PUBLIC_POLLING_RPC_URL, and NEXT_PUBLIC_WALLET_RPC_URL, then restart the app and reconnect the wallet network if needed.";
+    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_RPC_URL_1, NEXT_PUBLIC_RPC_URL_2, NEXT_PUBLIC_RPC_URL_3, and NEXT_PUBLIC_RPC_URL_4, then restart the app and reconnect the wallet network if needed.";
   }
 
   if (/NOT_CONNECTED|MISSING_PUBLIC_CLIENT|MISSING_WALLET_CLIENT|CoFHE not connected/i.test(normalizedMessage)) {
@@ -443,20 +448,22 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
 async function loadPredictionStateWithProvider(currentAccount, provider) {
   const factory = new ethers.Contract(CASFIN_CONFIG.addresses.marketFactory, MARKET_FACTORY_ABI, provider);
   const [factoryOwner, totalMarketsRaw, feeConfig, approvedCreator] = await Promise.all([
-    factory.owner(),
-    factory.totalMarkets(),
-    factory.feeConfig(),
-    currentAccount ? factory.approvedCreators(currentAccount) : Promise.resolve(false)
+    schedulePredictionRead(() => factory.owner()),
+    schedulePredictionRead(() => factory.totalMarkets()),
+    schedulePredictionRead(() => factory.feeConfig()),
+    currentAccount ? schedulePredictionRead(() => factory.approvedCreators(currentAccount)) : Promise.resolve(false)
   ]);
 
   const totalMarkets = Number(totalMarketsRaw);
   const indexes = Array.from({ length: totalMarkets }, (_, index) => totalMarkets - index - 1);
-  const marketAddresses = await Promise.all(indexes.map((index) => factory.allMarkets(index)));
+  const marketAddresses = await Promise.all(
+    indexes.map((index) => schedulePredictionRead(() => factory.allMarkets(index)))
+  );
 
   const markets = await Promise.all(
     marketAddresses.map(async (address) => {
       const market = new ethers.Contract(address, PREDICTION_MARKET_ABI, provider);
-      const meta = await factory.marketMeta(address);
+      const meta = await schedulePredictionRead(() => factory.marketMeta(address));
 
       const [
         question,
@@ -469,28 +476,32 @@ async function loadPredictionStateWithProvider(currentAccount, provider) {
         resolverAddress,
         outcomesCount
       ] = await Promise.all([
-        market.question(),
-        market.description(),
-        market.resolvesAt(),
-        market.resolved(),
-        market.finalized(),
-        market.winningOutcome(),
-        market.creator(),
-        market.resolver(),
-        market.outcomesCount()
+        schedulePredictionRead(() => market.question()),
+        schedulePredictionRead(() => market.description()),
+        schedulePredictionRead(() => market.resolvesAt()),
+        schedulePredictionRead(() => market.resolved()),
+        schedulePredictionRead(() => market.finalized()),
+        schedulePredictionRead(() => market.winningOutcome()),
+        schedulePredictionRead(() => market.creator()),
+        schedulePredictionRead(() => market.resolver()),
+        schedulePredictionRead(() => market.outcomesCount())
       ]);
 
       const outcomeIndexes = Array.from({ length: Number(outcomesCount) }, (_, index) => index);
-      const outcomeLabels = await Promise.all(outcomeIndexes.map((index) => market.outcomes(index)));
+      const outcomeLabels = await Promise.all(
+        outcomeIndexes.map((index) => schedulePredictionRead(() => market.outcomes(index)))
+      );
 
-      const hasClaimed = currentAccount ? await market.hasClaimed(currentAccount) : false;
+      const hasClaimed = currentAccount
+        ? await schedulePredictionRead(() => market.hasClaimed(currentAccount))
+        : false;
 
       const resolver = new ethers.Contract(resolverAddress, MARKET_RESOLVER_ABI, provider);
       const [manualResolver, feeRecipient, oracleType, resolutionRequested] = await Promise.all([
-        resolver.manualResolver(),
-        resolver.feeRecipient(),
-        resolver.oracleType(),
-        resolver.resolutionRequested()
+        schedulePredictionRead(() => resolver.manualResolver()),
+        schedulePredictionRead(() => resolver.feeRecipient()),
+        schedulePredictionRead(() => resolver.oracleType()),
+        schedulePredictionRead(() => resolver.resolutionRequested())
       ]);
 
       return {
