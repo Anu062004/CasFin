@@ -5,14 +5,24 @@ import {
   ENCRYPTED_CRASH_ABI,
   ENCRYPTED_DICE_ABI,
   ENCRYPTED_VAULT_ABI,
-  LIQUIDITY_POOL_ABI,
   MARKET_FACTORY_ABI,
   MARKET_RESOLVER_ABI,
-  PREDICTION_MARKET_ABI,
-  RANDOMNESS_ROUTER_ABI
+  PREDICTION_MARKET_ABI
 } from "@/lib/casfin-abis";
 
-export const publicProvider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
+const ARBITRUM_SEPOLIA_NETWORK = {
+  chainId: CASFIN_CONFIG.chainId,
+  name: "arbitrum-sepolia"
+} as const;
+
+function createStaticRpcProvider(rpcUrl: string) {
+  return new ethers.JsonRpcProvider(rpcUrl, ARBITRUM_SEPOLIA_NETWORK, { staticNetwork: true });
+}
+
+export const publicProvider = createStaticRpcProvider(CASFIN_CONFIG.publicRpcUrl);
+export const pollingProvider = createStaticRpcProvider(CASFIN_CONFIG.pollingRpcUrl);
+export const fheReadProvider = createStaticRpcProvider(CASFIN_CONFIG.fheRpcUrl);
+export const walletReadProvider = createStaticRpcProvider(CASFIN_CONFIG.walletRpcUrl);
 export const EMPTY_ADDRESS = ethers.ZeroAddress;
 
 export const EMPTY_CASINO_STATE = {
@@ -197,8 +207,28 @@ export function extractError(error) {
     return "Insufficient ETH in the connected wallet for the requested amount and gas. Switch MetaMask to a funded account or reduce the amount.";
   }
 
+  if (
+    /RPC endpoint returned too many errors|rate limit|too many requests|429|missing response for request|failed to detect network|cannot start up/i.test(
+      normalizedMessage
+    )
+  ) {
+    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_READ_RPC_URL, NEXT_PUBLIC_FHE_RPC_URL, NEXT_PUBLIC_POLLING_RPC_URL, and NEXT_PUBLIC_WALLET_RPC_URL, then restart the app and reconnect the wallet network if needed.";
+  }
+
+  if (/NOT_CONNECTED|MISSING_PUBLIC_CLIENT|MISSING_WALLET_CLIENT|CoFHE not connected/i.test(normalizedMessage)) {
+    return "The CoFHE session is not connected. Reconnect the wallet on Arbitrum Sepolia and try again.";
+  }
+
   if (/InvalidEncryptedInput|encrypted input proof/i.test(normalizedMessage)) {
-    return "This FHE action needs an encrypted input proof. The current frontend does not generate CoFHE payloads yet.";
+    return "This FHE action needs a valid encrypted CoFHE proof from the connected wallet session.";
+  }
+
+  if (/cannot use object value with unnamed components/i.test(normalizedMessage)) {
+    return "The encrypted payload was encoded in the wrong shape for the contract ABI. Refresh the page and try the action again.";
+  }
+
+  if (/sealoutput request failed: HTTP 403/i.test(normalizedMessage)) {
+    return "The CoFHE decrypt endpoint rejected the current wallet session. Reconnect the wallet to refresh the self-permit and try again.";
   }
 
   if (/WITHDRAWAL_PENDING|WIN_FLAG_PENDING/i.test(normalizedMessage)) {
@@ -219,7 +249,7 @@ function mapCoinBet(id, bet) {
     lockedAmount: bet.lockedAmount ?? 0n,
     lockedHandle: serializeHandle(bet.lockedHandle ?? bet[1]),
     guessHeads: bet.guessHeads ?? null,
-    requestId: bet.requestId ?? bet[3],
+    requestId: 0n,
     resolved: bet.resolved ?? bet[4],
     resolutionPending: bet.resolutionPending ?? bet[5] ?? false,
     won: bet.won ?? bet[7] ?? false
@@ -237,11 +267,11 @@ function mapDiceBet(id, bet) {
     lockedAmount: bet.lockedAmount ?? 0n,
     lockedHandle: serializeHandle(bet.lockedHandle ?? bet[1]),
     guess: bet.guess !== undefined ? Number(bet.guess) : null,
-    requestId: bet.requestId ?? bet[3],
+    requestId: 0n,
     resolved: bet.resolved ?? bet[4],
     resolutionPending: bet.resolutionPending ?? bet[5] ?? false,
-    rolled: Number(bet.rolled ?? bet[7] ?? 0),
-    won: bet.won ?? bet[8] ?? false
+    rolled: Number(bet.rolled ?? bet[8] ?? 0),
+    won: bet.won ?? bet[7] ?? false
   };
 }
 
@@ -253,9 +283,9 @@ function mapCrashRound(id, round) {
   return {
     id,
     exists: round.exists ?? round[0],
-    requestId: round.requestId ?? round[1],
-    crashMultiplierBps: Number(round.crashMultiplierBps ?? round[2]),
-    closed: round.closed ?? round[3]
+    requestId: 0n,
+    crashMultiplierBps: Number(round.crashMultiplierBps ?? round[3]),
+    closed: round.closed ?? round[4]
   };
 }
 
@@ -282,37 +312,36 @@ function serializeHandle(handle) {
   return typeof handle === "string" ? handle : ethers.hexlify(handle);
 }
 
-function getLatestRequestMeta(latestCoinBet, latestDiceBet, latestCrashRound) {
-  const candidates = [];
-
-  if (latestCoinBet) {
-    candidates.push({ source: "Coin Flip", requestId: latestCoinBet.requestId });
-  }
-  if (latestDiceBet) {
-    candidates.push({ source: "Dice", requestId: latestDiceBet.requestId });
-  }
-  if (latestCrashRound) {
-    candidates.push({ source: "Crash", requestId: latestCrashRound.requestId });
-  }
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  return candidates.reduce((latest, current) => (current.requestId > latest.requestId ? current : latest));
+function getOrderedReadProviders(preferredProvider = publicProvider) {
+  return [preferredProvider, publicProvider, pollingProvider, fheReadProvider, walletReadProvider].filter(
+    (provider, index, providers) => providers.indexOf(provider) === index
+  );
 }
 
-export async function loadCasinoState(currentAccount) {
-  const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, publicProvider);
-  const router = new ethers.Contract(CASFIN_CONFIG.addresses.randomnessRouter, RANDOMNESS_ROUTER_ABI, publicProvider);
-  const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, publicProvider);
-  const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, publicProvider);
-  const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, publicProvider);
+async function withReadProviderFailover(taskName, preferredProvider, runner) {
+  let lastError;
+
+  for (const [index, provider] of getOrderedReadProviders(preferredProvider).entries()) {
+    try {
+      return await runner(provider);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[casfin-client] ${taskName} failed on RPC candidate ${index + 1}.`, error);
+    }
+  }
+
+  throw lastError || new Error(`${taskName} failed across all configured RPC endpoints.`);
+}
+
+async function loadCasinoStateWithProvider(currentAccount, provider) {
+  const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, provider);
+  const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, provider);
+  const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, provider);
+  const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, provider);
 
   const [
     vaultOwner,
     vaultBalance,
-    routerOwner,
     coinHouseEdgeBps,
     coinNextBetId,
     diceHouseEdgeBps,
@@ -321,8 +350,7 @@ export async function loadCasinoState(currentAccount) {
     crashMaxCashOutMultiplierBps
   ] = await Promise.all([
     vault.owner(),
-    publicProvider.getBalance(CASFIN_CONFIG.addresses.casinoVault),
-    router.owner(),
+    provider.getBalance(CASFIN_CONFIG.addresses.casinoVault),
     coin.houseEdgeBps(),
     coin.nextBetId(),
     dice.houseEdgeBps(),
@@ -340,17 +368,36 @@ export async function loadCasinoState(currentAccount) {
   const latestCoinBet = mapCoinBet(coinNextBetId > 0n ? coinNextBetId - 1n : null, rawLatestCoinBet);
   const latestDiceBet = mapDiceBet(diceNextBetId > 0n ? diceNextBetId - 1n : null, rawLatestDiceBet);
   const latestCrashRound = mapCrashRound(crashNextRoundId > 0n ? crashNextRoundId - 1n : null, rawLatestCrashRound);
-  const latestRequestMeta = getLatestRequestMeta(latestCoinBet, latestDiceBet, latestCrashRound);
-  const rawLatestRequest = latestRequestMeta ? await router.requests(latestRequestMeta.requestId) : null;
 
-  const [playerBalanceHandle, playerLockedBalanceHandle, pendingWithdrawal, latestCrashPlayerBet] = currentAccount
-    ? await Promise.all([
-        vault.getEncryptedBalance.staticCall({ from: currentAccount }),
-        vault.getEncryptedLockedBalance.staticCall({ from: currentAccount }),
-        vault.getPendingWithdrawal.staticCall({ from: currentAccount }),
-        latestCrashRound ? crash.playerBets(latestCrashRound.id, currentAccount) : Promise.resolve(null)
-      ])
-    : [null, null, null, null];
+  let playerBalanceHandle = null;
+  let playerLockedBalanceHandle = null;
+  let pendingWithdrawal = null;
+  let latestCrashPlayerBet = null;
+
+  if (currentAccount) {
+    const [balanceResult, lockedBalanceResult, withdrawalResult, crashPlayerBetResult] = await Promise.allSettled([
+      vault.getEncryptedBalance.staticCall({ from: currentAccount }),
+      vault.getEncryptedLockedBalance.staticCall({ from: currentAccount }),
+      vault.getPendingWithdrawal.staticCall({ from: currentAccount }),
+      latestCrashRound ? crash.playerBets(latestCrashRound.id, currentAccount) : Promise.resolve(null)
+    ]);
+
+    if (balanceResult.status === "fulfilled") {
+      playerBalanceHandle = balanceResult.value;
+    }
+
+    if (lockedBalanceResult.status === "fulfilled") {
+      playerLockedBalanceHandle = lockedBalanceResult.value;
+    }
+
+    if (withdrawalResult.status === "fulfilled") {
+      pendingWithdrawal = withdrawalResult.value;
+    }
+
+    if (crashPlayerBetResult.status === "fulfilled") {
+      latestCrashPlayerBet = crashPlayerBetResult.value;
+    }
+  }
 
   return {
     isFhe: true,
@@ -367,17 +414,10 @@ export async function loadCasinoState(currentAccount) {
         }
       : null,
     router: {
-      owner: routerOwner,
-      latestRequestId: latestRequestMeta?.requestId ?? null,
-      latestRequestSource: latestRequestMeta?.source || "",
-      latestRequest: rawLatestRequest
-        ? {
-            requester: rawLatestRequest.requester,
-            context: rawLatestRequest.context,
-            randomWord: rawLatestRequest.randomWord,
-            fulfilled: rawLatestRequest.fulfilled
-          }
-        : null
+      owner: "",
+      latestRequestId: null,
+      latestRequestSource: "",
+      latestRequest: null
     },
     coin: {
       houseEdgeBps: Number(coinHouseEdgeBps),
@@ -400,8 +440,8 @@ export async function loadCasinoState(currentAccount) {
   };
 }
 
-export async function loadPredictionState(currentAccount) {
-  const factory = new ethers.Contract(CASFIN_CONFIG.addresses.marketFactory, MARKET_FACTORY_ABI, publicProvider);
+async function loadPredictionStateWithProvider(currentAccount, provider) {
+  const factory = new ethers.Contract(CASFIN_CONFIG.addresses.marketFactory, MARKET_FACTORY_ABI, provider);
   const [factoryOwner, totalMarketsRaw, feeConfig, approvedCreator] = await Promise.all([
     factory.owner(),
     factory.totalMarkets(),
@@ -415,9 +455,8 @@ export async function loadPredictionState(currentAccount) {
 
   const markets = await Promise.all(
     marketAddresses.map(async (address) => {
-      const market = new ethers.Contract(address, PREDICTION_MARKET_ABI, publicProvider);
+      const market = new ethers.Contract(address, PREDICTION_MARKET_ABI, provider);
       const meta = await factory.marketMeta(address);
-      const pool = new ethers.Contract(meta.pool, LIQUIDITY_POOL_ABI, publicProvider);
 
       const [
         question,
@@ -428,9 +467,7 @@ export async function loadPredictionState(currentAccount) {
         winningOutcome,
         creator,
         resolverAddress,
-        collateralPool,
-        totalShares,
-        poolBalance
+        outcomesCount
       ] = await Promise.all([
         market.question(),
         market.description(),
@@ -440,22 +477,15 @@ export async function loadPredictionState(currentAccount) {
         market.winningOutcome(),
         market.creator(),
         market.resolver(),
-        market.collateralPool(),
-        market.getTotalSharesPerOutcome(),
-        currentAccount ? pool.balanceOf(currentAccount) : Promise.resolve(0n)
+        market.outcomesCount()
       ]);
 
-      const outcomeIndexes = Array.from({ length: totalShares.length }, (_, index) => index);
+      const outcomeIndexes = Array.from({ length: Number(outcomesCount) }, (_, index) => index);
       const outcomeLabels = await Promise.all(outcomeIndexes.map((index) => market.outcomes(index)));
 
-      const [userShares, hasClaimed] = currentAccount
-        ? await Promise.all([
-            Promise.all(outcomeIndexes.map((index) => market.getShares(currentAccount, index))),
-            market.hasClaimed(currentAccount)
-          ])
-        : [outcomeIndexes.map(() => 0n), false];
+      const hasClaimed = currentAccount ? await market.hasClaimed(currentAccount) : false;
 
-      const resolver = new ethers.Contract(resolverAddress, MARKET_RESOLVER_ABI, publicProvider);
+      const resolver = new ethers.Contract(resolverAddress, MARKET_RESOLVER_ABI, provider);
       const [manualResolver, feeRecipient, oracleType, resolutionRequested] = await Promise.all([
         resolver.manualResolver(),
         resolver.feeRecipient(),
@@ -472,12 +502,12 @@ export async function loadPredictionState(currentAccount) {
         finalized,
         winningOutcome: Number(winningOutcome),
         creator,
-        collateralPool,
+        collateralPool: 0n,
         outcomeLabels,
-        totalShares,
-        userShares,
+        totalShares: outcomeIndexes.map(() => 0n),
+        userShares: outcomeIndexes.map(() => 0n),
         hasClaimed,
-        poolBalance,
+        poolBalance: 0n,
         meta: {
           market: meta.market,
           amm: meta.amm,
@@ -509,4 +539,16 @@ export async function loadPredictionState(currentAccount) {
     },
     markets
   };
+}
+
+export async function loadCasinoState(currentAccount, provider = publicProvider) {
+  return withReadProviderFailover("loadCasinoState", provider, (activeProvider) =>
+    loadCasinoStateWithProvider(currentAccount, activeProvider)
+  );
+}
+
+export async function loadPredictionState(currentAccount, provider = publicProvider) {
+  return withReadProviderFailover("loadPredictionState", provider, (activeProvider) =>
+    loadPredictionStateWithProvider(currentAccount, activeProvider)
+  );
 }

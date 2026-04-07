@@ -1,3 +1,5 @@
+"use client";
+
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import {
@@ -12,8 +14,9 @@ import {
   parseRequiredInteger,
   parseRequiredShares
 } from "@/lib/casfin-client";
-import { MARKET_AMM_ABI, MARKET_FACTORY_ABI, MARKET_RESOLVER_ABI, PREDICTION_MARKET_ABI } from "@/lib/casfin-abis";
+import { MARKET_FACTORY_ABI, MARKET_RESOLVER_ABI, PREDICTION_MARKET_ABI } from "@/lib/casfin-abis";
 import { ActionButton, AddressLink } from "@/components/ProtocolBits";
+import { useCofhe } from "@/lib/cofhe-provider";
 
 export default function PredictionRail({
   account,
@@ -26,6 +29,8 @@ export default function PredictionRail({
   updateMarketForm,
   walletBlocked
 }) {
+  const { encryptUint128, connected: cofheConnected } = useCofhe();
+
   return (
     <div className="rail-grid">
       <section className="stack-column">
@@ -266,21 +271,15 @@ export default function PredictionRail({
                   />
                   <p className="field-hint">Leave min shares blank to use a 2% buffer from the current AMM quote.</p>
                   <ActionButton
-                    disabled={walletBlocked || market.resolved}
+                    disabled={walletBlocked || market.resolved || !cofheConnected}
                     onClick={() =>
                       runTransaction("Buy market shares", async (signer) => {
                         const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
-                        const amm = new ethers.Contract(market.meta.amm, MARKET_AMM_ABI, signer);
                         const outcomeIndex = parseRequiredInteger(marketForm.buyOutcome, "Outcome");
                         const collateralIn = parseRequiredEth(marketForm.buyAmount, "Buy amount");
-                        const shareSnapshot = await predictionMarket.getTotalSharesPerOutcome();
-                        const preview = await amm.previewBuy(outcomeIndex, collateralIn, shareSnapshot);
-                        const quotedSharesOut = preview[0];
-                        const minSharesOut = marketForm.buyMinSharesOut
-                          ? parseRequiredShares(marketForm.buyMinSharesOut, "Min shares out")
-                          : (quotedSharesOut * 98n) / 100n;
+                        const encAmount = await encryptUint128(collateralIn);
 
-                        return predictionMarket.buyShares(outcomeIndex, minSharesOut, {
+                        return predictionMarket.buyShares(outcomeIndex, encAmount, {
                           value: collateralIn
                         });
                       })
@@ -309,13 +308,14 @@ export default function PredictionRail({
                   />
                   <p className="field-hint">Shares use 18 decimals, so values like 1.5 are valid.</p>
                   <ActionButton
-                    disabled={walletBlocked || market.resolved}
+                    disabled={walletBlocked || market.resolved || !cofheConnected}
                     onClick={() =>
                       runTransaction("Sell market shares", async (signer) => {
                         const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
+                        const encShares = await encryptUint128(parseRequiredShares(marketForm.sellShares, "Shares"));
                         return predictionMarket.sell(
                           parseRequiredInteger(marketForm.sellOutcome, "Sell outcome"),
-                          parseRequiredShares(marketForm.sellShares, "Shares")
+                          encShares
                         );
                       })
                     }
@@ -376,13 +376,25 @@ export default function PredictionRail({
                     <ActionButton
                       disabled={walletBlocked || !market.finalized}
                       onClick={() =>
-                        runTransaction("Claim winnings", async (signer) => {
+                        runTransaction("Request claim", async (signer) => {
                           const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
-                          return predictionMarket.claim();
+                          return predictionMarket.requestClaim();
                         })
                       }
                     >
-                      {pendingAction === "Claim winnings" ? "Claiming..." : "Claim"}
+                      {pendingAction === "Request claim" ? "Requesting..." : "Request Claim"}
+                    </ActionButton>
+                    <ActionButton
+                      disabled={walletBlocked || !market.finalized}
+                      onClick={() =>
+                        runTransaction("Finalize claim", async (signer) => {
+                          const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
+                          return predictionMarket.finalizeClaim();
+                        })
+                      }
+                      variant="secondary"
+                    >
+                      {pendingAction === "Finalize claim" ? "Finalizing..." : "Finalize Claim"}
                     </ActionButton>
                   </div>
                 </label>

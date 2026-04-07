@@ -5,7 +5,7 @@ import { ethers } from "ethers";
 import GlassButton from "@/components/GlassButton";
 import GlassCard from "@/components/GlassCard";
 import GlassInput from "@/components/GlassInput";
-import { MARKET_AMM_ABI, MARKET_RESOLVER_ABI, PREDICTION_MARKET_ABI } from "@/lib/casfin-abis";
+import { MARKET_RESOLVER_ABI, PREDICTION_MARKET_ABI } from "@/lib/casfin-abis";
 import {
   formatAddress,
   formatDate,
@@ -16,6 +16,7 @@ import {
   parseRequiredInteger,
   parseRequiredShares
 } from "@/lib/casfin-client";
+import { useCofhe } from "@/lib/cofhe-provider";
 
 const OUTCOME_COLORS = ["#00d4ff", "#ffd700", "#00e68a", "#ff7c43", "#ff4d6a"];
 
@@ -60,6 +61,7 @@ export default function MarketCard({
   walletBlocked
 }) {
   const [activeTab, setActiveTab] = useState("buy");
+  const { encryptUint128, connected: cofheConnected } = useCofhe();
   const phase = getMarketPhase(market);
   const canResolveManually =
     Boolean(account) && market.resolver.manualResolver.toLowerCase() === account.toLowerCase();
@@ -180,22 +182,16 @@ export default function MarketCard({
           />
 
           <GlassButton
-            disabled={walletBlocked || market.resolved}
+            disabled={walletBlocked || market.resolved || !cofheConnected}
             loading={pendingAction === "Buy market shares"}
             onClick={() =>
               runTransaction("Buy market shares", async (signer) => {
                 const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
-                const amm = new ethers.Contract(market.meta.amm, MARKET_AMM_ABI, signer);
                 const outcomeIndex = parseRequiredInteger(marketForm.buyOutcome, "Outcome");
                 const collateralIn = parseRequiredEth(marketForm.buyAmount, "Buy amount");
-                const shareSnapshot = await predictionMarket.getTotalSharesPerOutcome();
-                const preview = await amm.previewBuy(outcomeIndex, collateralIn, shareSnapshot);
-                const quotedSharesOut = preview[0];
-                const minSharesOut = marketForm.buyMinSharesOut
-                  ? parseRequiredShares(marketForm.buyMinSharesOut, "Min shares out")
-                  : (quotedSharesOut * 98n) / 100n;
+                const encAmount = await encryptUint128(collateralIn);
 
-                return predictionMarket.buyShares(outcomeIndex, minSharesOut, {
+                return predictionMarket.buyShares(outcomeIndex, encAmount, {
                   value: collateralIn
                 });
               })
@@ -234,14 +230,15 @@ export default function MarketCard({
           </div>
 
           <GlassButton
-            disabled={walletBlocked || market.resolved}
+            disabled={walletBlocked || market.resolved || !cofheConnected}
             loading={pendingAction === "Sell market shares"}
             onClick={() =>
               runTransaction("Sell market shares", async (signer) => {
                 const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
+                const encShares = await encryptUint128(parseRequiredShares(marketForm.sellShares, "Shares"));
                 return predictionMarket.sell(
                   parseRequiredInteger(marketForm.sellOutcome, "Sell outcome"),
-                  parseRequiredShares(marketForm.sellShares, "Shares")
+                  encShares
                 );
               })
             }
@@ -311,15 +308,29 @@ export default function MarketCard({
 
             <GlassButton
               disabled={walletBlocked || !market.finalized}
-              loading={pendingAction === "Claim winnings"}
+              loading={pendingAction === "Request claim"}
               onClick={() =>
-                runTransaction("Claim winnings", async (signer) => {
+                runTransaction("Request claim", async (signer) => {
                   const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
-                  return predictionMarket.claim();
+                  return predictionMarket.requestClaim();
                 })
               }
             >
-              Claim Winnings
+              Request Claim
+            </GlassButton>
+
+            <GlassButton
+              disabled={walletBlocked || !market.finalized}
+              loading={pendingAction === "Finalize claim"}
+              onClick={() =>
+                runTransaction("Finalize claim", async (signer) => {
+                  const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
+                  return predictionMarket.finalizeClaim();
+                })
+              }
+              variant="secondary"
+            >
+              Finalize Claim
             </GlassButton>
           </div>
         </div>

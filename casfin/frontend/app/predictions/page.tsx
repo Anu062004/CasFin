@@ -37,10 +37,7 @@ export default function PredictionsPage() {
 
   useEffect(() => {
     setCreateMarketForm((current) => {
-      if (current.resolveAt) {
-        return current;
-      }
-
+      if (current.resolveAt) return current;
       return { ...current, resolveAt: toLocalDateTimeValue(48) };
     });
   }, []);
@@ -75,71 +72,61 @@ export default function PredictionsPage() {
   }
 
   function handlePageAction() {
-    if (!isConnected) {
-      connectWallet();
-      return;
-    }
-
+    if (!isConnected) { void connectWallet(); return; }
     if (!isCorrectChain) {
-      ensureTargetNetwork();
+      void ensureTargetNetwork().catch((e) => console.warn("[PredictionsPage]", e));
       return;
     }
-
-    loadProtocolState(account);
+    void loadProtocolState(account).catch((e) => console.warn("[PredictionsPage]", e));
   }
 
   return (
     <main className="page-shell is-narrow">
+      {/* ── Header ── */}
       <section className="page-header">
         <div>
-          <p className="page-eyebrow">Predictions</p>
-          <h1 className="page-title">Trade outcome shares inside a cleaner market flow.</h1>
-          <p className="page-subtitle">
-            Launch markets, buy and sell positions with the live AMM preview, then move through resolution,
-            finalization, and claim from a single centered layout.
-          </p>
+          <p className="page-eyebrow">Markets</p>
+          <h1 className="page-title">Predictions</h1>
         </div>
 
         <div className="page-actions">
           <GlassButton disabled={Boolean(pendingAction)} onClick={handlePageAction} variant="secondary">
-            {!isConnected ? "Connect Wallet" : !isCorrectChain ? "Switch Network" : "Refresh Live Data"}
+            {!isConnected ? "Connect Wallet" : !isCorrectChain ? "Switch Network" : "Refresh"}
           </GlassButton>
         </div>
       </section>
 
       {predictionLoadError ? (
         <GlassCard className="notice-card tone-danger" stagger={1}>
-          <p>Unable to refresh prediction data: {predictionLoadError}</p>
+          <p>{predictionLoadError}</p>
         </GlassCard>
       ) : null}
 
+      {/* ── Stats ── */}
       <section className="stat-grid">
         <StatCard
-          detail="Markets are loaded from the deployed factory in reverse chronological order."
           label="Live Markets"
           stagger={2}
           value={String(predictionState.totalMarkets)}
         />
         <StatCard
-          detail="Only approved creator wallets can submit new markets from the UI."
           label="Creator Access"
           stagger={3}
           value={predictionState.approvedCreator ? "Approved" : "Restricted"}
         />
         <StatCard
-          detail="Factory-wide platform fee applied to live markets."
           label="Platform Fee"
           stagger={4}
           value={formatBps(predictionState.feeConfig.platformFeeBps)}
         />
         <StatCard
-          detail="Liquidity provider fee used by the live market stack."
           label="LP Fee"
           stagger={5}
           value={formatBps(predictionState.feeConfig.lpFeeBps)}
         />
       </section>
 
+      {/* ── Factory + markets ── */}
       <div className="prediction-stack">
         <PredictionFactory
           createMarketForm={createMarketForm}
@@ -154,10 +141,9 @@ export default function PredictionsPage() {
         {predictionState.markets.length === 0 ? (
           <GlassCard
             className="empty-state"
-            description="Create a market from an approved wallet and it will appear here automatically after the next refresh."
             eyebrow="No Live Markets"
             stagger={7}
-            title="The predictions surface is ready for its first launch."
+            title="Waiting for first market"
           />
         ) : null}
 

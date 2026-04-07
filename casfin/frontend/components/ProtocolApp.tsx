@@ -11,6 +11,7 @@ import {
   formatEth,
   loadCasinoState,
   loadPredictionState,
+  pollingProvider,
   toLocalDateTimeValue
 } from "@/lib/casfin-client";
 import { ActionButton, AddressLink, StatCard } from "@/components/ProtocolBits";
@@ -26,7 +27,7 @@ export default function ProtocolApp() {
   const [account, setAccount] = useState("");
   const [chainId, setChainId] = useState(null);
   const [pendingAction, setPendingAction] = useState("");
-  const [statusMessage, setStatusMessage] = useState("Read-only data is live from Arbitrum Sepolia.");
+  const [statusMessage, setStatusMessage] = useState(`Read-only data is live from ${CASFIN_CONFIG.chainName}.`);
   const [lastTransaction, setLastTransaction] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [casinoState, setCasinoState] = useState(EMPTY_CASINO_STATE);
@@ -37,7 +38,7 @@ export default function ProtocolApp() {
   const [crashForm, setCrashForm] = useState({ roundId: "", amount: "0.01", cashOutMultiplier: "2.00", settlePlayer: "" });
   const [createMarketForm, setCreateMarketForm] = useState({
     question: "Will ETH close above $4,000 this week?",
-    description: "Manual test market deployed from the CasFin frontend on Arbitrum Sepolia.",
+    description: `Manual test market deployed from the CasFin frontend on ${CASFIN_CONFIG.chainName}.`,
     outcomes: CASFIN_CONFIG.predictionDefaults.outcomes,
     resolveAt: "",
     disputeWindowHours: String(CASFIN_CONFIG.predictionDefaults.disputeWindowHours),
@@ -121,7 +122,7 @@ export default function ProtocolApp() {
           {
             chainId: CASFIN_CONFIG.chainIdHex,
             chainName: CASFIN_CONFIG.chainName,
-            rpcUrls: [CASFIN_CONFIG.publicRpcUrl],
+            rpcUrls: [CASFIN_CONFIG.walletRpcUrl],
             nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
             blockExplorerUrls: [CASFIN_CONFIG.explorerBaseUrl]
           }
@@ -179,7 +180,7 @@ export default function ProtocolApp() {
       const transaction = await handler(signer);
 
       setLastTransaction({ label, hash: transaction.hash });
-      setStatusMessage(`${label} submitted to Arbitrum Sepolia.`);
+      setStatusMessage(`${label} submitted to ${CASFIN_CONFIG.chainName}.`);
 
       await transaction.wait();
       setStatusMessage(`${label} confirmed.`);
@@ -230,7 +231,18 @@ export default function ProtocolApp() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      loadProtocolState(account);
+      Promise.all([
+        loadCasinoState(account, pollingProvider),
+        loadPredictionState(account, pollingProvider)
+      ])
+        .then(([nextCasinoState, nextPredictionState]) => {
+          setCasinoState(nextCasinoState);
+          setPredictionState(nextPredictionState);
+          setLoadError("");
+        })
+        .catch((error) => {
+          setLoadError(extractError(error));
+        });
     }, 20000);
 
     return () => clearInterval(interval);
@@ -290,7 +302,7 @@ export default function ProtocolApp() {
     {
       label: "Wallet Rail",
       value: isConnected ? formatAddress(account) : "Read only",
-      detail: isCorrectChain ? CASFIN_CONFIG.chainName : "Switch to Arbitrum Sepolia for write actions."
+        detail: isCorrectChain ? CASFIN_CONFIG.chainName : `Switch to ${CASFIN_CONFIG.chainName} for write actions.`
     }
   ];
 
@@ -320,10 +332,10 @@ export default function ProtocolApp() {
 
         <div className="hero-grid">
           <div className="hero-copy-card">
-            <p className="status-chip">Live Arbitrum Sepolia deployment connected</p>
+            <p className="status-chip">Live {CASFIN_CONFIG.chainName} deployment connected</p>
             <p className="hero-copy">
-              CasFin now runs as a transparent protocol surface for casino games and prediction markets on Arbitrum
-              Sepolia. The app is wired to the deployed vault, games, randomness adapter, and market factory so users
+              CasFin now runs as an encrypted protocol surface for casino games and prediction markets on Arbitrum
+              Sepolia. The app is wired to the deployed vault, games, and market factory so users
               can move from protocol entry to action in one workspace.
             </p>
 
@@ -375,7 +387,7 @@ export default function ProtocolApp() {
             <div>
               <span className="wallet-label">Wallet</span>
               <strong>{isConnected ? formatAddress(account) : "Not connected"}</strong>
-              <p>{isCorrectChain ? CASFIN_CONFIG.chainName : "Switch to Arbitrum Sepolia for write access."}</p>
+              <p>{isCorrectChain ? CASFIN_CONFIG.chainName : `Switch to ${CASFIN_CONFIG.chainName} for write access.`}</p>
             </div>
 
             <div className="wallet-actions">
