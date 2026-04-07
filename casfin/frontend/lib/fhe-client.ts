@@ -1,12 +1,14 @@
 import { ethers } from "ethers";
+import { CASFIN_CONFIG } from "@/lib/casfin-config";
+import { toEncryptedInputTuple } from "@/lib/cofhe-utils";
 import EncryptedCasinoVaultAbi from "@/lib/generated-abis/EncryptedCasinoVault.json";
 import EncryptedCoinFlipAbi from "@/lib/generated-abis/EncryptedCoinFlip.json";
 import EncryptedDiceGameAbi from "@/lib/generated-abis/EncryptedDiceGame.json";
 import EncryptedCrashGameAbi from "@/lib/generated-abis/EncryptedCrashGame.json";
 
 export const FHE_CASFIN_CONFIG = {
-  chainId: Number(process.env.NEXT_PUBLIC_ARB_SEPOLIA_CHAIN_ID || 421614),
-  rpcUrl: process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
+  chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614),
+  rpcUrl: CASFIN_CONFIG.fheRpcUrl,
   addresses: {
     encryptedCasinoVault: process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS || ethers.ZeroAddress,
     encryptedCoinFlip: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || ethers.ZeroAddress,
@@ -15,7 +17,14 @@ export const FHE_CASFIN_CONFIG = {
   }
 };
 
-export const fhePublicProvider = new ethers.JsonRpcProvider(FHE_CASFIN_CONFIG.rpcUrl);
+const ARBITRUM_SEPOLIA_NETWORK = {
+  chainId: FHE_CASFIN_CONFIG.chainId,
+  name: "arbitrum-sepolia"
+} as const;
+
+export const fhePublicProvider = new ethers.JsonRpcProvider(FHE_CASFIN_CONFIG.rpcUrl, ARBITRUM_SEPOLIA_NETWORK, {
+  staticNetwork: true
+});
 
 export const EMPTY_FHE_STATE = {
   vault: {
@@ -42,15 +51,16 @@ export const EMPTY_FHE_STATE = {
 };
 
 /*
-Example encryption flow with the CoFHE SDK:
+CoFHE encryption is now handled by the shared provider in lib/cofhe-provider.tsx.
 
-import { CofheSDK } from "@fhenixprotocol/cofhejs";
+Usage from any client component:
 
-const provider = new ethers.BrowserProvider(window.ethereum);
-const sdk = await CofheSDK.create({ provider });
-const encAmount = await sdk.encrypt_uint128(BigInt("1000000000000000")); // 0.001 ETH as wei
-const encGuess = await sdk.encrypt_bool(true);
-await placeFheCoinFlipBet(await provider.getSigner(), encAmount, encGuess);
+  import { useCofhe } from "@/lib/cofhe-provider";
+
+  const { encryptUint128, encryptBool, decryptForView } = useCofhe();
+  const encAmount = await encryptUint128(ethers.parseEther("0.01"));
+  const encGuess = await encryptBool(true);
+  await contract.placeBet(encAmount, encGuess);
 */
 
 function getContracts(runner = fhePublicProvider) {
@@ -80,7 +90,7 @@ function mapCoinBet(id, bet) {
     player: bet.player ?? bet[0],
     lockedHandle: serializeHandle(bet.lockedHandle ?? bet[1]),
     encGuessHeads: serializeHandle(bet.encGuessHeads ?? bet[2]),
-    requestId: bet.requestId ?? bet[3],
+    requestId: 0n,
     resolved: bet.resolved ?? bet[4],
     resolutionPending: bet.resolutionPending ?? bet[5],
     won: bet.won ?? bet[7]
@@ -97,11 +107,11 @@ function mapDiceBet(id, bet) {
     player: bet.player ?? bet[0],
     lockedHandle: serializeHandle(bet.lockedHandle ?? bet[1]),
     encGuess: serializeHandle(bet.encGuess ?? bet[2]),
-    requestId: bet.requestId ?? bet[3],
+    requestId: 0n,
     resolved: bet.resolved ?? bet[4],
     resolutionPending: bet.resolutionPending ?? bet[5],
-    rolled: Number(bet.rolled ?? bet[7]),
-    won: bet.won ?? bet[8]
+    rolled: Number(bet.rolled ?? bet[8]),
+    won: bet.won ?? bet[7]
   };
 }
 
@@ -113,9 +123,9 @@ function mapCrashRound(id, round) {
   return {
     id,
     exists: round.exists ?? round[0],
-    requestId: round.requestId ?? round[1],
-    crashMultiplierBps: Number(round.crashMultiplierBps ?? round[2]),
-    closed: round.closed ?? round[3]
+    requestId: 0n,
+    crashMultiplierBps: Number(round.crashMultiplierBps ?? round[3]),
+    closed: round.closed ?? round[4]
   };
 }
 
@@ -195,13 +205,19 @@ export async function loadFheState(currentAccount) {
 
 export async function placeFheCoinFlipBet(signer, encAmountStruct, encGuessStruct) {
   const { coin } = getContracts(signer);
-  const tx = await coin.placeBet(encAmountStruct, encGuessStruct);
+  const tx = await coin.placeBet(
+    toEncryptedInputTuple(encAmountStruct),
+    toEncryptedInputTuple(encGuessStruct)
+  );
   return tx.wait();
 }
 
 export async function placeFheDiceBet(signer, encAmountStruct, encGuessStruct) {
   const { dice } = getContracts(signer);
-  const tx = await dice.placeBet(encAmountStruct, encGuessStruct);
+  const tx = await dice.placeBet(
+    toEncryptedInputTuple(encAmountStruct),
+    toEncryptedInputTuple(encGuessStruct)
+  );
   return tx.wait();
 }
 

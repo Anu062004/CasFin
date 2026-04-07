@@ -1,3 +1,5 @@
+import { ethers } from "ethers";
+
 interface CasfinConfig {
   appName: string;
   chainId: number;
@@ -5,6 +7,9 @@ interface CasfinConfig {
   chainName: string;
   explorerBaseUrl: string;
   publicRpcUrl: string;
+  fheRpcUrl: string;
+  pollingRpcUrl: string;
+  walletRpcUrl: string;
   operatorAddress: string;
   addresses: {
     casinoToken: string;
@@ -15,6 +20,7 @@ interface CasfinConfig {
     diceGame: string;
     crashGame: string;
     marketFactory: string;
+    encryptedMarketFactory: string;
     feeDistributor: string;
     disputeRegistry: string;
   };
@@ -31,19 +37,38 @@ export const CASFIN_CONFIG: CasfinConfig = {
   chainIdHex: "0x66eee",
   chainName: "Arbitrum Sepolia",
   explorerBaseUrl: "https://sepolia.arbiscan.io",
-  publicRpcUrl: process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
-  operatorAddress: "0x6b3a924379B9408D8110f10F084ca809863B378A",
+  publicRpcUrl:
+    process.env.NEXT_PUBLIC_READ_RPC_URL ||
+    process.env.NEXT_PUBLIC_RPC_URL ||
+    "https://sepolia-rollup.arbitrum.io/rpc",
+  fheRpcUrl:
+    process.env.NEXT_PUBLIC_FHE_RPC_URL ||
+    process.env.NEXT_PUBLIC_READ_RPC_URL ||
+    process.env.NEXT_PUBLIC_RPC_URL ||
+    "https://sepolia-rollup.arbitrum.io/rpc",
+  pollingRpcUrl:
+    process.env.NEXT_PUBLIC_POLLING_RPC_URL ||
+    process.env.NEXT_PUBLIC_READ_RPC_URL ||
+    process.env.NEXT_PUBLIC_RPC_URL ||
+    "https://sepolia-rollup.arbitrum.io/rpc",
+  walletRpcUrl:
+    process.env.NEXT_PUBLIC_WALLET_RPC_URL ||
+    process.env.NEXT_PUBLIC_READ_RPC_URL ||
+    process.env.NEXT_PUBLIC_RPC_URL ||
+    "https://sepolia-rollup.arbitrum.io/rpc",
+  operatorAddress: process.env.NEXT_PUBLIC_OPERATOR_ADDRESS || "0x6b3a924379B9408D8110f10F084ca809863B378A",
   addresses: {
-    casinoToken: "0x64982D01A94298FD5b8294A30DAaB6Fdad2d3203",
-    stakingPool: "0x2E42d445FdA2644cb7Da85572Ce77D03019a4fcB",
-    casinoVault: "0xDe635798122487CF0a61512D2D7229D28436d9f8",
-    randomnessRouter: "0xA35D1C633D6E4178dD3DCE567ddb76d6C341f111",
-    coinFlipGame: "0x6dd64A41E8c2AC90eaC95b0a194c8943D40Fe945",
-    diceGame: "0x62dA6E0a33e0E1B67240348e768dD3Aed9feFDAB",
-    crashGame: "0xA204279bBb036e31Fc9cbFC7d6660c29E18D6F45",
-    marketFactory: "0xC876De943508B4938d3d8f010cc97dbac7Ab0B43",
-    feeDistributor: "0xFDD1E5A48739831DbF655338DE5996D283a79295",
-    disputeRegistry: "0x5c15ABfe97bAF24540fbc13d9a9d35d052C655db"
+    casinoToken: process.env.NEXT_PUBLIC_CASINO_TOKEN_ADDRESS || ethers.ZeroAddress,
+    stakingPool: process.env.NEXT_PUBLIC_STAKING_POOL_ADDRESS || ethers.ZeroAddress,
+    casinoVault: process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS || ethers.ZeroAddress,
+    randomnessRouter: process.env.NEXT_PUBLIC_RANDOMNESS_ROUTER_ADDRESS || ethers.ZeroAddress,
+    coinFlipGame: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || ethers.ZeroAddress,
+    diceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || ethers.ZeroAddress,
+    crashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || ethers.ZeroAddress,
+    marketFactory: process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS || ethers.ZeroAddress,
+    encryptedMarketFactory: process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS || ethers.ZeroAddress,
+    feeDistributor: process.env.NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS || ethers.ZeroAddress,
+    disputeRegistry: process.env.NEXT_PUBLIC_DISPUTE_REGISTRY_ADDRESS || ethers.ZeroAddress
   },
   predictionDefaults: {
     disputeWindowHours: 24,

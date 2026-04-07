@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import StatusBar from "@/components/StatusBar";
 import VideoBackground from "@/components/VideoBackground";
 import WalletProvider from "@/components/WalletProvider";
+import { CofheProvider } from "@/lib/cofhe-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -20,12 +21,14 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={inter.variable}>
-        <WalletProvider>
-          <VideoBackground />
-          <Navbar />
-          <StatusBar />
-          <div className="app-chrome">{children}</div>
-        </WalletProvider>
+        <CofheProvider>
+          <WalletProvider>
+            <VideoBackground />
+            <Navbar />
+            <StatusBar />
+            <div className="app-chrome">{children}</div>
+          </WalletProvider>
+        </CofheProvider>
       </body>
     </html>
   );
