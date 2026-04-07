@@ -14,8 +14,8 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
   const [amount, setAmount] = useState("0.01");
   const [guess, setGuess] = useState(3);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { encryptUint128, encryptUint8 } = useCofhe();
-  const { connectWallet, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
+  const { encryptUint128, encryptUint8, connected: cofheConnected, ready: cofheReady } = useCofhe();
+  const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const latestBet = casinoState.dice.latestBet;
   const houseEdge = casinoState.dice.houseEdgeBps ? (Number(casinoState.dice.houseEdgeBps) / 100).toFixed(0) : "2";
 
@@ -45,6 +45,7 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
         return false;
       }
 
+      await ensureEncryptedSession();
       return true;
     } catch (error) {
       console.warn("[CleanDiceCard] Failed to prepare wallet action.", error);
@@ -154,7 +155,11 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
             ? "Connect wallet to play"
             : !isCorrectChain
               ? "Switch to Arbitrum Sepolia"
-              : "Place dice bet"}
+              : !cofheReady
+                ? "Initializing encrypted session"
+                : !cofheConnected
+                  ? "Start encrypted session"
+                  : "Place dice bet"}
       </button>
 
       <div className="casino-status-grid">

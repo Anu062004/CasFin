@@ -14,8 +14,8 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
   const [amount, setAmount] = useState("0.01");
   const [guessHeads, setGuessHeads] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { encryptUint128, encryptBool } = useCofhe();
-  const { connectWallet, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
+  const { encryptUint128, encryptBool, connected: cofheConnected, ready: cofheReady } = useCofhe();
+  const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const latestBet = casinoState.coin.latestBet;
   const houseEdge = casinoState.coin.houseEdgeBps ? (Number(casinoState.coin.houseEdgeBps) / 100).toFixed(0) : "2";
 
@@ -45,6 +45,7 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
         return false;
       }
 
+      await ensureEncryptedSession();
       return true;
     } catch (error) {
       console.warn("[CleanCoinFlipCard] Failed to prepare wallet action.", error);
@@ -154,7 +155,11 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
             ? "Connect wallet to play"
             : !isCorrectChain
               ? "Switch to Arbitrum Sepolia"
-              : "Place coin flip bet"}
+              : !cofheReady
+                ? "Initializing encrypted session"
+                : !cofheConnected
+                  ? "Start encrypted session"
+                  : "Place coin flip bet"}
       </button>
 
       <div className="casino-status-grid">

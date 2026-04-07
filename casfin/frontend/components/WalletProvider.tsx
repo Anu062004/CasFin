@@ -32,6 +32,8 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const mountedRef = useRef(true);
   const activeProviderRef = useRef<InjectedEthereumProvider | null>(null);
+  const cofheReadyRef = useRef(false);
+  const cofheConnectedRef = useRef(false);
   const providerListenersRef = useRef<{
     provider: InjectedEthereumProvider | null;
     handleAccountsChanged: ((accounts: string[]) => Promise<void>) | null;
@@ -227,17 +229,71 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     };
   }
 
+  useEffect(() => {
+    cofheReadyRef.current = cofheReady;
+    cofheConnectedRef.current = cofheConnected;
+  }, [cofheConnected, cofheReady]);
+
+  const waitForCofheReady = useCallback(async (timeoutMs = 5000) => {
+    if (cofheReadyRef.current) {
+      return true;
+    }
+
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < timeoutMs) {
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+
+      if (cofheReadyRef.current) {
+        return true;
+      }
+    }
+
+    return cofheReadyRef.current;
+  }, []);
+
   const connectCofheSession = useCallback(
     async (provider: InjectedEthereumProvider, targetAccount?: string) => {
-      if (!cofheReady || !provider || !targetAccount) {
+      if (!provider || !targetAccount) {
         return;
+      }
+
+      const ready = await waitForCofheReady();
+
+      if (!ready) {
+        throw new Error("The encrypted CoFHE session is still loading. Wait a moment and try again.");
       }
 
       const browserProvider = new ethers.BrowserProvider(provider);
       const signer = await browserProvider.getSigner(targetAccount);
       await connectCofhe(browserProvider, signer);
     },
-    [cofheReady, connectCofhe]
+    [connectCofhe, waitForCofheReady]
+  );
+
+  const ensureEncryptedSession = useCallback(
+    async (currentAccount?: string) => {
+      let nextAccount = currentAccount || account;
+      let provider = activeProviderRef.current || getInjectedProvider();
+
+      if (!provider || !nextAccount) {
+        throw new Error("Connect a wallet before starting the encrypted session.");
+      }
+
+      if (chainId !== CASFIN_CONFIG.chainId) {
+        const snapshot = await ensureTargetNetwork();
+        nextAccount = snapshot.account || nextAccount;
+        provider = activeProviderRef.current || provider;
+      }
+
+      if (cofheConnectedRef.current) {
+        return;
+      }
+
+      pushStatus("Starting the encrypted CoFHE session for this wallet.", "info");
+      await connectCofheSession(provider, nextAccount);
+    },
+    [account, chainId, connectCofheSession]
   );
 
   async function ensureWalletNetworkConfig(provider: InjectedEthereumProvider) {
@@ -760,6 +816,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         connectWallet,
         disconnectWallet,
         ensureTargetNetwork,
+        ensureEncryptedSession,
         refreshWalletState,
         syncWallet,
         runTransaction,

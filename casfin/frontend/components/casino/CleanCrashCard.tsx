@@ -16,8 +16,8 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pointsRef = useRef<{ x: number; y: number }[]>([]);
   const frameRef = useRef<number | null>(null);
-  const { encryptUint128 } = useCofhe();
-  const { connectWallet, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
+  const { encryptUint128, connected: cofheConnected, ready: cofheReady } = useCofhe();
+  const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
 
   const latestRound = casinoState.crash.latestRound;
   const roundId = latestRound?.id?.toString() || "-";
@@ -108,6 +108,7 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
         return false;
       }
 
+      await ensureEncryptedSession();
       return true;
     } catch (error) {
       console.warn(`[CleanCrashCard] Failed to prepare wallet action for ${context}.`, error);
@@ -193,7 +194,11 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
               ? "Connect wallet to play"
               : !isCorrectChain
                 ? "Switch to Arbitrum Sepolia"
-                : "Place crash bet"}
+                : !cofheReady
+                  ? "Initializing encrypted session"
+                  : !cofheConnected
+                    ? "Start encrypted session"
+                    : "Place crash bet"}
         </button>
       </div>
 

@@ -226,6 +226,7 @@ export interface WalletContextValue {
   connectWallet: (walletType?: WalletType) => Promise<void>;
   disconnectWallet: () => void;
   ensureTargetNetwork: () => Promise<WalletSnapshot>;
+  ensureEncryptedSession: (currentAccount?: string) => Promise<void>;
   refreshWalletState: (options?: SyncWalletOptions) => Promise<WalletSnapshot>;
   syncWallet: (options?: SyncWalletOptions) => Promise<WalletSnapshot>;
   runTransaction: RunTransaction;
