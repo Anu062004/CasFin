@@ -1,9 +1,5 @@
 "use client";
 
-export { default } from "./NavbarPrivy";
-
-/*
-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -17,7 +13,7 @@ const NAV_LINKS = [
   { href: "/wallet", label: "Wallet" }
 ];
 
-export default function Navbar() {
+export default function NavbarPrivy() {
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -39,7 +35,9 @@ export default function Navbar() {
   const networkClass = !isConnected ? "is-neutral" : isCorrectChain ? "is-online" : "is-offline";
   const networkLabel = !isConnected ? "Not connected" : isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network";
 
-  function closeMenu() { setMenuOpen(false); }
+  function closeMenu() {
+    setMenuOpen(false);
+  }
 
   function handleWalletBtnClick() {
     if (!isConnected) {
@@ -53,20 +51,19 @@ export default function Navbar() {
   }
 
   useEffect(() => {
-    if (!walletModalOpen) {
+    if (!walletModalOpen || !isConnected) {
       return;
     }
 
-    void refreshWalletState({ loadProtocol: false, requestAccounts: isConnected }).catch((error) => {
-      console.warn("[Navbar] Failed to refresh wallet state for modal.", error);
+    void refreshWalletState({ loadProtocol: false }).catch((error) => {
+      console.warn("[NavbarPrivy] Failed to refresh wallet state for modal.", error);
     });
-  }, [isConnected, walletModalOpen]);
+  }, [isConnected, refreshWalletState, walletModalOpen]);
 
   return (
     <>
       <header className={`site-navbar ${pathname === "/" ? "is-home" : ""}`}>
         <div className="navbar-inner">
-          [Legacy navbar logo comment]
           <Link href="/" className="navbar-brand" aria-label="Back to home">
             <span className="navbar-mark">C</span>
             <span className="navbar-wordmark">CasFin</span>
@@ -85,13 +82,13 @@ export default function Navbar() {
           </nav>
 
           <div className="navbar-actions">
-            {isConnected && (
+            {isConnected ? (
               <button
                 className={`network-pill ${networkClass}`}
                 onClick={() => {
                   if (!isCorrectChain) {
                     void ensureTargetNetwork().catch((error) => {
-                      console.warn("[Navbar] Failed to switch network.", error);
+                      console.warn("[NavbarPrivy] Failed to switch network.", error);
                     });
                   }
                 }}
@@ -100,7 +97,7 @@ export default function Navbar() {
                 <span className="network-dot" />
                 {networkLabel}
               </button>
-            )}
+            ) : null}
 
             <button
               className="wallet-connect-btn"
@@ -120,7 +117,7 @@ export default function Navbar() {
 
             <button
               className={menuOpen ? "menu-toggle is-open" : "menu-toggle"}
-              onClick={() => setMenuOpen((v) => !v)}
+              onClick={() => setMenuOpen((current) => !current)}
               type="button"
             >
               <span /><span /><span />
@@ -129,119 +126,65 @@ export default function Navbar() {
         </div>
       </header>
 
-      [Legacy wallet modal]
-      {walletModalOpen && isConnected && (
+      {walletModalOpen && isConnected ? (
         <div className="wm-backdrop" onClick={() => setWalletModalOpen(false)}>
-          <div className="wm-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="wm-panel" onClick={(event) => event.stopPropagation()}>
             <div className="wm-header">
               <span className="wm-title">Wallet</span>
-              <button className="wm-close" onClick={() => setWalletModalOpen(false)} type="button">✕</button>
+              <button className="wm-close" onClick={() => setWalletModalOpen(false)} type="button">Close</button>
             </div>
 
-            {isConnected ? (
-              [Legacy connected state]
-              <div className="wm-connected">
-                <div className="wm-avatar">
-                  {account.slice(2, 4).toUpperCase()}
-                </div>
-                <p className="wm-address">{account}</p>
-                <p className="wm-network-row">Balance: {formatEth(walletBalance)} ETH</p>
-                <p className="wm-network-row">
-                  <span className={`wm-net-dot ${isCorrectChain ? "dot-ok" : "dot-bad"}`} />
-                  {isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network"}
-                </p>
-                <div className="wm-connected-actions">
-                  {!isCorrectChain && (
-                    <button
-                      className="wm-action-btn wm-switch-btn"
-                      onClick={() => {
-                        void ensureTargetNetwork().catch((error) => {
-                          console.warn("[Navbar] Failed to switch network from modal.", error);
-                        });
-                        setWalletModalOpen(false);
-                      }}
-                      type="button"
-                    >
-                      Switch to Arbitrum Sepolia
-                    </button>
-                  )}
+            <div className="wm-connected">
+              <div className="wm-avatar">
+                {account.slice(2, 4).toUpperCase()}
+              </div>
+              <p className="wm-address">{account}</p>
+              <p className="wm-network-row">Balance: {formatEth(walletBalance)} ETH</p>
+              <p className="wm-network-row">
+                <span className={`wm-net-dot ${isCorrectChain ? "dot-ok" : "dot-bad"}`} />
+                {isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network"}
+              </p>
+              <div className="wm-connected-actions">
+                {!isCorrectChain ? (
                   <button
-                    className="wm-action-btn"
-                    onClick={() => { router.push("/wallet"); setWalletModalOpen(false); }}
+                    className="wm-action-btn wm-switch-btn"
+                    onClick={() => {
+                      void ensureTargetNetwork().catch((error) => {
+                        console.warn("[NavbarPrivy] Failed to switch network from modal.", error);
+                      });
+                      setWalletModalOpen(false);
+                    }}
                     type="button"
                   >
-                    View Wallet
+                    Switch to Arbitrum Sepolia
                   </button>
-                  <button
-                    className="wm-action-btn wm-disconnect-btn"
-                    onClick={() => { disconnectWallet(); setWalletModalOpen(false); }}
-                    type="button"
-                  >
-                    Disconnect
-                  </button>
-                </div>
+                ) : null}
+                <button
+                  className="wm-action-btn"
+                  onClick={() => {
+                    router.push("/wallet");
+                    setWalletModalOpen(false);
+                  }}
+                  type="button"
+                >
+                  View Wallet
+                </button>
+                <button
+                  className="wm-action-btn wm-disconnect-btn"
+                  onClick={() => {
+                    disconnectWallet();
+                    setWalletModalOpen(false);
+                  }}
+                  type="button"
+                >
+                  Disconnect
+                </button>
               </div>
-            ) : (
-              [Legacy connect options]
-              <div className="wm-options">
-                <button
-                  className="wm-wallet-option"
-                  onClick={() => {
-                    void connectWallet("metamask");
-                    setWalletModalOpen(false);
-                  }}
-                  type="button"
-                >
-                  <span className="wm-wallet-icon">🦊</span>
-                  <div className="wm-wallet-info">
-                    <strong>MetaMask</strong>
-                    <span>Browser extension</span>
-                  </div>
-                  <span className="wm-wallet-arrow">→</span>
-                </button>
-
-                <button
-                  className="wm-wallet-option"
-                  onClick={() => {
-                    void connectWallet("coinbase");
-                    setWalletModalOpen(false);
-                  }}
-                  type="button"
-                >
-                  <span className="wm-wallet-icon">🔵</span>
-                  <div className="wm-wallet-info">
-                    <strong>Coinbase Wallet</strong>
-                    <span>Smart wallet</span>
-                  </div>
-                  <span className="wm-wallet-arrow">→</span>
-                </button>
-
-                <button
-                  className="wm-wallet-option"
-                  onClick={() => {
-                    void connectWallet("injected");
-                    setWalletModalOpen(false);
-                  }}
-                  type="button"
-                >
-                  <span className="wm-wallet-icon">💎</span>
-                  <div className="wm-wallet-info">
-                    <strong>Browser Wallet</strong>
-                    <span>Any injected wallet</span>
-                  </div>
-                  <span className="wm-wallet-arrow">→</span>
-                </button>
-
-                <p className="wm-footnote">
-                  By connecting you agree to use this app at your own risk on Arbitrum Sepolia.
-                </p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
 
-      [Legacy mobile drawer]
       <button
         aria-hidden={!menuOpen}
         className={menuOpen ? "mobile-backdrop is-open" : "mobile-backdrop"}
@@ -274,4 +217,3 @@ export default function Navbar() {
     </>
   );
 }
-*/

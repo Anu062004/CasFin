@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Inter } from "next/font/google";
-import Navbar from "@/components/Navbar";
+import NavbarPrivy from "@/components/NavbarPrivy";
+import PrivyAppProvider from "@/components/PrivyAppProvider";
 import StatusBar from "@/components/StatusBar";
 import VideoBackground from "@/components/VideoBackground";
 import WalletProvider from "@/components/WalletProvider";
@@ -21,14 +22,16 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={inter.variable}>
-        <CofheProvider>
-          <WalletProvider>
-            <VideoBackground />
-            <Navbar />
-            <StatusBar />
-            <div className="app-chrome">{children}</div>
-          </WalletProvider>
-        </CofheProvider>
+        <PrivyAppProvider>
+          <CofheProvider>
+            <WalletProvider>
+              <VideoBackground />
+              <NavbarPrivy />
+              <StatusBar />
+              <div className="app-chrome">{children}</div>
+            </WalletProvider>
+          </CofheProvider>
+        </PrivyAppProvider>
       </body>
     </html>
   );

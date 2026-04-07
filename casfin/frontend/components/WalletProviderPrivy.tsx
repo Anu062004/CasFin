@@ -1,13 +1,11 @@
 "use client";
 
-export { default, useWallet } from "./WalletProviderPrivy";
-
-/*
-
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ethers } from "ethers";
+import type { ConnectedWallet } from "@privy-io/react-auth";
+import { usePrivyWallet } from "@/components/PrivyAppProvider";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { useCofhe } from "@/lib/cofhe-provider";
 import {
@@ -26,9 +24,10 @@ import type {
   StatusTone,
   SyncWalletOptions,
   WalletContextValue,
-  WalletSnapshot,
-  WalletType
+  WalletSnapshot
 } from "@/lib/casfin-types";
+
+type WalletRpcProvider = InjectedEthereumProvider;
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 const SKIPPED_PROTOCOL_LOAD = Symbol("SKIPPED_PROTOCOL_LOAD");
@@ -49,22 +48,46 @@ const ENCRYPTED_WRITE_TARGETS = new Set(
     .map((address) => address.toLowerCase())
 );
 
+function parseChainId(value: string | number | null | undefined) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value !== "string" || !value) {
+    return null;
+  }
+
+  if (value.startsWith("eip155:")) {
+    const parsed = Number(value.slice("eip155:".length));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  if (value.startsWith("0x")) {
+    const parsed = Number.parseInt(value, 16);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getErrorCode(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    return (error as { code?: number }).code;
+  }
+
+  return undefined;
+}
+
 export default function WalletProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const privyWallet = usePrivyWallet();
   const mountedRef = useRef(true);
-  const activeProviderRef = useRef<InjectedEthereumProvider | null>(null);
+  const activeWalletRef = useRef<ConnectedWallet | null>(null);
+  const activeProviderRef = useRef<WalletRpcProvider | null>(null);
   const cofheReadyRef = useRef(false);
   const cofheConnectedRef = useRef(false);
   const cofheSessionReadyRef = useRef(false);
-  const providerListenersRef = useRef<{
-    provider: InjectedEthereumProvider | null;
-    handleAccountsChanged: ((accounts: string[]) => Promise<void>) | null;
-    handleChainChanged: (() => Promise<void>) | null;
-  }>({
-    provider: null,
-    handleAccountsChanged: null,
-    handleChainChanged: null
-  });
   const {
     connect: connectCofhe,
     disconnect: disconnectCofhe,
@@ -94,6 +117,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     blockExplorerUrls: [CASFIN_CONFIG.explorerBaseUrl]
   };
+  const privyReady = privyWallet.configured && privyWallet.ready && privyWallet.walletsReady;
 
   function getProtocolScope() {
     if (!pathname || pathname === "/") {
@@ -157,7 +181,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     return walletBalance;
   }
 
-  async function getWalletBalanceWithFallback(provider: InjectedEthereumProvider, nextAccount: string) {
+  async function getWalletBalanceWithFallback(provider: WalletRpcProvider, nextAccount: string) {
     const browserProvider = new ethers.BrowserProvider(provider);
 
     try {
@@ -168,102 +192,42 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function getInjectedProvider(walletType: WalletType = "injected") {
-    if (typeof window === "undefined" || !window.ethereum) {
-      return null;
-    }
-
-    const providers = Array.isArray(window.ethereum.providers)
-      ? window.ethereum.providers
-      : [window.ethereum];
-
-    if (walletType === "coinbase") {
-      return providers.find((provider) => provider.isCoinbaseWallet) || null;
-    }
-
-    if (walletType === "metamask") {
-      return providers.find((provider) => provider.isMetaMask && !provider.isCoinbaseWallet) || null;
-    }
-
-    return (
-      activeProviderRef.current ||
-      providers.find((provider) => provider.isMetaMask && !provider.isCoinbaseWallet) ||
-      providers[0] ||
-      null
-    );
-  }
-
-  function clearWalletState() {
-    if (!mountedRef.current) {
-      return;
-    }
-
+  function resetWalletConnectionState() {
+    activeProviderRef.current = null;
     disconnectCofhe();
-    setWalletAvailable(false);
     setAccount("");
     setWalletBalance(0n);
     setChainId(null);
   }
 
-  function detachProviderListeners() {
-    const { provider, handleAccountsChanged, handleChainChanged } = providerListenersRef.current;
-
-    if (provider?.removeListener) {
-      if (handleAccountsChanged) {
-        provider.removeListener("accountsChanged", handleAccountsChanged);
-      }
-
-      if (handleChainChanged) {
-        provider.removeListener("chainChanged", handleChainChanged);
-      }
+  async function getActiveWalletProvider(wallet: ConnectedWallet | null = activeWalletRef.current) {
+    if (!wallet) {
+      activeProviderRef.current = null;
+      return null;
     }
 
-    providerListenersRef.current = {
-      provider: null,
-      handleAccountsChanged: null,
-      handleChainChanged: null
-    };
+    const provider = (await wallet.getEthereumProvider()) as WalletRpcProvider;
+    activeProviderRef.current = provider;
+    return provider;
   }
 
-  function attachProviderListeners(provider: InjectedEthereumProvider) {
-    if (!provider?.on || providerListenersRef.current.provider === provider) {
-      return;
-    }
-
-    detachProviderListeners();
-
-    const handleAccountsChanged = async (accounts) => {
-      try {
-        const snapshot = await syncWallet({ provider, providedAccounts: accounts });
-        await loadProtocolState(snapshot.account);
-      } catch (error) {
-        logBackgroundWalletError("Failed to handle accountsChanged.", error);
-      }
-    };
-
-    const handleChainChanged = async () => {
-      try {
-        const snapshot = await syncWallet({ provider });
-        await loadProtocolState(snapshot.account);
-      } catch (error) {
-        logBackgroundWalletError("Failed to handle chainChanged.", error);
-      }
-    };
-
-    provider.on("accountsChanged", handleAccountsChanged);
-    provider.on("chainChanged", handleChainChanged);
-    providerListenersRef.current = {
-      provider,
-      handleAccountsChanged,
-      handleChainChanged
-    };
-  }
+  useEffect(() => {
+    activeWalletRef.current = privyWallet.wallet;
+  }, [privyWallet.wallet]);
 
   useEffect(() => {
     cofheReadyRef.current = cofheReady;
     cofheConnectedRef.current = cofheConnected;
     cofheSessionReadyRef.current = cofheSessionReady;
   }, [cofheConnected, cofheReady, cofheSessionReady]);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      return;
+    }
+
+    setWalletAvailable(privyReady);
+  }, [privyReady]);
 
   const waitForCofheReady = useCallback(async (timeoutMs = 5000) => {
     if (cofheReadyRef.current) {
@@ -284,7 +248,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const connectCofheSession = useCallback(
-    async (provider: InjectedEthereumProvider, targetAccount?: string) => {
+    async (provider: WalletRpcProvider, targetAccount?: string) => {
       if (!provider || !targetAccount) {
         return;
       }
@@ -305,7 +269,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const ensureEncryptedSession = useCallback(
     async (currentAccount?: string) => {
       let nextAccount = currentAccount || account;
-      let provider = activeProviderRef.current || getInjectedProvider();
+      let provider = activeProviderRef.current || (await getActiveWalletProvider());
 
       if (!provider || !nextAccount) {
         throw new Error("Connect a wallet before starting the encrypted session.");
@@ -333,36 +297,14 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     [account, chainId, connectCofheSession, ensureCofheSessionReady]
   );
 
-  async function ensureWalletNetworkConfig(provider: InjectedEthereumProvider) {
-    try {
-      await provider.request({
-        method: "wallet_addEthereumChain",
-        params: [targetChainParams]
-      });
-    } catch (error) {
-      if (error?.code === 4001) {
-        throw error;
-      }
-
-      if (error?.code === -32601 || /not supported/i.test(String(error?.message || ""))) {
-        return;
-      }
-
-      logBackgroundWalletError("Failed to refresh wallet network configuration.", error);
-    }
-  }
-
   async function syncWallet({
     provider,
-    providedAccounts,
-    requestAccounts = false,
-    walletType = "injected"
+    providedAccounts
   }: SyncWalletOptions = {}): Promise<WalletSnapshot> {
-    const nextProvider = provider || getInjectedProvider(walletType);
+    const currentWallet = activeWalletRef.current || privyWallet.wallet;
 
-    if (!nextProvider) {
-      activeProviderRef.current = null;
-      clearWalletState();
+    if (!privyReady || !currentWallet) {
+      resetWalletConnectionState();
       return {
         provider: null,
         account: "",
@@ -371,19 +313,24 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    activeProviderRef.current = nextProvider;
-    attachProviderListeners(nextProvider);
-    setWalletAvailable(true);
+    const nextProvider = provider || (await getActiveWalletProvider(currentWallet));
 
-    const [accounts, currentChainId] = await Promise.all([
-      providedAccounts
-        ? Promise.resolve(providedAccounts)
-        : nextProvider.request({ method: requestAccounts ? "eth_requestAccounts" : "eth_accounts" }),
-      nextProvider.request({ method: "eth_chainId" })
-    ]);
+    if (!nextProvider) {
+      resetWalletConnectionState();
+      return {
+        provider: null,
+        account: "",
+        balance: 0n,
+        chainId: null
+      };
+    }
 
-    const nextAccount = accounts[0] || "";
-    const parsedChainId = parseInt(currentChainId, 16);
+    const accounts = providedAccounts || [currentWallet.address];
+    const currentChainId =
+      await nextProvider.request({ method: "eth_chainId" }).catch(() => currentWallet.chainId);
+
+    const nextAccount = accounts[0] || currentWallet.address || "";
+    const parsedChainId = parseChainId(currentChainId) ?? parseChainId(currentWallet.chainId);
     let nextBalance = 0n;
 
     if (nextAccount) {
@@ -399,7 +346,6 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    setWalletAvailable(true);
     setAccount(nextAccount);
     setWalletBalance(nextBalance);
     setChainId(parsedChainId);
@@ -423,7 +369,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     return snapshot;
   }
 
-  async function ensureWalletBalance(provider, currentAccount) {
+  async function ensureWalletBalance(provider: WalletRpcProvider, currentAccount: string) {
     if (!provider || !currentAccount) {
       return 0n;
     }
@@ -665,7 +611,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     const connectedWallet = formatAddress(currentAccount);
 
     throw new Error(
-      `Insufficient ETH in ${connectedWallet}. Available: ${balanceText}. ${label} needs about ${requiredText} including gas (${valueText} value). Switch MetaMask to a funded account or reduce the amount.`
+      `Insufficient ETH in ${connectedWallet}. Available: ${balanceText}. ${label} needs about ${requiredText} including gas (${valueText} value). Fund the connected wallet or reduce the amount.`
     );
   }
 
@@ -688,120 +634,86 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }
 
   async function ensureTargetNetwork(): Promise<WalletSnapshot> {
-    const provider = activeProviderRef.current || getInjectedProvider();
+    const currentWallet = activeWalletRef.current || privyWallet.wallet;
 
-    if (!provider) {
-      setWalletAvailable(false);
-      throw new Error("A wallet is required for write actions.");
+    if (!currentWallet) {
+      throw new Error(
+        privyWallet.configured
+          ? "A wallet is required for write actions."
+          : "Privy is not configured. Set NEXT_PUBLIC_PRIVY_APP_ID and redeploy the frontend."
+      );
     }
 
-    pushStatus(`Approve the ${CASFIN_CONFIG.chainName} network change in your wallet if prompted.`, "info");
+    pushStatus(`Approve the ${CASFIN_CONFIG.chainName} network change in the wallet modal if prompted.`, "info");
 
     try {
-      await ensureWalletNetworkConfig(provider);
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: CASFIN_CONFIG.chainIdHex }]
-      });
-    } catch (error) {
-      if (error?.code !== 4902) {
-        throw error;
+      await currentWallet.switchChain(CASFIN_CONFIG.chainId);
+    } catch (switchError) {
+      const provider = await getActiveWalletProvider(currentWallet);
+
+      if (!provider) {
+        throw switchError;
       }
 
-      await ensureWalletNetworkConfig(provider);
-      await provider.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: CASFIN_CONFIG.chainIdHex }]
-      });
-    }
+      try {
+        await provider.request({
+          method: "wallet_addEthereumChain",
+          params: [targetChainParams]
+        });
+      } catch (addError) {
+        const errorCode = getErrorCode(addError);
 
-    return syncWallet({ provider });
-  }
+        if (errorCode === 4001) {
+          throw addError;
+        }
 
-  async function connectWallet(walletType: WalletType = "injected"): Promise<void> {
-    if (typeof window === "undefined" || !window.ethereum) {
-      pushStatus("No wallet detected. Install MetaMask or Coinbase Wallet and try again.", "warning");
-      window.open(
-        walletType === "coinbase"
-          ? "https://www.coinbase.com/wallet"
-          : "https://metamask.io/download/",
-        "_blank"
-      );
-      return;
-    }
-
-    const provider = getInjectedProvider(walletType);
-
-    if (!provider) {
-      pushStatus("The requested wallet is not available in this browser.", "warning");
-      return;
-    }
-
-    activeProviderRef.current = provider;
-    attachProviderListeners(provider);
-    setWalletAvailable(true);
-
-    try {
-      pushStatus("Approve the wallet connection request in MetaMask or Coinbase Wallet.", "info");
-
-      if (walletType === "metamask") {
-        try {
-          await provider.request({
-            method: "wallet_requestPermissions",
-            params: [{ eth_accounts: {} }]
-          });
-        } catch (error) {
-          if (error?.code === 4001) {
-            throw error;
-          }
-
-          if (error?.code !== -32601) {
-            logBackgroundWalletError("MetaMask permission prompt could not be opened.", error);
-          }
+        if (errorCode !== -32601 && !/already exists/i.test(String((addError as { message?: string })?.message || ""))) {
+          logBackgroundWalletError("Failed to refresh wallet network configuration.", addError);
         }
       }
 
-      const snapshot = await syncWallet({
-        provider,
-        requestAccounts: true,
-        walletType
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: CASFIN_CONFIG.chainIdHex }]
       });
-
-      let readySnapshot = snapshot;
-
-      if (snapshot.account && snapshot.chainId !== CASFIN_CONFIG.chainId) {
-        readySnapshot = await ensureTargetNetwork();
-      }
-
-      await loadProtocolState(readySnapshot.account);
-
-      if (readySnapshot.account && readySnapshot.chainId === CASFIN_CONFIG.chainId) {
-        await ensureEncryptedSession(readySnapshot.account);
-      }
-
-      pushStatus(
-        readySnapshot.account
-          ? `Wallet connected on ${CASFIN_CONFIG.chainName}. Encrypted actions are ready.`
-          : "Connection cancelled.",
-        readySnapshot.account ? "success" : "warning"
-      );
-    } catch (error) {
-      pushStatus(extractError(error), "error");
     }
+
+    return syncWallet();
+  }
+
+  async function connectWallet(): Promise<void> {
+    if (!privyWallet.configured) {
+      pushStatus("Privy is not configured. Add NEXT_PUBLIC_PRIVY_APP_ID to the frontend environment and redeploy.", "warning");
+      return;
+    }
+
+    if (!privyReady) {
+      pushStatus("Wallet connect is still loading. Wait a moment and try again.", "info");
+      return;
+    }
+
+    pushStatus(`Continue in Privy to connect a wallet on ${CASFIN_CONFIG.chainName}.`, "info");
+    privyWallet.openConnectWallet();
   }
 
   function disconnectWallet() {
-    activeProviderRef.current = null;
-    detachProviderListeners();
-    disconnectCofhe();
-    setAccount("");
-    setWalletBalance(0n);
-    setChainId(null);
+    const currentWallet = activeWalletRef.current;
+
+    activeWalletRef.current = null;
+    resetWalletConnectionState();
     setCasinoLoadError("");
     setPredictionLoadError("");
     setCasinoState(EMPTY_CASINO_STATE);
     setPredictionState(EMPTY_PREDICTION_STATE);
     pushStatus("Wallet disconnected.", "info");
+
+    Promise.resolve(currentWallet?.disconnect?.()).catch((error) => {
+      logBackgroundWalletError("Wallet client could not be disconnected cleanly.", error);
+    });
+
+    void privyWallet.logout().catch((error) => {
+      logBackgroundWalletError("Privy logout failed.", error);
+    });
   }
 
   async function loadProtocolState(currentAccount = account) {
@@ -825,7 +737,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }
 
   async function runTransaction(label, handler) {
-    if (!walletAvailable && !getInjectedProvider()) {
+    if (!activeWalletRef.current) {
       pushStatus("Connect a wallet before sending transactions.", "warning");
       return;
     }
@@ -833,26 +745,26 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     pushStatus(`Preparing ${label.toLowerCase()} on ${CASFIN_CONFIG.chainName}.`, "info");
 
     try {
-      const walletSnapshot = await refreshWalletState({ loadProtocol: false, requestAccounts: true });
+      const walletSnapshot = await refreshWalletState({ loadProtocol: false });
 
       if (!walletSnapshot.account) {
-        throw new Error("No wallet account is connected in MetaMask.");
+        throw new Error("No wallet account is connected in Privy.");
       }
 
       const networkSnapshot =
         walletSnapshot.chainId === CASFIN_CONFIG.chainId ? walletSnapshot : await ensureTargetNetwork();
       const nextAccount = networkSnapshot.account || walletSnapshot.account;
-      const provider = activeProviderRef.current;
+      const provider = activeProviderRef.current || (await getActiveWalletProvider());
 
       if (!provider) {
-        throw new Error("No injected wallet is available for this transaction.");
+        throw new Error("No wallet provider is available for this transaction.");
       }
 
       await ensureWalletBalance(provider, nextAccount);
       await ensureEncryptedSession(nextAccount);
 
       setPendingAction(label);
-      pushStatus(`${label} is ready. Approve it in MetaMask when prompted.`, "info");
+      pushStatus(`${label} is ready. Approve it in the wallet modal when prompted.`, "info");
       const browserProvider = new ethers.BrowserProvider(provider);
       const signer = await browserProvider.getSigner(nextAccount);
       const transaction = await handler(createValidatedSigner(signer, label));
@@ -886,33 +798,58 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!privyWallet.configured || !privyReady) {
+      if (!privyWallet.configured) {
+        resetWalletConnectionState();
+      }
+      return;
+    }
+
     let disposed = false;
 
     async function boot() {
-      const defaultProvider = getInjectedProvider();
-      const snapshot = await syncWallet({ provider: defaultProvider });
+      const snapshot = await syncWallet();
+
       if (!disposed) {
         await loadProtocolState(snapshot.account);
       }
     }
 
     boot().catch((error) => {
-      logBackgroundWalletError("Initial wallet boot failed.", error);
+      logBackgroundWalletError("Wallet boot failed.", error);
     });
 
     return () => {
       disposed = true;
-      mountedRef.current = false;
-      detachProviderListeners();
     };
-  }, []);
+  }, [privyReady, privyWallet.configured, privyWallet.wallet?.address, privyWallet.wallet?.chainId]);
+
+  useEffect(() => {
+    if (!privyReady && !privyWallet.wallet) {
+      return;
+    }
+
+    if (privyReady && !privyWallet.wallet && (account || chainId !== null)) {
+      resetWalletConnectionState();
+      loadProtocolState("").catch((error) => {
+        logBackgroundWalletError("Failed to refresh read-only protocol state after disconnect.", error);
+      });
+    }
+  }, [account, chainId, privyReady, privyWallet.wallet]);
 
   useEffect(() => {
     if (!cofheReady) {
       return;
     }
 
-    if (!account || chainId !== CASFIN_CONFIG.chainId || !activeProviderRef.current) {
+    if (!account || chainId !== CASFIN_CONFIG.chainId || !activeWalletRef.current) {
       if (cofheConnected) {
         disconnectCofhe();
       }
@@ -1018,4 +955,3 @@ export function useWallet(): WalletContextValue {
 
   return context;
 }
-*/

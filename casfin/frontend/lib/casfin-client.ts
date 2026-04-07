@@ -209,7 +209,7 @@ export function extractError(error) {
   const normalizedMessage = message.replace("execution reverted: ", "").replace("Error: ", "");
 
   if (/insufficient funds/i.test(normalizedMessage)) {
-    return "Insufficient ETH in the connected wallet for the requested amount and gas. Switch MetaMask to a funded account or reduce the amount.";
+    return "Insufficient ETH in the connected wallet for the requested amount and gas. Fund the connected wallet or reduce the amount.";
   }
 
   if (

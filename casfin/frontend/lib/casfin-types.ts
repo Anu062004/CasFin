@@ -1,7 +1,7 @@
 import type { ContractTransactionResponse, JsonRpcSigner } from "ethers";
 import type { CSSProperties, Dispatch, ElementType, ReactNode, SetStateAction } from "react";
 
-export type WalletType = "injected" | "metamask" | "coinbase";
+export type WalletType = "privy";
 export type StatusTone = "info" | "success" | "warning" | "error";
 export type SerializedHandle = string | null;
 
@@ -207,7 +207,6 @@ export interface SyncWalletOptions {
   provider?: InjectedEthereumProvider | null;
   providedAccounts?: string[];
   requestAccounts?: boolean;
-  walletType?: WalletType;
   loadProtocol?: boolean;
 }
 
@@ -225,7 +224,7 @@ export interface WalletContextValue {
   walletBlocked: boolean;
   cofheSessionReady: boolean;
   cofheSessionInitializing: boolean;
-  connectWallet: (walletType?: WalletType) => Promise<void>;
+  connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   ensureTargetNetwork: () => Promise<WalletSnapshot>;
   ensureEncryptedSession: (currentAccount?: string) => Promise<void>;
