@@ -14,7 +14,8 @@ import {
   formatEth,
   loadCasinoState,
   loadPredictionState,
-  pollingProvider
+  pollingProvider,
+  publicProvider
 } from "@/lib/casfin-client";
 import type {
   LastTransactionState,
@@ -27,6 +28,22 @@ import type {
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 const SKIPPED_PROTOCOL_LOAD = Symbol("SKIPPED_PROTOCOL_LOAD");
+const DEFAULT_WRITE_GAS_LIMIT = 800_000n;
+const ENCRYPTED_WRITE_GAS_LIMIT = 1_500_000n;
+const MIN_GAS_HEADROOM = 50_000n;
+
+const ENCRYPTED_WRITE_TARGETS = new Set(
+  [
+    CASFIN_CONFIG.addresses.casinoVault,
+    CASFIN_CONFIG.addresses.coinFlipGame,
+    CASFIN_CONFIG.addresses.diceGame,
+    CASFIN_CONFIG.addresses.crashGame,
+    CASFIN_CONFIG.addresses.marketFactory,
+    CASFIN_CONFIG.addresses.encryptedMarketFactory
+  ]
+    .filter((address) => address && address !== ethers.ZeroAddress)
+    .map((address) => address.toLowerCase())
+);
 
 export default function WalletProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -481,6 +498,123 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function withGasHeadroom(estimatedGas: bigint) {
+    const headroom = estimatedGas / 5n;
+    return estimatedGas + (headroom > MIN_GAS_HEADROOM ? headroom : MIN_GAS_HEADROOM);
+  }
+
+  function normalizeTargetAddress(target: unknown) {
+    return typeof target === "string" ? target.toLowerCase() : "";
+  }
+
+  function getFallbackGasLimit(transactionRequest) {
+    return ENCRYPTED_WRITE_TARGETS.has(normalizeTargetAddress(transactionRequest.to))
+      ? ENCRYPTED_WRITE_GAS_LIMIT
+      : DEFAULT_WRITE_GAS_LIMIT;
+  }
+
+  function extractRpcRevertData(error: unknown): string | null {
+    const typedError = error as {
+      data?: unknown;
+      error?: { data?: unknown; error?: { data?: unknown } };
+      info?: { error?: { data?: unknown; error?: { data?: unknown } } };
+    };
+    const candidates = [
+      typedError?.data,
+      typedError?.error?.data,
+      typedError?.error?.error?.data,
+      typedError?.info?.error?.data,
+      typedError?.info?.error?.error?.data
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === "string" && candidate.startsWith("0x")) {
+        return candidate;
+      }
+
+      const nestedCandidate = candidate as { data?: unknown } | null;
+
+      if (
+        nestedCandidate
+        && typeof nestedCandidate === "object"
+        && typeof nestedCandidate.data === "string"
+        && nestedCandidate.data.startsWith("0x")
+      ) {
+        return nestedCandidate.data;
+      }
+    }
+
+    return null;
+  }
+
+  function shouldUseStaticGasFallback(error: unknown) {
+    if (extractRpcRevertData(error)) {
+      return false;
+    }
+
+    const message = extractError(error);
+
+    return (
+      message === "Transaction failed."
+      || /Internal JSON-RPC error/i.test(message)
+      || /RPC endpoint returned too many errors|rate limit|too many requests|429|missing response for request|failed to detect network|cannot start up/i.test(
+        message
+      )
+    );
+  }
+
+  async function applySafeGasOverrides(provider, signer, transactionRequest, label) {
+    const nextRequest = { ...transactionRequest };
+
+    if (nextRequest.gasLimit != null) {
+      return nextRequest;
+    }
+
+    const currentAccount = await signer.getAddress();
+    const estimationRequest = { ...nextRequest, from: currentAccount };
+    const estimationProviders = [publicProvider, provider].filter(
+      (candidate, index, providers) => candidate && providers.indexOf(candidate) === index
+    );
+    let lastError: unknown;
+
+    for (const [index, estimationProvider] of estimationProviders.entries()) {
+      try {
+        const estimatedGas = await estimationProvider.estimateGas(estimationRequest);
+        return {
+          ...nextRequest,
+          gasLimit: withGasHeadroom(estimatedGas)
+        };
+      } catch (error) {
+        lastError = error;
+
+        if (!shouldUseStaticGasFallback(error)) {
+          throw new Error(extractError(error));
+        }
+
+        logBackgroundWalletError(
+          `${label} gas estimation failed on provider candidate ${index + 1}; trying the next fallback.`,
+          error
+        );
+      }
+    }
+
+    if (shouldUseStaticGasFallback(lastError)) {
+      const fallbackGasLimit = getFallbackGasLimit(nextRequest);
+
+      logBackgroundWalletError(
+        `${label} is using fallback gas limit ${fallbackGasLimit.toString()} after wallet preflight failed.`,
+        lastError
+      );
+
+      return {
+        ...nextRequest,
+        gasLimit: fallbackGasLimit
+      };
+    }
+
+    throw lastError;
+  }
+
   async function validateTransactionRequest(label, signer, transactionRequest) {
     const currentAccount = await signer.getAddress();
     const provider = signer.provider;
@@ -536,8 +670,9 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       get(target, property, receiver) {
         if (property === "sendTransaction") {
           return async (transactionRequest) => {
-            await validateTransactionRequest(label, target, transactionRequest);
-            const nextRequest = await applySafeFeeOverrides(target.provider, transactionRequest);
+            const gasReadyRequest = await applySafeGasOverrides(target.provider, target, transactionRequest, label);
+            await validateTransactionRequest(label, target, gasReadyRequest);
+            const nextRequest = await applySafeFeeOverrides(target.provider, gasReadyRequest);
             return target.sendTransaction(nextRequest);
           };
         }
