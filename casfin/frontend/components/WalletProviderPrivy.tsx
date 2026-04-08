@@ -210,6 +210,25 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     return provider;
   }
 
+  async function ensureWalletNetworkConfig(provider: WalletRpcProvider) {
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [targetChainParams]
+      });
+    } catch (error) {
+      const errorCode = getErrorCode(error);
+
+      if (errorCode === 4001) {
+        throw error;
+      }
+
+      if (errorCode !== -32601 && !/already exists|user rejected/i.test(String((error as { message?: string })?.message || ""))) {
+        logBackgroundWalletError("Failed to refresh wallet network configuration.", error);
+      }
+    }
+  }
+
   useEffect(() => {
     activeWalletRef.current = privyWallet.wallet;
   }, [privyWallet.wallet]);
@@ -649,33 +668,24 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
     pushStatus(`Approve the ${CASFIN_CONFIG.chainName} network change in your wallet if prompted.`, "info");
 
+    const provider = activeProviderRef.current || (await getActiveWalletProvider(currentWallet));
+
+    if (provider) {
+      await ensureWalletNetworkConfig(provider);
+    }
+
     try {
       await currentWallet.switchChain(CASFIN_CONFIG.chainId);
     } catch (switchError) {
-      const provider = await getActiveWalletProvider(currentWallet);
+      const refreshedProvider = provider || (await getActiveWalletProvider(currentWallet));
 
-      if (!provider) {
+      if (!refreshedProvider) {
         throw switchError;
       }
 
-      try {
-        await provider.request({
-          method: "wallet_addEthereumChain",
-          params: [targetChainParams]
-        });
-      } catch (addError) {
-        const errorCode = getErrorCode(addError);
+      await ensureWalletNetworkConfig(refreshedProvider);
 
-        if (errorCode === 4001) {
-          throw addError;
-        }
-
-        if (errorCode !== -32601 && !/already exists/i.test(String((addError as { message?: string })?.message || ""))) {
-          logBackgroundWalletError("Failed to refresh wallet network configuration.", addError);
-        }
-      }
-
-      await provider.request({
+      await refreshedProvider.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: CASFIN_CONFIG.chainIdHex }]
       });

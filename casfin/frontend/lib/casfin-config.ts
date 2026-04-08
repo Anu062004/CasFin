@@ -37,6 +37,9 @@ const PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC =
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_3 ||
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4 ||
   "";
+const WALLET_ARB_SEPOLIA_RPC =
+  process.env.NEXT_PUBLIC_ARB_SEPOLIA_WALLET_RPC_URL ||
+  "https://sepolia-rollup.arbitrum.io/rpc";
 
 export const CASFIN_CONFIG: CasfinConfig = {
   appName: "CasFin",
@@ -47,7 +50,7 @@ export const CASFIN_CONFIG: CasfinConfig = {
   publicRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
   fheRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
   pollingRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
-  walletRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
+  walletRpcUrl: WALLET_ARB_SEPOLIA_RPC,
   operatorAddress: process.env.NEXT_PUBLIC_OPERATOR_ADDRESS || "0x6b3a924379B9408D8110f10F084ca809863B378A",
   addresses: {
     casinoToken: process.env.NEXT_PUBLIC_CASINO_TOKEN_ADDRESS || ethers.ZeroAddress,
