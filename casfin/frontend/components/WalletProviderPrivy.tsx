@@ -33,6 +33,7 @@ const SKIPPED_PROTOCOL_LOAD = Symbol("SKIPPED_PROTOCOL_LOAD");
 const DEFAULT_WRITE_GAS_LIMIT = 800_000n;
 const ENCRYPTED_WRITE_GAS_LIMIT = 1_500_000n;
 const MIN_GAS_HEADROOM = 50_000n;
+const MIN_PRIORITY_FEE_PER_GAS = 1_000_000n;
 
 const ENCRYPTED_WRITE_TARGETS = new Set(
   [
@@ -76,6 +77,30 @@ function getErrorCode(error: unknown) {
   }
 
   return undefined;
+}
+
+function toOptionalBigInt(value: unknown): bigint | null {
+  if (value == null) {
+    return null;
+  }
+
+  try {
+    return ethers.toBigInt(value as ethers.BigNumberish);
+  } catch {
+    return null;
+  }
+}
+
+function maxBigInt(...values: Array<bigint | null | undefined>) {
+  let current = 0n;
+
+  for (const value of values) {
+    if (value != null && value > current) {
+      current = value;
+    }
+  }
+
+  return current;
 }
 
 export default function WalletProvider({ children }: { children: ReactNode }) {
@@ -430,14 +455,45 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   async function applySafeFeeOverrides(provider, transactionRequest) {
     const nextRequest = { ...transactionRequest };
 
-    if (nextRequest.gasPrice != null || nextRequest.maxFeePerGas != null) {
-      return nextRequest;
+    const explicitMaxFeePerGas = toOptionalBigInt(nextRequest.maxFeePerGas);
+    const explicitPriorityFeePerGas = toOptionalBigInt(nextRequest.maxPriorityFeePerGas);
+    const explicitGasPrice = toOptionalBigInt(nextRequest.gasPrice);
+    let feeData: Awaited<ReturnType<typeof provider.getFeeData>> | null = null;
+    let baseFeePerGas = 0n;
+
+    try {
+      feeData = await provider.getFeeData();
+    } catch (error) {
+      logBackgroundWalletError("Failed to read wallet fee data.", error);
     }
 
     try {
-      const gasPrice = ethers.toBigInt(await provider.send("eth_gasPrice", []));
+      const latestBlock = await provider.getBlock("latest");
+      baseFeePerGas = latestBlock?.baseFeePerGas ?? 0n;
+    } catch (error) {
+      logBackgroundWalletError("Failed to read latest block base fee.", error);
+    }
+
+    const suggestedMaxFeePerGas = toOptionalBigInt(feeData?.maxFeePerGas);
+    const suggestedPriorityFeePerGas = toOptionalBigInt(feeData?.maxPriorityFeePerGas);
+    const suggestedGasPrice = toOptionalBigInt(feeData?.gasPrice);
+
+    if (baseFeePerGas > 0n || explicitMaxFeePerGas != null || suggestedMaxFeePerGas != null || suggestedPriorityFeePerGas != null) {
+      const maxPriorityFeePerGas = maxBigInt(
+        explicitPriorityFeePerGas,
+        suggestedPriorityFeePerGas,
+        MIN_PRIORITY_FEE_PER_GAS
+      );
+      const maxFeePerGas = maxBigInt(
+        explicitMaxFeePerGas,
+        explicitGasPrice,
+        suggestedMaxFeePerGas,
+        suggestedGasPrice,
+        (baseFeePerGas * 2n) + maxPriorityFeePerGas
+      );
       const {
         type: _type,
+        gasPrice: _gasPrice,
         maxFeePerGas: _maxFeePerGas,
         maxPriorityFeePerGas: _maxPriorityFeePerGas,
         ...rest
@@ -445,23 +501,30 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
       return {
         ...rest,
+        maxFeePerGas,
+        maxPriorityFeePerGas
+      };
+    }
+
+    if (explicitGasPrice != null) {
+      return nextRequest;
+    }
+
+    if (suggestedGasPrice != null && suggestedGasPrice > 0n) {
+      return {
+        ...nextRequest,
+        gasPrice: suggestedGasPrice
+      };
+    }
+
+    try {
+      const gasPrice = ethers.toBigInt(await provider.send("eth_gasPrice", []));
+      return {
+        ...nextRequest,
         gasPrice
       };
-    } catch {
-      try {
-        const latestBlock = await provider.getBlock("latest");
-        const baseFeePerGas = latestBlock?.baseFeePerGas ?? 0n;
-
-        if (baseFeePerGas > 0n) {
-          return {
-            ...nextRequest,
-            maxFeePerGas: baseFeePerGas * 2n,
-            maxPriorityFeePerGas: 0n
-          };
-        }
-      } catch (error) {
-        logBackgroundWalletError("Failed to apply wallet fee overrides.", error);
-      }
+    } catch (error) {
+      logBackgroundWalletError("Failed to apply wallet fee overrides.", error);
       return nextRequest;
     }
   }
