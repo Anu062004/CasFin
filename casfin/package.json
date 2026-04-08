@@ -10,6 +10,7 @@
     "deploy:prediction": "hardhat run scripts/deployPredictionStage.ts --network arbitrumSepolia",
     "deploy:all": "hardhat run scripts/deployAllStages.ts --network arbitrumSepolia",
     "deploy:full": "hardhat run scripts/deployFullStack.ts --network arbitrumSepolia",
+    "authorize:games": "hardhat run scripts/authorizeGames.ts --network arbitrumSepolia",
     "verify": "hardhat verify --network arbitrumSepolia",
     "keeper:start": "tsx keeper/fhe-keeper.ts",
     "frontend:dev": "npm --prefix frontend run dev",

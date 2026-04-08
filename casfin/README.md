@@ -130,6 +130,11 @@ Deploys the `EncryptedCasinoVault` and all encrypted game channels.
 npm run deploy:fhenix
 ```
 
+If an existing encrypted deployment starts reverting with `NOT_AUTHORIZED_GAME`, re-run the vault authorization step against the saved deployment snapshot:
+```bash
+npm run authorize:games
+```
+
 All successful testnet/mainnet deployments save JSON snapshots inside the `deployments/<network>/` directory so you can trace addresses and logic hashes easily.
 
 ---

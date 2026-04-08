@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
+import { extractError } from "@/lib/casfin-client";
 import { toEncryptedInputTuple } from "@/lib/cofhe-utils";
 import EncryptedCasinoVaultAbi from "@/lib/generated-abis/EncryptedCasinoVault.json";
 import EncryptedCoinFlipAbi from "@/lib/generated-abis/EncryptedCoinFlip.json";
@@ -78,6 +79,10 @@ function serializeHandle(handle) {
   }
 
   return typeof handle === "string" ? handle : ethers.hexlify(handle);
+}
+
+function throwFriendlyTransactionError(error: unknown): never {
+  throw new Error(extractError(error));
 }
 
 function mapCoinBet(id, bet) {
@@ -205,32 +210,48 @@ export async function loadFheState(currentAccount) {
 
 export async function placeFheCoinFlipBet(signer, encAmountStruct, encGuessStruct) {
   const { coin } = getContracts(signer);
-  const tx = await coin.placeBet(
-    toEncryptedInputTuple(encAmountStruct),
-    toEncryptedInputTuple(encGuessStruct)
-  );
-  return tx.wait();
+  try {
+    const tx = await coin.placeBet(
+      toEncryptedInputTuple(encAmountStruct),
+      toEncryptedInputTuple(encGuessStruct)
+    );
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }
 
 export async function placeFheDiceBet(signer, encAmountStruct, encGuessStruct) {
   const { dice } = getContracts(signer);
-  const tx = await dice.placeBet(
-    toEncryptedInputTuple(encAmountStruct),
-    toEncryptedInputTuple(encGuessStruct)
-  );
-  return tx.wait();
+  try {
+    const tx = await dice.placeBet(
+      toEncryptedInputTuple(encAmountStruct),
+      toEncryptedInputTuple(encGuessStruct)
+    );
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }
 
 export async function requestFheResolution(signer, gameAddress, betId) {
   const game = new ethers.Contract(gameAddress, ["function requestResolution(uint256 betId)"], signer);
-  const tx = await game.requestResolution(betId);
-  return tx.wait();
+  try {
+    const tx = await game.requestResolution(betId);
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }
 
 export async function finalizeFheResolution(signer, gameAddress, betId) {
   const game = new ethers.Contract(gameAddress, ["function finalizeResolution(uint256 betId)"], signer);
-  const tx = await game.finalizeResolution(betId);
-  return tx.wait();
+  try {
+    const tx = await game.finalizeResolution(betId);
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }
 
 export async function getFheVaultBalance(account) {

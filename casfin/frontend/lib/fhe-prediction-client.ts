@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
+import { extractError } from "@/lib/casfin-client";
 import { toEncryptedInputTuple } from "@/lib/cofhe-utils";
 import EncryptedMarketFactoryAbi from "@/lib/generated-abis/EncryptedMarketFactory.json";
 import EncryptedPredictionMarketAbi from "@/lib/generated-abis/EncryptedPredictionMarket.json";
@@ -28,6 +29,10 @@ export const EMPTY_FHE_PREDICTION_STATE = {
   },
   markets: []
 };
+
+function throwFriendlyTransactionError(error: unknown): never {
+  throw new Error(extractError(error));
+}
 
 function serializeHandle(handle) {
   if (!handle) {
@@ -133,21 +138,33 @@ export async function loadFhePredictionState(
 
 export async function placeFhePredictionBet(signer, marketAddress, encAmountStruct, encOutcomeStruct) {
   const market = new ethers.Contract(marketAddress, EncryptedPredictionMarketAbi, signer);
-  const tx = await market.placeBet(
-    toEncryptedInputTuple(encAmountStruct),
-    toEncryptedInputTuple(encOutcomeStruct)
-  );
-  return tx.wait();
+  try {
+    const tx = await market.placeBet(
+      toEncryptedInputTuple(encAmountStruct),
+      toEncryptedInputTuple(encOutcomeStruct)
+    );
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }
 
 export async function claimFhePredictionWinnings(signer, marketAddress, positionId) {
   const market = new ethers.Contract(marketAddress, EncryptedPredictionMarketAbi, signer);
-  const tx = await market.claimWinnings(positionId);
-  return tx.wait();
+  try {
+    const tx = await market.claimWinnings(positionId);
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }
 
 export async function finalizeFhePredictionClaim(signer, marketAddress, positionId) {
   const market = new ethers.Contract(marketAddress, EncryptedPredictionMarketAbi, signer);
-  const tx = await market.finalizeClaimWinnings(positionId);
-  return tx.wait();
+  try {
+    const tx = await market.finalizeClaimWinnings(positionId);
+    return await tx.wait();
+  } catch (error) {
+    throwFriendlyTransactionError(error);
+  }
 }

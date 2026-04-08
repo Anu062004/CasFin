@@ -197,19 +197,74 @@ export function getMarketPhase(market) {
   return "Open";
 }
 
-export function extractError(error) {
-  const message =
-    error?.shortMessage ||
-    error?.reason ||
-    error?.error?.message ||
-    error?.info?.error?.message ||
-    error?.message ||
-    "Transaction failed.";
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-  const normalizedMessage = message.replace("execution reverted: ", "").replace("Error: ", "");
+function readString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value : "";
+}
+
+export function getErrorMessage(error) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (!isObject(error)) {
+    return "Transaction failed.";
+  }
+
+  const directMessage = readString(error.shortMessage) || readString(error.reason) || readString(error.message);
+  if (directMessage) {
+    return directMessage;
+  }
+
+  const nestedCandidates = [
+    error.data,
+    error.error,
+    error.info,
+    error.cause,
+    isObject(error.info) ? error.info.error : null,
+    isObject(error.error) ? error.error.data : null,
+    isObject(error.error) ? error.error.error : null
+  ];
+
+  for (const candidate of nestedCandidates) {
+    if (!isObject(candidate)) {
+      continue;
+    }
+
+    const nestedMessage =
+      readString(candidate.message) ||
+      (isObject(candidate.data) ? readString(candidate.data.message) : "") ||
+      (isObject(candidate.error) ? readString(candidate.error.message) : "");
+
+    if (nestedMessage) {
+      return nestedMessage;
+    }
+  }
+
+  return "Transaction failed.";
+}
+
+export function extractError(error) {
+  const message = getErrorMessage(error);
+
+  const normalizedMessage = message
+    .replace(/^execution reverted(?::\s*)?/i, "")
+    .replace(/^Error:\s*/i, "")
+    .trim();
 
   if (/insufficient funds/i.test(normalizedMessage)) {
     return "Insufficient ETH in the connected wallet for the requested amount and gas. Fund the connected wallet or reduce the amount.";
+  }
+
+  if (/NOT_AUTHORIZED_GAME/i.test(normalizedMessage)) {
+    return "Game contract not authorized. Contact support or try refreshing the page.";
+  }
+
+  if (/NOT_AUTHORIZED/i.test(normalizedMessage)) {
+    return "Your wallet is not authorized for this action.";
   }
 
   if (
@@ -244,7 +299,11 @@ export function extractError(error) {
     return "The encrypted task is still pending at the validator. Wait a bit and try again.";
   }
 
-  return normalizedMessage;
+  if (/execution reverted/i.test(message)) {
+    return normalizedMessage ? `Transaction rejected by contract: ${normalizedMessage}` : "Transaction rejected by contract.";
+  }
+
+  return normalizedMessage || "Transaction failed.";
 }
 
 function mapCoinBet(id, bet) {
