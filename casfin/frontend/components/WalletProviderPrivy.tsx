@@ -456,8 +456,12 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     return typeof target === "string" ? target.toLowerCase() : "";
   }
 
+  function isEncryptedWriteRequest(transactionRequest) {
+    return ENCRYPTED_WRITE_TARGETS.has(normalizeTargetAddress(transactionRequest?.to));
+  }
+
   function getFallbackGasLimit(transactionRequest) {
-    return ENCRYPTED_WRITE_TARGETS.has(normalizeTargetAddress(transactionRequest.to))
+    return isEncryptedWriteRequest(transactionRequest)
       ? ENCRYPTED_WRITE_GAS_LIMIT
       : DEFAULT_WRITE_GAS_LIMIT;
   }
@@ -521,9 +525,9 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
     const currentAccount = await signer.getAddress();
     const estimationRequest = { ...nextRequest, from: currentAccount };
-    const estimationProviders = [publicProvider, provider].filter(
-      (candidate, index, providers) => candidate && providers.indexOf(candidate) === index
-    );
+    const estimationProviders = isEncryptedWriteRequest(nextRequest)
+      ? [provider]
+      : [provider, publicProvider].filter((candidate, index, providers) => candidate && providers.indexOf(candidate) === index);
     let lastError: unknown;
 
     for (const [index, estimationProvider] of estimationProviders.entries()) {
