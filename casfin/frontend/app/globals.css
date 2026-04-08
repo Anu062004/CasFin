@@ -3576,6 +3576,150 @@ button {
   line-height: 1.6;
 }
 
+.casino-result-card {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.casino-result-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -28px -36px auto;
+  width: 124px;
+  height: 124px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  filter: blur(46px);
+  pointer-events: none;
+  opacity: 0.28;
+}
+
+.casino-result-card.is-win {
+  border-color: rgba(73, 203, 132, 0.28);
+  background: linear-gradient(180deg, rgba(18, 67, 40, 0.5), rgba(9, 18, 23, 0.9));
+}
+
+.casino-result-card.is-loss {
+  border-color: rgba(255, 116, 116, 0.24);
+  background: linear-gradient(180deg, rgba(82, 20, 26, 0.46), rgba(16, 11, 20, 0.92));
+}
+
+.casino-result-card.is-pending {
+  border-color: rgba(85, 205, 255, 0.26);
+  background: linear-gradient(180deg, rgba(10, 52, 72, 0.52), rgba(8, 13, 26, 0.92));
+}
+
+.casino-result-card.is-idle {
+  border-color: rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(16, 22, 38, 0.86), rgba(8, 12, 22, 0.94));
+}
+
+.casino-result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.casino-result-eyebrow {
+  margin: 0;
+  color: rgba(232, 239, 255, 0.48);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.casino-result-header h4 {
+  margin: 10px 0 0;
+  color: #f7fbff;
+  font-size: clamp(1.1rem, 2.4vw, 1.45rem);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.casino-result-pill {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.07);
+  color: #f7fbff;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.casino-result-card.is-win .casino-result-pill {
+  border-color: rgba(73, 203, 132, 0.34);
+  background: rgba(73, 203, 132, 0.14);
+  color: #b9ffd5;
+}
+
+.casino-result-card.is-loss .casino-result-pill {
+  border-color: rgba(255, 116, 116, 0.3);
+  background: rgba(255, 116, 116, 0.12);
+  color: #ffd1d1;
+}
+
+.casino-result-card.is-pending .casino-result-pill {
+  border-color: rgba(85, 205, 255, 0.34);
+  background: rgba(85, 205, 255, 0.14);
+  color: #c6f4ff;
+}
+
+.casino-result-detail {
+  position: relative;
+  z-index: 1;
+  margin: 12px 0 0;
+  max-width: 62ch;
+  color: rgba(232, 239, 255, 0.74);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.casino-result-metrics {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.casino-result-metric {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.045);
+}
+
+.casino-result-metric span,
+.casino-result-metric strong {
+  display: block;
+}
+
+.casino-result-metric span {
+  color: rgba(232, 239, 255, 0.46);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.casino-result-metric strong {
+  margin-top: 8px;
+  color: #f7fbff;
+  font-size: 0.96rem;
+  line-height: 1.4;
+}
+
 .crash-stage-card {
   position: relative;
   background: linear-gradient(180deg, rgba(2, 10, 17, 1), rgba(6, 18, 24, 0.96));
@@ -3688,6 +3832,10 @@ button {
   }
 
   .casino-game-header {
+    flex-direction: column;
+  }
+
+  .casino-result-header {
     flex-direction: column;
   }
 }

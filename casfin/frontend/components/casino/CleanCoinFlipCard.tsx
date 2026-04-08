@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/components/WalletProvider";
+import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_COIN_FLIP_ABI } from "@/lib/casfin-abis";
-import { parseRequiredEth } from "@/lib/casfin-client";
+import { formatAddress, parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
@@ -22,9 +23,16 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
     sessionReady: cofheSessionReady,
     sessionInitializing: cofheSessionInitializing
   } = useCofhe();
-  const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
+  const { account, connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const latestBet = casinoState.coin.latestBet;
   const houseEdge = casinoState.coin.houseEdgeBps ? (Number(casinoState.coin.houseEdgeBps) / 100).toFixed(0) : "2";
+  const latestBetOwnedByAccount = Boolean(
+    account
+      && latestBet?.player
+      && latestBet.player.toLowerCase() === account.toLowerCase()
+  );
+  const latestBetId = latestBet?.id?.toString() || "0";
+  const latestSelectionLabel = latestBet?.guessHeads == null ? "Encrypted" : latestBet.guessHeads ? "Heads" : "Tails";
 
   function applyPreset(preset: string) {
     if (preset === "0.5x") {
@@ -82,13 +90,65 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
 
   const isPending = pendingAction === "Place coin flip bet" || isSubmitting;
   const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked);
-  const latestBetText = !latestBet
-    ? "No coin flip bet submitted yet."
+  const outcomeCard = !latestBet
+    ? {
+        tone: "idle" as const,
+        badge: "No result",
+        eyebrow: "Outcome",
+        title: "Your next coin flip will land here",
+        detail: "Place an encrypted wager and this card will call out the result as soon as the bet settles.",
+        metrics: [
+          { label: "Current pick", value: guessHeads ? "Heads" : "Tails" },
+          { label: "Payout", value: "2.00x" }
+        ]
+      }
     : latestBet.resolved
-      ? `Latest bet #${latestBet.id?.toString() || "0"} ${latestBet.won ? "won" : "lost"}.`
+      ? latestBetOwnedByAccount
+        ? {
+            tone: latestBet.won ? "win" as const : "loss" as const,
+            badge: latestBet.won ? "Won" : "Lost",
+            eyebrow: "Latest result",
+            title: latestBet.won ? "You won the flip" : "You lost the flip",
+            detail: `Bet #${latestBetId} has been settled on-chain. Your encrypted side has already been resolved.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Your side", value: latestSelectionLabel }
+            ]
+          }
+        : {
+            tone: latestBet.won ? "win" as const : "loss" as const,
+            badge: "Table result",
+            eyebrow: "Latest table result",
+            title: latestBet.won ? "A recent coin flip paid out" : "A recent coin flip missed",
+            detail: `Bet #${latestBetId} belongs to ${formatAddress(latestBet.player)}. Connect that wallet to see a personal win/loss label here.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Player", value: formatAddress(latestBet.player) }
+            ]
+          }
       : latestBet.resolutionPending
-        ? `Latest bet #${latestBet.id?.toString() || "0"} is awaiting finalization.`
-        : `Latest bet #${latestBet.id?.toString() || "0"} is awaiting resolution.`;
+        ? {
+            tone: "pending" as const,
+            badge: "Settling",
+            eyebrow: latestBetOwnedByAccount ? "Your bet" : "Latest table bet",
+            title: latestBetOwnedByAccount ? "Your coin flip is settling" : "Latest coin flip is settling",
+            detail: `Bet #${latestBetId} is waiting for its encrypted outcome to finalize.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Player", value: latestBetOwnedByAccount ? "You" : formatAddress(latestBet.player) }
+            ]
+          }
+        : {
+            tone: "pending" as const,
+            badge: "Pending",
+            eyebrow: latestBetOwnedByAccount ? "Your bet" : "Latest table bet",
+            title: latestBetOwnedByAccount ? "Your coin flip is in flight" : "Latest coin flip is in flight",
+            detail: `Bet #${latestBetId} has been accepted and is waiting for resolution.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Player", value: latestBetOwnedByAccount ? "You" : formatAddress(latestBet.player) }
+            ]
+          };
 
   return (
     <article className="casino-game-card theme-coin">
@@ -173,6 +233,8 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
                   : "Warming encrypted session"}
       </button>
 
+      <CasinoOutcomeCard {...outcomeCard} />
+
       <div className="casino-status-grid">
         <div className="casino-status-item">
           <span>Settlement</span>
@@ -183,8 +245,6 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
           <strong>{latestBet?.resolved ? "Resolved" : latestBet ? "Pending" : "Idle"}</strong>
         </div>
       </div>
-
-      <p className="casino-game-note">{latestBetText}</p>
     </article>
   );
 }

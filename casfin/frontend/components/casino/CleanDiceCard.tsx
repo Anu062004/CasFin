@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/components/WalletProvider";
+import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_DICE_ABI } from "@/lib/casfin-abis";
-import { parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
+import { formatAddress, parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
@@ -22,9 +23,17 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
     sessionReady: cofheSessionReady,
     sessionInitializing: cofheSessionInitializing
   } = useCofhe();
-  const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
+  const { account, connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const latestBet = casinoState.dice.latestBet;
   const houseEdge = casinoState.dice.houseEdgeBps ? (Number(casinoState.dice.houseEdgeBps) / 100).toFixed(0) : "2";
+  const latestBetOwnedByAccount = Boolean(
+    account
+      && latestBet?.player
+      && latestBet.player.toLowerCase() === account.toLowerCase()
+  );
+  const latestBetId = latestBet?.id?.toString() || "0";
+  const latestGuessLabel = latestBet?.guess == null ? "Encrypted" : String(latestBet.guess);
+  const latestRollLabel = latestBet?.rolled ? String(latestBet.rolled) : "Pending";
 
   function applyPreset(preset: string) {
     if (preset === "0.5x") {
@@ -88,13 +97,67 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
 
   const isPending = pendingAction === "Place dice bet" || isSubmitting;
   const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked);
-  const latestBetText = !latestBet
-    ? "No dice bet submitted yet."
+  const outcomeCard = !latestBet
+    ? {
+        tone: "idle" as const,
+        badge: "No result",
+        eyebrow: "Outcome",
+        title: "Your next dice roll will appear here",
+        detail: "Place an encrypted dice bet and this card will promote the result once the round settles.",
+        metrics: [
+          { label: "Selected face", value: String(guess) },
+          { label: "Payout", value: "6.00x" }
+        ]
+      }
     : latestBet.resolved
-      ? `Latest bet #${latestBet.id?.toString() || "0"} ${latestBet.won ? "won" : "lost"}${latestBet.rolled ? ` with a ${latestBet.rolled}.` : "."}`
+      ? latestBetOwnedByAccount
+        ? {
+            tone: latestBet.won ? "win" as const : "loss" as const,
+            badge: latestBet.won ? "Won" : "Lost",
+            eyebrow: "Latest result",
+            title: latestBet.won ? "You hit the roll" : "Your number missed",
+            detail: `Bet #${latestBetId} has been resolved on-chain${latestBet.rolled ? ` with a final roll of ${latestBet.rolled}.` : "."}`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Your face", value: latestGuessLabel },
+              { label: "Rolled", value: latestRollLabel }
+            ]
+          }
+        : {
+            tone: latestBet.won ? "win" as const : "loss" as const,
+            badge: "Table result",
+            eyebrow: "Latest table result",
+            title: latestBet.won ? "A recent dice bet won" : "A recent dice bet lost",
+            detail: `Bet #${latestBetId} belongs to ${formatAddress(latestBet.player)}. Connect that wallet to see the personal result card here.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Player", value: formatAddress(latestBet.player) },
+              { label: "Rolled", value: latestRollLabel }
+            ]
+          }
       : latestBet.resolutionPending
-        ? `Latest bet #${latestBet.id?.toString() || "0"} is awaiting finalization.`
-        : `Latest bet #${latestBet.id?.toString() || "0"} is awaiting resolution.`;
+        ? {
+            tone: "pending" as const,
+            badge: "Settling",
+            eyebrow: latestBetOwnedByAccount ? "Your bet" : "Latest table bet",
+            title: latestBetOwnedByAccount ? "Your dice bet is settling" : "Latest dice bet is settling",
+            detail: `Bet #${latestBetId} has been rolled and is waiting for encrypted finalization.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Player", value: latestBetOwnedByAccount ? "You" : formatAddress(latestBet.player) }
+            ]
+          }
+        : {
+            tone: "pending" as const,
+            badge: "Pending",
+            eyebrow: latestBetOwnedByAccount ? "Your bet" : "Latest table bet",
+            title: latestBetOwnedByAccount ? "Your dice bet is in flight" : "Latest dice bet is in flight",
+            detail: `Bet #${latestBetId} is waiting for the dice roll to resolve.`,
+            metrics: [
+              { label: "Bet ID", value: latestBetId },
+              { label: "Player", value: latestBetOwnedByAccount ? "You" : formatAddress(latestBet.player) }
+            ]
+          };
 
   return (
     <article className="casino-game-card theme-dice">
@@ -173,6 +236,8 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
                   : "Warming encrypted session"}
       </button>
 
+      <CasinoOutcomeCard {...outcomeCard} />
+
       <div className="casino-status-grid">
         <div className="casino-status-item">
           <span>Settlement</span>
@@ -183,8 +248,6 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
           <strong>{latestBet?.resolved ? "Resolved" : latestBet ? "Pending" : "Idle"}</strong>
         </div>
       </div>
-
-      <p className="casino-game-note">{latestBetText}</p>
     </article>
   );
 }

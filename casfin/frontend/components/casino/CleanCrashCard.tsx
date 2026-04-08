@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/components/WalletProvider";
+import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_CRASH_ABI } from "@/lib/casfin-abis";
 import { formatMultiplier, parseCashOutMultiplier, parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
@@ -26,6 +27,7 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
   const { connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
 
   const latestRound = casinoState.crash.latestRound;
+  const latestPlayerBet = casinoState.crash.latestPlayerBet;
   const roundId = latestRound?.id?.toString() || "-";
   const roundOpen = Boolean(latestRound && !latestRound.closed);
   const isBetPending = pendingAction === "Place crash bet";
@@ -33,6 +35,70 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
   const isClosePending = pendingAction === "Close crash round";
   const isSettlePending = pendingAction === "Settle crash bet";
   const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked);
+  const outcomeCard = !isConnected
+    ? {
+        tone: "idle" as const,
+        badge: "Wallet required",
+        eyebrow: "Crash result",
+        title: "Connect a wallet to track your crash outcome",
+        detail: "This card becomes your personal win/loss tracker once you place a crash bet from the connected wallet.",
+        metrics: [
+          { label: "Round", value: roundId },
+          { label: "Status", value: latestRound ? (latestRound.closed ? "Closed" : "Open") : "Idle" }
+        ]
+      }
+    : !latestPlayerBet?.exists
+      ? {
+          tone: "idle" as const,
+          badge: "No bet",
+          eyebrow: "Crash result",
+          title: "No crash position tracked for this wallet",
+          detail: "Place a crash bet and this panel will make the eventual cash-out or loss visible without digging through the logs.",
+          metrics: [
+            { label: "Round", value: roundId },
+            { label: "Auto cash-out", value: `${cashOutMultiplier}x` }
+          ]
+        }
+      : latestPlayerBet.settled
+        ? {
+            tone: latestPlayerBet.won ? "win" as const : "loss" as const,
+            badge: latestPlayerBet.won ? "Won" : "Lost",
+            eyebrow: "Your crash result",
+            title: latestPlayerBet.won ? "You cashed out before the crash" : "The round crashed before cash-out",
+            detail: latestPlayerBet.won
+              ? `Your crash position settled successfully for round ${roundId}.`
+              : `Your crash position for round ${roundId} was settled as a loss.`,
+            metrics: [
+              { label: "Round", value: roundId },
+              { label: "Auto cash-out", value: formatMultiplier(latestPlayerBet.cashOutMultiplierBps) },
+              { label: "Round close", value: latestRound?.closed ? formatMultiplier(latestRound.crashMultiplierBps) : "Pending" }
+            ]
+          }
+        : latestRound?.closed
+          ? {
+              tone: "pending" as const,
+              badge: "Settling",
+              eyebrow: "Your crash result",
+              title: "Your crash bet is waiting to settle",
+              detail: `Round ${roundId} is closed, but your wallet's crash bet still needs final settlement.`,
+              metrics: [
+                { label: "Round", value: roundId },
+                { label: "Auto cash-out", value: formatMultiplier(latestPlayerBet.cashOutMultiplierBps) },
+                { label: "Round close", value: formatMultiplier(latestRound.crashMultiplierBps) }
+              ]
+            }
+          : {
+              tone: "pending" as const,
+              badge: "Live",
+              eyebrow: "Your crash result",
+              title: "Your crash bet is still live",
+              detail: `Round ${roundId} is in progress. This card will flip to win or loss once the round closes and settles.`,
+              metrics: [
+                { label: "Round", value: roundId },
+                { label: "Auto cash-out", value: formatMultiplier(latestPlayerBet.cashOutMultiplierBps) },
+                { label: "Round status", value: roundOpen ? "In progress" : "Waiting" }
+              ]
+            };
 
   useEffect(() => {
     if (!roundOpen) {
@@ -211,6 +277,8 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
                     : "Warming encrypted session"}
         </button>
       </div>
+
+      <CasinoOutcomeCard {...outcomeCard} />
 
       <div className="casino-status-grid">
         <div className="casino-status-item">
