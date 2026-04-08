@@ -778,6 +778,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error("No wallet provider is available for this transaction.");
       }
 
+      await ensureWalletNetworkConfig(provider);
       await ensureWalletBalance(provider, nextAccount);
       await ensureEncryptedSession(nextAccount);
 
