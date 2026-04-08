@@ -542,11 +542,18 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return nextRequest;
     }
 
+    if (isEncryptedWriteRequest(nextRequest)) {
+      return {
+        ...nextRequest,
+        gasLimit: ENCRYPTED_WRITE_GAS_LIMIT
+      };
+    }
+
     const currentAccount = await signer.getAddress();
     const estimationRequest = { ...nextRequest, from: currentAccount };
-    const estimationProviders = isEncryptedWriteRequest(nextRequest)
-      ? [provider]
-      : [provider, publicProvider].filter((candidate, index, providers) => candidate && providers.indexOf(candidate) === index);
+    const estimationProviders = [provider, publicProvider].filter(
+      (candidate, index, providers) => candidate && providers.indexOf(candidate) === index
+    );
     let lastError: unknown;
 
     for (const [index, estimationProvider] of estimationProviders.entries()) {
