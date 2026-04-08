@@ -217,7 +217,7 @@ export function extractError(error) {
       normalizedMessage
     )
   ) {
-    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_RPC_URL_1, NEXT_PUBLIC_RPC_URL_2, NEXT_PUBLIC_RPC_URL_3, and NEXT_PUBLIC_RPC_URL_4, then restart the app and reconnect the wallet network if needed.";
+    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1, NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_2, NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_3, and NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4, then restart the app and reconnect the wallet network if needed.";
   }
 
   if (/NOT_CONNECTED|MISSING_PUBLIC_CLIENT|MISSING_WALLET_CLIENT|CoFHE not connected/i.test(normalizedMessage)) {

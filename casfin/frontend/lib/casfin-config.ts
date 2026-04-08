@@ -31,31 +31,23 @@ interface CasfinConfig {
   };
 }
 
+const PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC =
+  process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1 ||
+  process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_2 ||
+  process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_3 ||
+  process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4 ||
+  "";
+
 export const CASFIN_CONFIG: CasfinConfig = {
   appName: "CasFin",
   chainId: 421614,
   chainIdHex: "0x66eee",
   chainName: "Arbitrum Sepolia",
   explorerBaseUrl: "https://sepolia.arbiscan.io",
-  publicRpcUrl:
-    process.env.NEXT_PUBLIC_READ_RPC_URL ||
-    process.env.NEXT_PUBLIC_RPC_URL ||
-    "https://sepolia-rollup.arbitrum.io/rpc",
-  fheRpcUrl:
-    process.env.NEXT_PUBLIC_FHE_RPC_URL ||
-    process.env.NEXT_PUBLIC_READ_RPC_URL ||
-    process.env.NEXT_PUBLIC_RPC_URL ||
-    "https://sepolia-rollup.arbitrum.io/rpc",
-  pollingRpcUrl:
-    process.env.NEXT_PUBLIC_POLLING_RPC_URL ||
-    process.env.NEXT_PUBLIC_READ_RPC_URL ||
-    process.env.NEXT_PUBLIC_RPC_URL ||
-    "https://sepolia-rollup.arbitrum.io/rpc",
-  walletRpcUrl:
-    process.env.NEXT_PUBLIC_WALLET_RPC_URL ||
-    process.env.NEXT_PUBLIC_READ_RPC_URL ||
-    process.env.NEXT_PUBLIC_RPC_URL ||
-    "https://sepolia-rollup.arbitrum.io/rpc",
+  publicRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
+  fheRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
+  pollingRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
+  walletRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
   operatorAddress: process.env.NEXT_PUBLIC_OPERATOR_ADDRESS || "0x6b3a924379B9408D8110f10F084ca809863B378A",
   addresses: {
     casinoToken: process.env.NEXT_PUBLIC_CASINO_TOKEN_ADDRESS || ethers.ZeroAddress,

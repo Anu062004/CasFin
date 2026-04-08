@@ -5,7 +5,10 @@ import EncryptedMarketFactoryAbi from "@/lib/generated-abis/EncryptedMarketFacto
 import EncryptedPredictionMarketAbi from "@/lib/generated-abis/EncryptedPredictionMarket.json";
 
 const fhePredictionRpcUrl =
-  process.env.NEXT_PUBLIC_FHE_RPC_URL
+  process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1
+  || process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_2
+  || process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_3
+  || process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4
   || CASFIN_CONFIG.fheRpcUrl;
 
 const fhePredictionProvider = new ethers.JsonRpcProvider(
