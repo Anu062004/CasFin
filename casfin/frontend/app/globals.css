@@ -3579,11 +3579,22 @@ button {
 .casino-result-card {
   position: relative;
   overflow: hidden;
-  padding: 20px;
-  border-radius: 22px;
+  isolation: isolate;
+  padding: 22px;
+  border-radius: 24px;
   border: 1px solid rgba(255,255,255,0.08);
-  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+    radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 42%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 38px rgba(0,0,0,0.22);
+}
+
+.casino-result-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: rgba(255,255,255,0.12);
 }
 
 .casino-result-card::after {
@@ -3599,24 +3610,72 @@ button {
   opacity: 0.28;
 }
 
+.casino-result-glow {
+  position: absolute;
+  inset: -40px auto auto -22px;
+  width: 156px;
+  height: 156px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  filter: blur(54px);
+  opacity: 0.24;
+  pointer-events: none;
+}
+
 .casino-result-card.is-win {
   border-color: rgba(73, 203, 132, 0.28);
-  background: linear-gradient(180deg, rgba(18, 67, 40, 0.5), rgba(9, 18, 23, 0.9));
+  background:
+    linear-gradient(180deg, rgba(18, 67, 40, 0.58), rgba(9, 18, 23, 0.92)),
+    radial-gradient(circle at top left, rgba(73, 203, 132, 0.18), transparent 38%);
 }
 
 .casino-result-card.is-loss {
   border-color: rgba(255, 116, 116, 0.24);
-  background: linear-gradient(180deg, rgba(82, 20, 26, 0.46), rgba(16, 11, 20, 0.92));
+  background:
+    linear-gradient(180deg, rgba(82, 20, 26, 0.52), rgba(16, 11, 20, 0.94)),
+    radial-gradient(circle at top left, rgba(255, 116, 116, 0.16), transparent 38%);
 }
 
 .casino-result-card.is-pending {
   border-color: rgba(85, 205, 255, 0.26);
-  background: linear-gradient(180deg, rgba(10, 52, 72, 0.52), rgba(8, 13, 26, 0.92));
+  background:
+    linear-gradient(180deg, rgba(10, 52, 72, 0.58), rgba(8, 13, 26, 0.94)),
+    radial-gradient(circle at top left, rgba(85, 205, 255, 0.18), transparent 38%);
 }
 
 .casino-result-card.is-idle {
   border-color: rgba(255,255,255,0.08);
-  background: linear-gradient(180deg, rgba(16, 22, 38, 0.86), rgba(8, 12, 22, 0.94));
+  background:
+    linear-gradient(180deg, rgba(16, 22, 38, 0.88), rgba(8, 12, 22, 0.96)),
+    radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 42%);
+}
+
+.casino-result-card.is-win::before {
+  background: linear-gradient(180deg, #49cb84, rgba(73, 203, 132, 0.28));
+}
+
+.casino-result-card.is-loss::before {
+  background: linear-gradient(180deg, #ff7474, rgba(255, 116, 116, 0.26));
+}
+
+.casino-result-card.is-pending::before {
+  background: linear-gradient(180deg, #55cdff, rgba(85, 205, 255, 0.28));
+}
+
+.casino-result-card.is-idle::before {
+  background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.08));
+}
+
+.casino-result-card.is-win .casino-result-glow {
+  background: rgba(73, 203, 132, 0.18);
+}
+
+.casino-result-card.is-loss .casino-result-glow {
+  background: rgba(255, 116, 116, 0.16);
+}
+
+.casino-result-card.is-pending .casino-result-glow {
+  background: rgba(85, 205, 255, 0.18);
 }
 
 .casino-result-header {
@@ -3624,6 +3683,46 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.casino-result-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.casino-result-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.06);
+  color: #f7fbff;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.casino-result-card.is-win .casino-result-icon {
+  border-color: rgba(73, 203, 132, 0.3);
+  background: rgba(73, 203, 132, 0.12);
+  color: #b9ffd5;
+}
+
+.casino-result-card.is-loss .casino-result-icon {
+  border-color: rgba(255, 116, 116, 0.28);
+  background: rgba(255, 116, 116, 0.12);
+  color: #ffd1d1;
+}
+
+.casino-result-card.is-pending .casino-result-icon {
+  border-color: rgba(85, 205, 255, 0.3);
+  background: rgba(85, 205, 255, 0.12);
+  color: #c6f4ff;
 }
 
 .casino-result-eyebrow {
@@ -3643,6 +3742,14 @@ button {
   line-height: 1.15;
 }
 
+.casino-result-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.casino-result-tone,
 .casino-result-pill {
   flex-shrink: 0;
   padding: 8px 12px;
@@ -3654,6 +3761,10 @@ button {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.casino-result-tone {
+  color: rgba(232, 239, 255, 0.76);
 }
 
 .casino-result-card.is-win .casino-result-pill {
@@ -3677,7 +3788,7 @@ button {
 .casino-result-detail {
   position: relative;
   z-index: 1;
-  margin: 12px 0 0;
+  margin: 14px 0 0;
   max-width: 62ch;
   color: rgba(232, 239, 255, 0.74);
   font-size: 0.92rem;
@@ -3697,7 +3808,8 @@ button {
   padding: 14px 16px;
   border-radius: 18px;
   border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.045);
+  background: rgba(5, 10, 18, 0.28);
+  backdrop-filter: blur(6px);
 }
 
 .casino-result-metric span,
@@ -3837,6 +3949,15 @@ button {
 
   .casino-result-header {
     flex-direction: column;
+  }
+
+  .casino-result-lead,
+  .casino-result-badges {
+    width: 100%;
+  }
+
+  .casino-result-badges {
+    justify-content: flex-start;
   }
 }
 

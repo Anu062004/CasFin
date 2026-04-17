@@ -162,18 +162,17 @@ export default function PredictionRail({
                     const initialLiquidity = parseRequiredEth(createMarketForm.initialLiquidity, "Initial liquidity");
 
                     return factory.createMarket(
-                      {
-                        question: createMarketForm.question,
-                        description: createMarketForm.description,
-                        outcomes: outcomeLabels,
+                      [
+                        createMarketForm.question,
+                        createMarketForm.description,
+                        outcomeLabels,
                         resolvesAt,
-                        disputeWindowSecs:
-                          BigInt(parseRequiredInteger(createMarketForm.disputeWindowHours, "Dispute window")) * 3600n,
-                        oracleType: 0,
-                        oracleAddress: EMPTY_ADDRESS,
-                        oracleParams: "0x",
+                        BigInt(parseRequiredInteger(createMarketForm.disputeWindowHours, "Dispute window")) * 3600n,
+                        0,                  // oracleType: Manual
+                        EMPTY_ADDRESS,      // oracleAddress
+                        "0x",               // oracleParams
                         initialLiquidity
-                      },
+                      ],
                       { value: initialLiquidity }
                     );
                   })
