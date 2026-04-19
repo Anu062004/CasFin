@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "..", ".env") });
 const { ethers } = require("ethers");
 const encryptedCoinFlipAbi = require("../frontend/lib/generated-abis/EncryptedCoinFlip.json");
 const encryptedDiceAbi = require("../frontend/lib/generated-abis/EncryptedDiceGame.json");
@@ -7,8 +8,12 @@ const encryptedPredictionMarketAbi = require("../frontend/lib/generated-abis/Enc
 const encryptedMarketFactoryAbi = require("../frontend/lib/generated-abis/EncryptedMarketFactory.json");
 const encryptedMarketResolverAbi = require("../frontend/lib/generated-abis/EncryptedMarketResolver.json");
 
-const provider = new ethers.JsonRpcProvider(process.env.FHENIX_RPC_URL || "https://api.helium.fhenix.zone");
-const signer = new ethers.Wallet(process.env.FHENIX_PRIVATE_KEY || process.env.PRIVATE_KEY || "", provider);
+const provider = new ethers.JsonRpcProvider(
+  process.env.ARBITRUM_SEPOLIA_RPC_URL || process.env.FHENIX_RPC_URL || "https://arbitrum-sepolia.infura.io/v3/2a16fc884a10441eae11c29cd9b9aa5f"
+);
+const rawKey = process.env.FHENIX_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
+const privateKey = rawKey && !rawKey.startsWith("0x") ? `0x${rawKey}` : rawKey;
+const signer = new ethers.Wallet(privateKey, provider);
 
 const pollIntervalMs = Number(process.env.KEEPER_POLL_MS || 15000);
 const resolutionDelayMs = Number(process.env.KEEPER_RESOLUTION_DELAY_MS || 30000);
@@ -295,7 +300,7 @@ async function main() {
 
   console.log("CasFin FHE keeper started");
   console.log("Signer:", await signer.getAddress());
-  console.log("RPC:", process.env.FHENIX_RPC_URL || "https://api.helium.fhenix.zone");
+  console.log("RPC:", process.env.ARBITRUM_SEPOLIA_RPC_URL || process.env.FHENIX_RPC_URL || "https://arbitrum-sepolia.infura.io/v3/2a16fc884a10441eae11c29cd9b9aa5f");
   console.log("CoinFlip:", contracts.coinFlip?.target || "not configured");
   console.log("Dice:", contracts.dice?.target || "not configured");
   console.log("Crash:", contracts.crash?.target || "not configured");
