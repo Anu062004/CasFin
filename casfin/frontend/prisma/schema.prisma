@@ -192,6 +192,7 @@ enum GameType {
   COIN_FLIP
   DICE
   CRASH
+  VIDEO_POKER
 }
 
 enum VaultTxType {

@@ -19,6 +19,7 @@ interface CasfinConfig {
     coinFlipGame: string;
     diceGame: string;
     crashGame: string;
+    pokerGame: string;
     marketFactory: string;
     encryptedMarketFactory: string;
     feeDistributor: string;
@@ -60,6 +61,7 @@ export const CASFIN_CONFIG: CasfinConfig = {
     coinFlipGame: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || ethers.ZeroAddress,
     diceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || ethers.ZeroAddress,
     crashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || ethers.ZeroAddress,
+    pokerGame: process.env.NEXT_PUBLIC_FHE_POKER_ADDRESS || ethers.ZeroAddress,
     marketFactory: process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS || ethers.ZeroAddress,
     encryptedMarketFactory: process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS || ethers.ZeroAddress,
     feeDistributor: process.env.NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS || ethers.ZeroAddress,

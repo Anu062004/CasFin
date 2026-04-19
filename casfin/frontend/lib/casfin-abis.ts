@@ -1,4 +1,5 @@
 import EncryptedCoinFlipJson from "@/lib/generated-abis/EncryptedCoinFlip.json";
+import EncryptedVideoPokerJson from "@/lib/generated-abis/EncryptedVideoPoker.json";
 import EncryptedCrashJson from "@/lib/generated-abis/EncryptedCrashGame.json";
 import EncryptedDiceJson from "@/lib/generated-abis/EncryptedDiceGame.json";
 import EncryptedVaultJson from "@/lib/generated-abis/EncryptedCasinoVault.json";
@@ -9,6 +10,7 @@ import EncryptedMarketResolverJson from "@/lib/generated-abis/EncryptedMarketRes
 import EncryptedPredictionMarketJson from "@/lib/generated-abis/EncryptedPredictionMarket.json";
 
 export const ENCRYPTED_COIN_FLIP_ABI = EncryptedCoinFlipJson;
+export const ENCRYPTED_VIDEO_POKER_ABI = EncryptedVideoPokerJson;
 export const ENCRYPTED_DICE_ABI = EncryptedDiceJson;
 export const ENCRYPTED_CRASH_ABI = EncryptedCrashJson;
 export const ENCRYPTED_VAULT_ABI = EncryptedVaultJson;

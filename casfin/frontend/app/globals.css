@@ -5271,3 +5271,128 @@ textarea:focus {
 .wm-setname-btn:hover {
   background: rgba(246,190,57,0.08) !important;
 }
+
+/* ──────────────────────────────────────────────────────────
+   Video Poker
+   ────────────────────────────────────────────────────────── */
+
+.casino-game-card.theme-poker .casino-game-badge {
+  background: linear-gradient(135deg, #6b21a8, #9333ea);
+}
+
+.poker-hand {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  align-items: flex-end;
+  padding: 2rem 0 1.5rem;
+  min-height: 160px;
+}
+
+.poker-card {
+  width: 80px;
+  height: 112px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  user-select: none;
+}
+
+.poker-card:hover:not(:disabled) {
+  transform: translateY(-6px);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.poker-card.is-held {
+  border-color: var(--accent, #f4bf36);
+  box-shadow: 0 0 24px rgba(244, 191, 54, 0.35);
+  transform: translateY(-12px);
+}
+
+.poker-card.is-held::after {
+  content: "HOLD";
+  position: absolute;
+  bottom: -22px;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--accent, #f4bf36);
+  text-shadow: 0 0 8px rgba(244, 191, 54, 0.5);
+}
+
+.poker-card.face-down {
+  background: linear-gradient(135deg, rgba(99, 54, 214, 0.4), rgba(45, 25, 120, 0.6));
+  border-color: rgba(99, 54, 214, 0.5);
+  cursor: default;
+}
+
+.poker-card.face-down::before {
+  content: "?";
+  font-size: 2rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.15);
+}
+
+.poker-card-rank {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.poker-card-suit {
+  font-size: 1rem;
+  margin-top: 2px;
+  line-height: 1;
+}
+
+.poker-card-suit.is-red { color: #ef4444; }
+.poker-card-suit.is-black { color: rgba(255, 255, 255, 0.7); }
+
+.poker-hand-label {
+  text-align: center;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent, #f4bf36);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(244, 191, 54, 0.3);
+}
+
+.poker-payout-table {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.3rem 1.5rem;
+  font-size: 0.72rem;
+  padding: 1rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-bottom: 1rem;
+}
+
+.poker-payout-hand { color: rgba(255, 255, 255, 0.5); }
+
+.poker-payout-value {
+  text-align: right;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.poker-payout-value.is-highlight { color: var(--accent, #f4bf36); }
+
+@media (max-width: 640px) {
+  .poker-hand { gap: 0.35rem; padding: 1.5rem 0 1rem; }
+  .poker-card { width: 56px; height: 78px; }
+  .poker-card-rank { font-size: 1.1rem; }
+  .poker-card-suit { font-size: 0.75rem; }
+}

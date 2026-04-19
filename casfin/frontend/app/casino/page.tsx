@@ -7,12 +7,13 @@ import VaultCard from "@/components/VaultCard";
 import CleanCoinFlipCard from "@/components/casino/CleanCoinFlipCard";
 import CleanCrashCard from "@/components/casino/CleanCrashCard";
 import CleanDiceCard from "@/components/casino/CleanDiceCard";
+import CleanPokerCard from "@/components/casino/CleanPokerCard";
 import { useWallet } from "@/components/WalletProvider";
 import { formatAddress, formatEth, formatMultiplier } from "@/lib/casfin-client";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { useCofhe } from "@/lib/cofhe-provider";
 
-type CasinoSection = "coin" | "dice" | "crash";
+type CasinoSection = "coin" | "dice" | "crash" | "poker";
 
 export default function CasinoPage() {
   const {
@@ -79,7 +80,8 @@ export default function CasinoPage() {
   const tabLabel: Record<CasinoSection, string> = {
     coin: "Coin Flip",
     dice: "Dice",
-    crash: "Crash"
+    crash: "Crash",
+    poker: "Poker"
   };
 
   return (
@@ -192,7 +194,7 @@ export default function CasinoPage() {
         <section className="casino-main-stage">
           {/* Tab switcher */}
           <div className="casino-section-switcher">
-            {(["coin", "dice", "crash"] as CasinoSection[]).map((s) => (
+            {(["coin", "dice", "crash", "poker"] as CasinoSection[]).map((s) => (
               <button
                 key={s}
                 className={activeSection === s ? "casino-section-tab is-active" : "casino-section-tab"}
@@ -226,6 +228,14 @@ export default function CasinoPage() {
               <CleanCrashCard
                 casinoState={casinoState}
                 isOperator={isOperator}
+                pendingAction={pendingAction}
+                runTransaction={runTransaction}
+                walletBlocked={walletBlocked}
+              />
+            )}
+            {activeSection === "poker" && (
+              <CleanPokerCard
+                casinoState={casinoState}
                 pendingAction={pendingAction}
                 runTransaction={runTransaction}
                 walletBlocked={walletBlocked}
