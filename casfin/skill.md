@@ -87,10 +87,12 @@ Traditional Web3 casinos and prediction markets on transparent blockchains (Ethe
 | **Web3 Libraries** | Ethers v6, Wagmi v3, RainbowKit v2 | Wallet connection, contract interaction, chain switching |
 | **FHE Client SDK** | `@cofhe/sdk ^0.4.0` | Client-side encryption/decryption, `Ethers6Adapter`, `arbSepolia` chain config |
 | **Auth Provider** | Privy (`@privy-io/react-auth ^3.19.1`) | Social login + embedded wallet support |
+| **Database** | Neon Postgres (serverless) | Hosted on Vercel, pooled via pgbouncer, `neondb` database on `us-east-1` |
 | **Keeper Bot** | Node.js + `tsx` | Long-running polling process for async FHE resolution |
 | **RPC Infrastructure** | Infura (primary), BlockPi, StackUp (fallback) | Load-balanced multi-RPC transport (`loadBalancedTransport.ts`) |
 | **ABI Pipeline** | `hardhat-abi-exporter` | Auto-exports ABI JSON to `frontend/lib/generated-abis/` on compile |
 | **Deployment Artifacts** | JSON snapshots | Saved to `deployments/<network>/` with full address + tx hash history |
+| **Hosting** | Vercel | Frontend deployment with Neon Postgres integration |
 | **Testing** | Hardhat test runner, Chai | Tests in `test/` directory |
 
 ---
@@ -370,6 +372,21 @@ Located in `contracts/fhenix/`. Parallel FHE-encrypted versions:
 ### What is Fhenix/CoFHE?
 
 Fhenix is a blockchain protocol that brings **Fully Homomorphic Encryption (FHE)** to EVM chains. It allows smart contracts to perform computations over encrypted data without decrypting it. CoFHE is the client-side SDK that handles encryption/decryption.
+
+### Does CoFHE Replace Oracles?
+
+**For casino randomness: YES — no oracle needed.**
+Fhenix has native on-chain randomness (`FHE.randomEuint8()`, `FHE.randomEuint32()`, etc.) built into `FHE.sol`. This fully replaces Chainlink VRF for all casino games (CoinFlip, Dice, Crash). The random values are generated inside the FHE runtime and are already encrypted — nobody can observe or front-run them.
+
+**For decryption: NOT an oracle — it's the Threshold Network.**
+Decryption in CoFHE is handled by Fhenix's own internal **Threshold Network** (MPC-based, distributed key shares). The flow is:
+1. Contract calls `FHE.allowPublic(ctHash)` to authorize public decryption.
+2. Client SDK calls `decryptForTx(ctHash).withoutPermit().execute()` off-chain → gets `(plaintextValue, signature)`.
+3. Client (or keeper) submits `FHE.publishDecryptResult(ctHash, plaintext, signature)` on-chain.
+4. Contract verifies the Threshold Network's ECDSA signature — no trust required.
+
+**For real-world price data (prediction markets): YES — external oracle still needed.**
+CoFHE cannot fetch off-chain data. It only computes over on-chain encrypted state. To resolve a bet like "Will ETH exceed $3000?", you need an external price source.
 
 ### How CasFin Uses It
 
@@ -652,6 +669,27 @@ The frontend uses a premium dark-mode-first design system called **Midnight Nebu
 | `ENCRYPTED_DICE_GAME_ADDRESS` | No | — | Override for keeper contract binding |
 | `ENCRYPTED_CRASH_GAME_ADDRESS` | No | — | Override for keeper contract binding |
 | `ENCRYPTED_PREDICTION_FACTORY_ADDRESS` | No | — | Override for keeper factory binding |
+| `DATABASE_URL` | No | — | Neon Postgres pooled connection string (pgbouncer) |
+| `DATABASE_URL_UNPOOLED` | No | — | Neon Postgres direct connection (for migrations) |
+| `PGHOST` | No | — | Neon Postgres hostname (pooled) |
+| `PGUSER` | No | — | Neon Postgres username (`neondb_owner`) |
+| `PGDATABASE` | No | — | Neon Postgres database name (`neondb`) |
+| `PGPASSWORD` | No | — | Neon Postgres password |
+
+### Vercel-Injected Database Variables
+
+These are auto-injected by Vercel when Neon Postgres is connected to the project:
+
+| Variable | Purpose |
+|---|---|
+| `POSTGRES_URL` | Pooled connection string (recommended for most uses) |
+| `POSTGRES_URL_NON_POOLING` | Direct connection (for schema migrations) |
+| `POSTGRES_USER` | Database user (`neondb_owner`) |
+| `POSTGRES_HOST` | Pooled hostname |
+| `POSTGRES_PASSWORD` | Database password |
+| `POSTGRES_DATABASE` | Database name (`neondb`) |
+| `POSTGRES_URL_NO_SSL` | Connection string without SSL (local dev only) |
+| `POSTGRES_PRISMA_URL` | Connection string optimized for Prisma ORM |
 
 ### Frontend `.env.local`
 
@@ -775,7 +813,7 @@ Located in `test/`. Run with `npm test`.
 | Feature | Status | Details |
 |---|---|---|
 | **Subgraph Indexing** | 🟡 Directory exists, empty | The Graph integration planned but not implemented |
-| **Oracle-Driven Resolution** | 🟡 Contract support exists | MarketResolver supports `oracleType` + `oracleAddress` but no Chainlink/Pyth integration wired |
+| **Oracle-Driven Resolution** | 🟡 Strategy decided, not wired | MarketResolver supports `oracleType` + `oracleAddress`. Testnet strategy: `OracleType.Manual` + keeper fetching from CoinGecko API. Mainnet: swap to Chainlink/Pyth — zero contract changes needed. |
 | **Borrowing/Lending** | 🟡 Discussed in conversations | Architecture explored but not implemented |
 | **x402 Payment Integration** | 🟡 Investigated | x402 micropayments explored in prior conversations |
 
@@ -786,7 +824,8 @@ Located in `test/`. Run with `npm test`.
 | **Mainnet Deployment** | Currently Arbitrum Sepolia testnet only |
 | **Security Audit** | Codebase is unaudited |
 | **Subgraph / Event Indexing** | No indexer running, all reads are direct RPC calls |
-| **Oracle Feeds** | Pyth/Chainlink price feed integration for prediction markets |
+| **MockPriceFeed Contract** | Needed for testnet simulation — see §20 for design |
+| **Keeper Auto-Resolve (Manual Markets)** | CoinGecko API fetch + resolveManual() logic not yet added to fhe-keeper.ts |
 | **Mobile Optimization** | Works on mobile but not specifically optimized |
 | **Rate Limiting / Anti-Abuse** | No on-chain or off-chain rate limiting |
 | **Production Keeper Infrastructure** | Currently single-process Node.js, needs hardening (PM2, alerts, etc.) |
@@ -830,7 +869,7 @@ Located in `test/`. Run with `npm test`.
 
 1. **Production Deployment** — Move to Arbitrum mainnet once FHE performance is production-ready.
 2. **Subgraph Integration** — Index on-chain events for historical data, leaderboards, analytics.
-3. **Oracle Price Feeds** — Wire Chainlink/Pyth to MarketResolver for automated prediction market resolution.
+3. **Oracle Price Feeds (Mainnet)** — Wire Chainlink/Pyth addresses to MarketResolver for automated prediction market resolution on mainnet. Contract already supports it — just swap the `oracleAddress`.
 4. **Additional Games** — Leverage the `GameRandomnessLib` library (card draws, RPG stats, loot, boards) for new game types (Blackjack, Roulette, etc.).
 5. **Governance** — CasinoToken voting for protocol parameters (fee levels, max bets, game whitelisting).
 6. **Multi-Chain** — Deploy to other FHE-compatible chains as the ecosystem expands.
@@ -862,4 +901,139 @@ Located in `test/`. Run with `npm test`.
 
 ---
 
-*Last updated: April 2026. This document should be updated whenever significant architectural changes are made to the CasFin protocol.*
+## 20. Infrastructure Decisions & Price Feed Strategy
+
+> **Session date:** April 17, 2026
+
+### Storage: Do Not Use S3 for Database
+
+S3 is object storage (files/blobs), not a database. It has no query support, no ACID transactions, no indexes, and high latency per read. CasFin's on-chain state lives in smart contracts and is read via RPC. For any off-chain data needs:
+- **User profiles / metadata** → Supabase (hosted Postgres) or Turso (SQLite)
+- **Caching / leaderboards** → Upstash Redis
+- **Blockchain event indexing** → The Graph (subgraph dir already exists)
+- **File storage** (images, avatars) → This IS S3's job (or Cloudflare R2)
+
+### Database: Neon Postgres on Vercel
+
+> **Decision date:** April 19, 2026
+
+CasFin uses **Neon Postgres** (serverless PostgreSQL) hosted via Vercel's Storage integration for any off-chain data needs (leaderboards, user profiles, analytics, cached state).
+
+**Provider:** Neon (serverless Postgres, scales to zero)
+**Database:** `neondb` on `us-east-1`
+**Connection:** Pooled via pgbouncer (`-pooler` endpoint) for serverless compatibility
+**User:** `neondb_owner`
+
+| Connection Type | When to Use | Env Var |
+|---|---|---|
+| **Pooled** (pgbouncer) | API routes, server components, general queries | `DATABASE_URL` / `POSTGRES_URL` |
+| **Direct** (unpooled) | Schema migrations, DDL statements | `DATABASE_URL_UNPOOLED` / `POSTGRES_URL_NON_POOLING` |
+
+**Why Neon over other options:**
+- Native Vercel integration (auto-injects env vars)
+- Standard Postgres — compatible with `setup-db.sh`, raw SQL, any ORM
+- Serverless/scales-to-zero — no cost when idle
+- Free tier sufficient for testnet/demo
+- Connection pooling built-in (pgbouncer)
+
+**Previous decisions:**
+- S3 was considered but rejected — it's object storage, not a database (no queries, no ACID, high latency)
+- Supabase was considered as an alternative — Neon was chosen for simpler Vercel integration
+
+### CoFHE Does NOT Need a Traditional Oracle for Casino
+
+Key finding from reading the Fhenix CoFHE docs at `https://cofhe-docs.fhenix.zone/`:
+
+| Need | Oracle Required? | Solution |
+|---|---|---|
+| Casino randomness (dice, coin flip, crash) | ❌ No | `FHE.randomEuint8/16/32/64()` — built into FHE.sol |
+| Decrypting game results | ❌ No | Fhenix Threshold Network + `FHE.publishDecryptResult()` |
+| Prediction market price data | ✅ Yes | External price source required |
+
+Chainlink VRF and the `CasinoRandomnessRouter` are **legacy/transparent casino infrastructure** — they are not needed for the FHE casino.
+
+### Prediction Market Price Feed Strategy
+
+The `EncryptedMarketResolver.sol` already supports 3 oracle types (`OracleType.Manual`, `OracleType.Chainlink`, `OracleType.Pyth`). The resolution strategy per environment:
+
+#### Testnet (Arbitrum Sepolia) — Current
+
+**Problem:** Chainlink Arbitrum Sepolia feeds update infrequently (hours apart) and don't fluctuate realistically for testing short-duration bets.
+
+**Solution: `OracleType.Manual` + Keeper + CoinGecko Free API**
+
+```
+CoinGecko Free API (real live ETH/BTC prices)
+            ↓
+    fhe-keeper.ts (polls every 60 seconds)
+    - fetches real price for each asset
+    - checks markets past resolvesAt
+    - determines YES/NO winner
+    - calls resolver.resolveManual(outcomeIndex)
+            ↓
+    Market resolves with real market price ✅
+```
+
+This gives realistic price fluctuation on testnet with zero oracle dependency. Users see actual ETH/BTC prices from CoinGecko.
+
+#### Mainnet — Future
+
+Swap `oracleAddress` to real Chainlink/Pyth feed addresses. **Zero contract code changes needed.**
+
+Chainlink feeds on Arbitrum (mainnet, for reference):
+- ETH/USD: `0x639Fe6ab55C921f74e7fac1ee960C0B6293ba612`
+- BTC/USD: `0x6ce185539ad4fdaecd7fa6b4e22a5ce34cb6ad24`
+
+### MockPriceFeed Contract (for Testnet Simulation)
+
+A `MockPriceFeed` contract that implements `IChainlinkAggregator` can be used as a drop-in replacement for testing with `OracleType.Chainlink`:
+
+```solidity
+// Implements IChainlinkAggregator — drop-in for EncryptedMarketResolver
+contract MockPriceFeed {
+    function latestRoundData() external view returns (
+        uint80, int256, uint256, uint256, uint80
+    ) {
+        return (roundId, price, block.timestamp, block.timestamp, roundId);
+    }
+    function setPrice(int256 newPrice) external onlyOwner { ... }
+    function simulatePump(int256 by) external onlyOwner { ... }
+    function simulateDump(int256 by) external onlyOwner { ... }
+}
+```
+
+Chainlink uses **8 decimal places**: `$2500.00` → `2500_00000000` (int256).
+
+**Usage:** Deploy with initial price, point market's `oracleAddress` to mock, call `setPrice()` or `simulatePump/Dump()` to move prices and trigger resolution.
+
+### Keeper Price Resolution Logic (To Be Added to fhe-keeper.ts)
+
+```typescript
+async function fetchRealPrice(asset: string): Promise<number> {
+    const ASSET_IDS = { ETH: "ethereum", BTC: "bitcoin", ARB: "arbitrum" };
+    const res = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${ASSET_IDS[asset]}&vs_currencies=usd`
+    );
+    const data = await res.json();
+    return data[ASSET_IDS[asset]].usd;
+}
+
+async function autoResolveManualMarkets() {
+    const now = Math.floor(Date.now() / 1000);
+    for (const market of await getExpiredUnresolvedManualMarkets()) {
+        const realPrice = await fetchRealPrice(market.asset);
+        const { threshold, resolveAbove } = decodeOracleParams(market.oracleParams);
+        const yesWins = resolveAbove ? realPrice >= threshold : realPrice <= threshold;
+        await market.resolver.resolveManual(yesWins ? 0 : 1);
+    }
+}
+setInterval(autoResolveManualMarkets, 60_000); // every 60 seconds
+```
+
+### Why Not Just Use Testnet Chainlink Feeds?
+
+Chainlink Arbitrum Sepolia feeds exist (e.g., ETH/USD at `0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165`) and return real prices, but they update infrequently (every few hours or when price deviates significantly). This makes them unsuitable for testing short-duration bets on testnet. CoinGecko via the keeper is a much better testnet experience.
+
+---
+
+*Last updated: April 17, 2026. This document should be updated whenever significant architectural changes are made to the CasFin protocol.*

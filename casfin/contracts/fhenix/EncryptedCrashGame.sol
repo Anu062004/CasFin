@@ -7,7 +7,7 @@ import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
 import {GameRandomnessLib} from "./GameRandomness.sol";
-import {FHE, InEuint128, TASK_MANAGER_ADDRESS, ebool, euint32, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {FHE, InEuint128, TASK_MANAGER_ADDRESS, euint32, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
 
 contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
@@ -187,8 +187,8 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         // Basis-point division keeps the gross return encrypted before house edge is applied.
         euint128 grossReturn = FHE.div(grossNumerator, ENCRYPTED_BPS_DENOMINATOR);
         euint128 winReturn = _applyHouseEdge(grossReturn);
-        ebool encWon = FHE.asEbool(won);
-        euint128 returnHandle = FHE.select(encWon, winReturn, ENCRYPTED_ZERO);
+        // won is a plaintext bool from a plaintext comparison — use a direct ternary, not FHE.select.
+        euint128 returnHandle = won ? winReturn : ENCRYPTED_ZERO;
 
         // The vault needs access to consume the encrypted return during settlement.
         FHE.allow(returnHandle, address(vault));

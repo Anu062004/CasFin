@@ -5,16 +5,24 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:index": "tsx scripts/indexer.ts",
+    "db:index:once": "tsx scripts/indexer.ts --once",
+    "db:backfill": "tsx scripts/indexer.ts --backfill"
   },
   "dependencies": {
     "@cofhe/sdk": "^0.4.0",
+    "@prisma/client": "^6.19.3",
     "@privy-io/react-auth": "^3.19.1",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.96.0",
     "ethers": "^6.15.0",
     "next": "^15.0.0",
     "p-limit": "^7.3.0",
+    "prisma": "^6.19.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "viem": "^2.47.6",

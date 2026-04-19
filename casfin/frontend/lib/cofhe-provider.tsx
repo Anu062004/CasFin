@@ -189,7 +189,7 @@ export function CofheProvider({ children }) {
     }
 
     await clientRef.current.permits.getOrCreateSelfPermit();
-    return clientRef.current.decryptForView(ctHash, fheType).execute();
+    return await clientRef.current.decryptForView(ctHash, fheType).execute();
   }, []);
 
   const contextValue = useMemo(

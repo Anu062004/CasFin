@@ -1,0 +1,207 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ───────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(cuid())
+  walletAddress String   @unique @db.VarChar(42)
+  displayName   String?
+  firstSeenAt   DateTime @default(now())
+  lastActiveAt  DateTime @default(now())
+
+  casinoBets        CasinoBet[]
+  vaultTransactions VaultTransaction[]
+  marketPositions   MarketPosition[]
+  marketTrades      MarketTrade[]
+
+  @@index([walletAddress])
+}
+
+// ─── Casino ──────────────────────────────────────────────────────────
+
+model CasinoBet {
+  id                String    @id @default(cuid())
+  onChainBetId      BigInt
+  gameType          GameType
+  playerAddress     String    @db.VarChar(42)
+  betAmountWei      String
+  resolved          Boolean   @default(false)
+  resolutionPending Boolean   @default(false)
+  won               Boolean?
+  payoutWei         String?
+  houseEdgeBps      Int       @default(200)
+  diceGuess         Int?
+  diceRolled        Int?
+  coinGuessHeads    Boolean?
+  crashRoundId      BigInt?
+  cashOutBps        Int?
+  txHash            String?   @db.VarChar(66)
+  blockNumber       BigInt?
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+
+  crashRound CrashRound? @relation(fields: [crashRoundId], references: [onChainRoundId])
+  user       User        @relation(fields: [playerAddress], references: [walletAddress])
+
+  @@unique([gameType, onChainBetId])
+  @@index([playerAddress])
+  @@index([gameType])
+  @@index([createdAt])
+}
+
+model CrashRound {
+  id                 String    @id @default(cuid())
+  onChainRoundId     BigInt    @unique
+  crashMultiplierBps Int?
+  closed             Boolean   @default(false)
+  closeRequested     Boolean   @default(false)
+  txHash             String?   @db.VarChar(66)
+  blockNumber        BigInt?
+  createdAt          DateTime  @default(now())
+  closedAt           DateTime?
+
+  bets CasinoBet[]
+
+  @@index([onChainRoundId])
+}
+
+// ─── Vault ───────────────────────────────────────────────────────────
+
+model VaultTransaction {
+  id            String      @id @default(cuid())
+  txType        VaultTxType
+  playerAddress String      @db.VarChar(42)
+  amountWei     String
+  txHash        String?     @db.VarChar(66)
+  blockNumber   BigInt?
+  createdAt     DateTime    @default(now())
+
+  user User @relation(fields: [playerAddress], references: [walletAddress])
+
+  @@index([playerAddress])
+  @@index([txType])
+}
+
+// ─── Prediction Markets ──────────────────────────────────────────────
+
+model PredictionMarket {
+  id                String    @id @default(cuid())
+  onChainAddress    String    @unique @db.VarChar(42)
+  factoryAddress    String    @db.VarChar(42)
+  creatorAddress    String    @db.VarChar(42)
+  question          String
+  description       String?
+  outcomes          String[]
+  resolvesAt        DateTime
+  disputeWindowSecs Int
+  resolved          Boolean   @default(false)
+  finalized         Boolean   @default(false)
+  disputed          Boolean   @default(false)
+  winningOutcome    Int?
+  collateralPoolWei String    @default("0")
+  platformFeeBps    Int       @default(100)
+  lpFeeBps          Int       @default(50)
+  resolverFeeBps    Int       @default(50)
+  ammAddress        String?   @db.VarChar(42)
+  poolAddress       String?   @db.VarChar(42)
+  resolverAddress   String?   @db.VarChar(42)
+  blockNumber       BigInt?
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+
+  positions MarketPosition[]
+  trades    MarketTrade[]
+
+  @@index([creatorAddress])
+  @@index([resolved])
+  @@index([resolvesAt])
+}
+
+model MarketPosition {
+  id            String   @id @default(cuid())
+  marketAddress String   @db.VarChar(42)
+  playerAddress String   @db.VarChar(42)
+  outcomeIndex  Int
+  shares        String   @default("0")
+  claimed       Boolean  @default(false)
+  netSpentWei   String   @default("0")
+  updatedAt     DateTime @default(now())
+
+  market PredictionMarket @relation(fields: [marketAddress], references: [onChainAddress])
+  user   User             @relation(fields: [playerAddress], references: [walletAddress])
+
+  @@unique([marketAddress, playerAddress, outcomeIndex])
+  @@index([playerAddress])
+}
+
+model MarketTrade {
+  id            String    @id @default(cuid())
+  marketAddress String    @db.VarChar(42)
+  traderAddress String    @db.VarChar(42)
+  tradeType     TradeType
+  outcomeIndex  Int
+  amountWei     String
+  sharesAmount  String
+  txHash        String?   @db.VarChar(66)
+  blockNumber   BigInt?
+  createdAt     DateTime  @default(now())
+
+  market PredictionMarket @relation(fields: [marketAddress], references: [onChainAddress])
+  user   User             @relation(fields: [traderAddress], references: [walletAddress])
+
+  @@index([marketAddress])
+  @@index([traderAddress])
+  @@index([createdAt])
+}
+
+// ─── Sync & Infrastructure ───────────────────────────────────────────
+
+model SyncCursor {
+  id            String   @id
+  lastBlock     BigInt   @default(0)
+  lastUpdatedAt DateTime @default(now())
+}
+
+model KeeperState {
+  id                String   @id @default("singleton")
+  lastCoinFlipBetId BigInt   @default(0)
+  lastDiceBetId     BigInt   @default(0)
+  lastCrashRoundId  BigInt   @default(0)
+  lastUpdatedAt     DateTime @default(now())
+}
+
+model PlatformStats {
+  id                  String   @id @default("global")
+  totalBets           Int      @default(0)
+  totalVolumeWei      String   @default("0")
+  totalMarketsCreated Int      @default(0)
+  uniqueUsers         Int      @default(0)
+  updatedAt           DateTime @default(now())
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────
+
+enum GameType {
+  COIN_FLIP
+  DICE
+  CRASH
+}
+
+enum VaultTxType {
+  DEPOSIT
+  WITHDRAWAL
+  BANKROLL_FUND
+  HOUSE_WITHDRAW
+}
+
+enum TradeType {
+  BUY
+  SELL
+}
