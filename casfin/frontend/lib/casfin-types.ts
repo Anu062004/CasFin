@@ -212,7 +212,7 @@ export interface SyncWalletOptions {
 }
 
 export type RunTransactionHandler = (signer: JsonRpcSigner) => Promise<ContractTransactionResponse>;
-export type RunTransaction = (label: string, handler: RunTransactionHandler) => Promise<void>;
+export type RunTransaction = (label: string, handler: RunTransactionHandler) => Promise<boolean>;
 
 export interface WalletContextValue {
   walletAvailable: boolean;

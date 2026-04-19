@@ -236,6 +236,7 @@ export default function CasinoPage() {
             {activeSection === "poker" && (
               <CleanPokerCard
                 casinoState={casinoState}
+                isOperator={isOperator}
                 pendingAction={pendingAction}
                 runTransaction={runTransaction}
                 walletBlocked={walletBlocked}

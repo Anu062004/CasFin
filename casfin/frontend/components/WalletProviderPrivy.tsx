@@ -842,10 +842,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     applyProtocolLoadResults(casinoResult, predictionResult);
   }
 
-  async function runTransaction(label, handler) {
+  async function runTransaction(label, handler): Promise<boolean> {
     if (!activeWalletRef.current) {
       pushStatus("Connect a wallet before sending transactions.", "warning");
-      return;
+      return false;
     }
 
     pushStatus(`Preparing ${label.toLowerCase()} on ${CASFIN_CONFIG.chainName}.`, "info");
@@ -894,8 +894,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       });
       pushStatus(`${label} confirmed.`, "success");
       await loadProtocolState(nextAccount);
+      return true;
     } catch (error) {
       pushStatus(extractError(error), "error");
+      return false;
     } finally {
       if (mountedRef.current) {
         setPendingAction("");

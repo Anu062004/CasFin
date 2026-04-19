@@ -11,7 +11,6 @@ import { parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 type Phase = "bet" | "dealt" | "waiting" | "result";
-interface CardState { rank: number; suit: number; }
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 
@@ -33,23 +32,19 @@ const PAYOUT_TABLE = [
   { hand: "Jacks or Better",  payout: "1x",   highlight: false }
 ];
 
-export default function CleanPokerCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
+export default function CleanPokerCard({ casinoState, isOperator, pendingAction, runTransaction, walletBlocked }) {
   const [amount, setAmount] = useState("0.01");
   const [phase, setPhase] = useState<Phase>("bet");
   const [gameId, setGameId] = useState<bigint | null>(null);
-  const [cards, setCards] = useState<Array<CardState | null>>([null, null, null, null, null]);
   const [held, setHeld] = useState([false, false, false, false, false]);
   const [result, setResult] = useState<{ won: boolean; handName: string; multiplier: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dealing, setDealing] = useState(false);
   const [cardError, setCardError] = useState("");
 
   const {
     encryptUint128,
     encryptMultiple,
-    decryptForView,
     Encryptable,
-    FheTypes,
     connected: cofheConnected,
     ready: cofheReady,
     sessionReady: cofheSessionReady,
@@ -83,16 +78,9 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
     }
   }
 
-  async function decryptHandles(pokerRead: ethers.Contract, gid: bigint, final: boolean): Promise<CardState[]> {
-    const handles: string[] = final
-      ? await pokerRead.getFinalCardHandles(gid)
-      : await pokerRead.getCardHandles(gid);
-    return Promise.all(
-      handles.map(async (h) => {
-        const cardIndex = Number(await decryptForView(BigInt(h), FheTypes.Uint8));
-        return { rank: cardIndex % 13, suit: Math.floor(cardIndex / 13) };
-      })
-    );
+  function getReadContract() {
+    const provider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
+    return new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
   }
 
   async function handleDeal() {
@@ -101,23 +89,20 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
     try {
       if (!(await ensureActionReady())) return;
 
-      await runTransaction("Deal poker hand", async (signer: ethers.JsonRpcSigner) => {
+      const ok = await runTransaction("Deal poker hand", async (signer: ethers.JsonRpcSigner) => {
         const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
         const encAmount = await encryptUint128(parseRequiredEth(amount, "Bet amount"));
         return poker.deal(encAmount);
       });
 
-      const provider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
-      const pokerRead = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
+      if (!ok) return;
+
+      const pokerRead = getReadContract();
       const gid: bigint = await pokerRead.latestGameIdByPlayer(account);
       setGameId(gid);
-
-      const dealtCards = await decryptHandles(pokerRead, gid, false);
-      setDealing(true);
-      setCards(dealtCards);
       setHeld([false, false, false, false, false]);
+      setResult(null);
       setPhase("dealt");
-      setTimeout(() => setDealing(false), 800);
     } catch (err) {
       console.warn("[CleanPokerCard] Deal failed.", err);
       setCardError("Deal failed — check your bet amount and try again.");
@@ -133,18 +118,14 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
     try {
       if (!(await ensureActionReady())) return;
 
-      await runTransaction("Draw poker cards", async (signer: ethers.JsonRpcSigner) => {
+      const ok = await runTransaction("Draw poker cards", async (signer: ethers.JsonRpcSigner) => {
         const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
         const encHolds = await encryptMultiple(held.map((h) => Encryptable.bool(h)));
         return poker.draw(gameId, encHolds);
       });
 
-      const provider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
-      const pokerRead = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
-      const finalCards = await decryptHandles(pokerRead, gameId, true);
-      setDealing(true);
-      setCards(finalCards);
-      setTimeout(() => setDealing(false), 800);
+      if (!ok) return;
+
       setPhase("waiting");
     } catch (err) {
       console.warn("[CleanPokerCard] Draw failed.", err);
@@ -154,31 +135,56 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
     }
   }
 
+  async function handleRequestResolution() {
+    if (gameId === null) return;
+    setCardError("");
+    await runTransaction("Request resolution", async (signer) => {
+      const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
+      return poker.requestResolution(gameId);
+    });
+  }
+
+  async function handleFinalizeResolution() {
+    if (gameId === null) return;
+    setCardError("");
+    const ok = await runTransaction("Finalize resolution", async (signer) => {
+      const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
+      return poker.finalizeResolution(gameId);
+    });
+    if (ok) {
+      await handleCheckResult();
+    }
+  }
+
   async function handleCheckResult() {
     if (gameId === null) return;
     try {
-      const provider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
-      const pokerRead = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
+      const pokerRead = getReadContract();
       const [, gamePhase, won, multiplier] = await pokerRead.getGame(gameId);
-      if (Number(gamePhase) === 4) {
+      const phaseNum = Number(gamePhase);
+      if (phaseNum === 4) {
         setResult({ won, handName: HAND_NAMES[Number(multiplier)] ?? "Unknown", multiplier: Number(multiplier) });
         setPhase("result");
+      } else {
+        const phaseNames = ["None", "Dealt", "Drawn", "Resolution Pending", "Resolved"];
+        setCardError(`Game is in phase: ${phaseNames[phaseNum] ?? phaseNum}. ${phaseNum === 3 ? "Waiting for FHE decrypt — try Finalize Resolution." : phaseNum < 3 ? "Draw first." : "Not yet resolved."}`);
       }
     } catch (err) {
       console.warn("[CleanPokerCard] Check result failed.", err);
+      setCardError("Could not read result — try again.");
     }
   }
 
   function handleNewGame() {
     setPhase("bet");
     setGameId(null);
-    setCards([null, null, null, null, null]);
     setHeld([false, false, false, false, false]);
     setResult(null);
     setCardError("");
   }
 
-  const isPending = pendingAction === "Deal poker hand" || pendingAction === "Draw poker cards" || isSubmitting;
+  const isPending = pendingAction === "Deal poker hand" || pendingAction === "Draw poker cards" ||
+    pendingAction === "Request resolution" || pendingAction === "Finalize resolution" || isSubmitting;
   const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked);
 
   const outcomeCard = result
@@ -188,7 +194,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
         eyebrow: "Hand Result",
         title: result.won ? `${result.handName}!` : "No winning hand",
         detail: result.won
-          ? `Your hand paid out ${result.multiplier}x your bet (minus 2% house edge).`
+          ? `Your hand paid out ${result.multiplier}x your bet (minus house edge).`
           : "Better luck next time.",
         metrics: [
           { label: "Hand",       value: result.handName },
@@ -200,8 +206,10 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
           tone: "pending" as const,
           badge: "Settling",
           eyebrow: "Outcome",
-          title: "Waiting for keeper resolution",
-          detail: "The keeper will finalize your hand on-chain. Check back shortly.",
+          title: "Waiting for on-chain resolution",
+          detail: isOperator
+            ? "Click Request Resolution, wait ~10 seconds for FHE decryption, then Finalize Resolution."
+            : "The operator will resolve your game. Click Check Result once complete.",
           metrics: [{ label: "Game ID", value: gameId?.toString() ?? "..." }]
         }
       : {
@@ -209,7 +217,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
           badge: "Ready",
           eyebrow: "Outcome",
           title: "Your next hand will land here",
-          detail: "Deal a hand, hold your best cards, then draw replacements.",
+          detail: "Deal a hand, hold your best positions, then draw replacements.",
           metrics: []
         };
 
@@ -218,7 +226,13 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
       <div className="casino-game-header">
         <div>
           <p className="casino-game-kicker">Video Poker</p>
-          <h3>{phase === "dealt" ? "Select cards to hold · then Draw" : phase === "waiting" ? "Waiting for keeper resolution" : "Jacks or Better — hold cards and draw replacements."}</h3>
+          <h3>
+            {phase === "dealt"
+              ? "Select positions to hold · then Draw"
+              : phase === "waiting"
+                ? "Waiting for resolution"
+                : "Jacks or Better — hold cards and draw replacements."}
+          </h3>
         </div>
         <span className="casino-game-badge">{phase === "dealt" ? "Select & Draw" : "Up to 250x"}</span>
       </div>
@@ -226,15 +240,13 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
       {/* Card area — always visible */}
       <div className="poker-table-area">
         <div className="poker-hand">
-          {(phase === "bet" ? [null, null, null, null, null] : cards).map((card, i) => (
+          {[0, 1, 2, 3, 4].map((i) => (
             <PokerCardDisplay
               key={i}
               index={i}
-              dealing={dealing}
-              faceDown={phase === "bet" || card === null}
-              rank={card?.rank}
-              suit={card?.suit}
-              held={held[i]}
+              dealing={false}
+              faceDown={true}
+              held={phase === "dealt" && held[i]}
               disabled={phase !== "dealt" || actionsBusy}
               onClick={() => {
                 if (phase !== "dealt") return;
@@ -243,14 +255,15 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
             />
           ))}
         </div>
-        {phase === "bet" && (
-          <p className="poker-table-hint">Deal to reveal your hand</p>
-        )}
-        {phase === "dealt" && (
-          <p className="poker-table-hint">Tap cards to hold · then Draw</p>
-        )}
+        {phase === "bet" && <p className="poker-table-hint">Deal to start your hand</p>}
+        {phase === "dealt" && <p className="poker-table-hint">Tap cards to hold · then Draw</p>}
         {phase === "waiting" && (
-          <p className="poker-table-hint poker-table-hint--resolving">Resolving hand<span className="dot-anim">...</span></p>
+          <p className="poker-table-hint poker-table-hint--resolving">
+            Resolving hand<span className="dot-anim">...</span>
+          </p>
+        )}
+        {phase === "result" && (
+          <p className="poker-table-hint">{result?.won ? "You won!" : "Better luck next time"}</p>
         )}
       </div>
 
@@ -279,10 +292,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
           </div>
 
           <div className="poker-payout-strip">
-            <div className="payout-strip-header">
-              <span>Hand</span>
-              <span>Pays</span>
-            </div>
+            <div className="payout-strip-header"><span>Hand</span><span>Pays</span></div>
             {PAYOUT_TABLE.map(({ hand, payout, highlight }) => (
               <div key={hand} className={`payout-strip-row${highlight ? " is-jackpot" : ""}`}>
                 <span className="payout-strip-hand">{hand}</span>
@@ -294,34 +304,69 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
         </>
       )}
 
-      {cardError ? (
-        <p className="poker-error-msg">{cardError}</p>
-      ) : null}
+      {cardError ? <p className="poker-error-msg">{cardError}</p> : null}
 
       {/* Action buttons */}
       {phase === "bet" && (
-        <button className="casino-primary-button" disabled={actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)} onClick={() => void handleDeal()} type="button">
-          {isPending         ? "Dealing..."
-            : !isConnected   ? "Connect wallet to play"
-            : !isCorrectChain? "Switch to Arbitrum Sepolia"
-            : cofheSessionReady        ? "Deal Hand"
-            : cofheSessionInitializing ? "Initializing CoFHE..."
-            : !cofheReady              ? "Initializing encrypted session"
-            : !cofheConnected          ? "Start encrypted session"
-            :                           "Warming encrypted session"}
+        <button
+          className="casino-primary-button"
+          disabled={actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)}
+          onClick={() => void handleDeal()}
+          type="button"
+        >
+          {isPending            ? "Dealing..."
+            : !isConnected      ? "Connect wallet to play"
+            : !isCorrectChain   ? "Switch to Arbitrum Sepolia"
+            : cofheSessionReady         ? "Deal Hand"
+            : cofheSessionInitializing  ? "Initializing CoFHE..."
+            : !cofheReady               ? "Initializing encrypted session"
+            : !cofheConnected           ? "Start encrypted session"
+            :                             "Warming encrypted session"}
         </button>
       )}
 
       {phase === "dealt" && (
-        <button className="casino-primary-button" disabled={actionsBusy || isSubmitting} onClick={() => void handleDraw()} type="button">
-          {isPending ? "Drawing..." : "Draw Cards"}
+        <button
+          className="casino-primary-button"
+          disabled={actionsBusy || isSubmitting}
+          onClick={() => void handleDraw()}
+          type="button"
+        >
+          {isPending ? "Drawing..." : `Draw ${held.filter(Boolean).length === 0 ? "all 5" : `(hold ${held.filter(Boolean).length})`}`}
         </button>
       )}
 
       {phase === "waiting" && (
-        <button className="casino-primary-button" onClick={() => void handleCheckResult()} type="button">
-          Check Result
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          {isOperator && (
+            <div className="casino-inline-actions">
+              <button
+                className="casino-secondary-button"
+                disabled={actionsBusy}
+                onClick={() => void handleRequestResolution()}
+                type="button"
+              >
+                {pendingAction === "Request resolution" ? "Requesting..." : "Request Resolution"}
+              </button>
+              <button
+                className="casino-secondary-button"
+                disabled={actionsBusy}
+                onClick={() => void handleFinalizeResolution()}
+                type="button"
+              >
+                {pendingAction === "Finalize resolution" ? "Finalizing..." : "Finalize Resolution"}
+              </button>
+            </div>
+          )}
+          <button
+            className="casino-primary-button"
+            disabled={actionsBusy}
+            onClick={() => void handleCheckResult()}
+            type="button"
+          >
+            Check Result
+          </button>
+        </div>
       )}
 
       {phase === "result" && (
@@ -335,7 +380,10 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
       )}
 
       <div className="casino-status-grid">
-        <div className="casino-status-item"><span>Settlement</span><strong>Keeper-driven</strong></div>
+        <div className="casino-status-item">
+          <span>Game ID</span>
+          <strong>{gameId !== null ? gameId.toString() : "—"}</strong>
+        </div>
         <div className="casino-status-item">
           <span>Phase</span>
           <strong style={{ textTransform: "capitalize" }}>{phase}</strong>

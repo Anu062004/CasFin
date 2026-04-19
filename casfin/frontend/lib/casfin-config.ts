@@ -48,9 +48,9 @@ export const CASFIN_CONFIG: CasfinConfig = {
   chainIdHex: "0x66eee",
   chainName: "Arbitrum Sepolia",
   explorerBaseUrl: "https://sepolia.arbiscan.io",
-  publicRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
-  fheRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
-  pollingRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC,
+  publicRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
+  fheRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
+  pollingRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
   walletRpcUrl: WALLET_ARB_SEPOLIA_RPC,
   operatorAddress: process.env.NEXT_PUBLIC_OPERATOR_ADDRESS || "0x6b3a924379B9408D8110f10F084ca809863B378A",
   addresses: {
