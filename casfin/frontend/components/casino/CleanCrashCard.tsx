@@ -270,7 +270,7 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
 
         <button
           className="casino-primary-button"
-          disabled={actionsBusy || isBetPending}
+          disabled={actionsBusy || isBetPending || (isConnected && isCorrectChain && !cofheSessionReady)}
           onClick={handlePlaceBet}
           type="button"
         >

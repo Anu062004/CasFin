@@ -300,7 +300,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
 
       {/* Action buttons */}
       {phase === "bet" && (
-        <button className="casino-primary-button" disabled={actionsBusy || isSubmitting} onClick={() => void handleDeal()} type="button">
+        <button className="casino-primary-button" disabled={actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)} onClick={() => void handleDeal()} type="button">
           {isPending         ? "Dealing..."
             : !isConnected   ? "Connect wallet to play"
             : !isCorrectChain? "Switch to Arbitrum Sepolia"

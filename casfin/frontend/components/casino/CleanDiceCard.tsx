@@ -241,7 +241,7 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
 
       <button
         className="casino-primary-button"
-        disabled={actionsBusy || isSubmitting}
+        disabled={actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)}
         onClick={handleSubmit}
         type="button"
       >
