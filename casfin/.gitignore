@@ -11,5 +11,6 @@ frontend/.next
 frontend/.codex-dev.log
 frontend/.codex-build.err
 frontend/.codex-build.out
-frontend/.codex-build.err
-frontend/.codex-build.out
+frontend/codex-build.err.log
+frontend/codex-build.out.log
+keeper/*.previous.ts

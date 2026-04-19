@@ -109,7 +109,7 @@ Application will boot up at `http://localhost:3000`.
 **Tab 2 - The FHE Keeper Bot:**
 Without the Keeper, your bets will sit in a "pending" requested state indefinitely. The Keeper distributes randomness and finalizes the encrypted state.
 ```bash
-npm run keeper:start:fhe
+npm run keeper:start
 ```
 
 ---
@@ -144,3 +144,39 @@ All successful testnet/mainnet deployments save JSON snapshots inside the `deplo
 * **Transparent Markets:** Predictions and legacy casino systems are explicitly public.
 * **Encrypted Casino:** Protects the inputs/balances via Fully Homomorphic Encryption. **Important restriction:** Because CoFHE is actively developing, handling decryption relies on wallet/local security. Ensure proper CORS and domain allowances in production for keychain usage. 
 * *Note: This codebase is unaudited and intended as an advanced demonstration of FHE application infrastructure.*
+
+---
+
+## Combined Keeper
+
+Run the combined keeper from the repo root:
+
+```bash
+npm run keeper:start
+```
+
+Required root `.env` values:
+
+- `ARBITRUM_SEPOLIA_RPC_URL`
+- `PRIVATE_KEY`
+- `ENCRYPTED_COIN_FLIP_ADDRESS`
+- `ENCRYPTED_DICE_GAME_ADDRESS`
+- `ENCRYPTED_CRASH_GAME_ADDRESS`
+- `MARKET_FACTORY_ADDRESS`
+
+Optional keeper settings:
+
+- `KEEPER_POLL_MS=5000`
+- `KEEPER_PREDICTION_POLL_MS=5000`
+- `KEEPER_START_BLOCK=0`
+- `KEEPER_EVENT_BATCH_BLOCKS=2000`
+
+What it does:
+
+- Runs the casino keeper and prediction market keeper together with `Promise.all`.
+- Shares one ethers provider and one wallet/signer across both systems.
+- For the FHE casino, listens for `EncryptedBetPlaced`, `EncryptedDiceBetPlaced`, and `CrashBetPlaced`, backfills missed crash events, polls unresolved work every 5 seconds, and drives bets through `requestResolution` / `finalizeResolution` or `closeRound` / `finalizeRound` / `settleBet`.
+- For transparent prediction markets, listens for new `MarketCreated` events from `MarketFactory`, tracks active markets by expiry, calls `MarketResolver.requestResolution()` when a market expires, and calls `PredictionMarket.finalizeMarket()` after the market is resolved and the dispute window has elapsed.
+- Uses 3-attempt exponential backoff for transaction submission and exits cleanly on `SIGINT` / `SIGTERM`.
+
+Note: the checked `FeeDistributor` ABI in `frontend/lib/generated-abis/FeeDistributor.json` does not expose a `distribute()` function. The keeper logs that fee distribution is skipped rather than calling a function that does not exist in the current contract interface.

@@ -13,7 +13,8 @@
     "redeploy:fhe-games": "hardhat run scripts/redeployFheGames.ts --network arbitrumSepolia",
     "authorize:games": "hardhat run scripts/authorizeGames.ts --network arbitrumSepolia",
     "verify": "hardhat verify --network arbitrumSepolia",
-    "keeper:start": "tsx keeper/fhe-keeper.ts",
+    "keeper:start": "ts-node --transpile-only keeper/index.ts",
+    "keeper:start:fhe": "ts-node --transpile-only keeper/fhe-keeper.ts",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "frontend:start": "npm --prefix frontend run start"
