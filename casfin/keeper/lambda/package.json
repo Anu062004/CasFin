@@ -1,0 +1,21 @@
+{
+  "name": "casfin-keeper-lambda",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "deploy": "npx serverless deploy",
+    "invoke": "npx serverless invoke -f keeperTick --log",
+    "logs": "npx serverless logs -f keeperTick --tail"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^20.0.0",
+    "serverless": "^3.39.0",
+    "serverless-plugin-typescript": "^2.1.5",
+    "typescript": "^5.4.0"
+  }
+}
