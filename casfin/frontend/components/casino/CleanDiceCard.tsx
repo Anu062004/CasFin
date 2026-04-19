@@ -11,6 +11,30 @@ import { useCofhe } from "@/lib/cofhe-provider";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 
+const DICE_DOTS: Record<number, number[][]> = {
+  1: [[1,1]],
+  2: [[0,0],[2,2]],
+  3: [[0,0],[1,1],[2,2]],
+  4: [[0,0],[0,2],[2,0],[2,2]],
+  5: [[0,0],[0,2],[1,1],[2,0],[2,2]],
+  6: [[0,0],[0,2],[1,0],[1,2],[2,0],[2,2]]
+};
+
+function DiceFace({ value }: { value: number }) {
+  const dots = DICE_DOTS[value] || [];
+  return (
+    <div className="dice-face-grid">
+      {dots.map(([row, col], i) => (
+        <span
+          key={i}
+          className="dice-dot"
+          style={{ gridRow: row + 1, gridColumn: col + 1 }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function CleanDiceCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
   const [amount, setAmount] = useState("0.01");
   const [guess, setGuess] = useState(3);
@@ -170,7 +194,9 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
       </div>
 
       <div className="dice-display-card">
-        <div className={`dice-display-face ${isPending ? "is-rolling" : ""}`}>{guess}</div>
+        <div className={`dice-display-face ${isPending ? "is-rolling" : ""}`}>
+          <DiceFace value={guess} />
+        </div>
         <div className="dice-display-meta">
           <strong>Selected face {guess}</strong>
           <span>House edge {houseEdge}%</span>

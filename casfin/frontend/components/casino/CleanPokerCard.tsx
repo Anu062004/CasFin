@@ -11,7 +11,6 @@ import { parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 type Phase = "bet" | "dealt" | "waiting" | "result";
-
 interface CardState { rank: number; suit: number; }
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
@@ -23,15 +22,15 @@ const HAND_NAMES: Record<number, string> = {
 };
 
 const PAYOUT_TABLE = [
-  { hand: "Royal Flush", payout: "250x", highlight: true },
-  { hand: "Straight Flush", payout: "50x", highlight: true },
-  { hand: "Four of a Kind", payout: "25x", highlight: false },
-  { hand: "Full House", payout: "9x", highlight: false },
-  { hand: "Flush", payout: "6x", highlight: false },
-  { hand: "Straight", payout: "4x", highlight: false },
-  { hand: "Three of a Kind", payout: "3x", highlight: false },
-  { hand: "Two Pair", payout: "2x", highlight: false },
-  { hand: "Jacks or Better", payout: "1x", highlight: false }
+  { hand: "Royal Flush",      payout: "250x", highlight: true },
+  { hand: "Straight Flush",   payout: "50x",  highlight: true },
+  { hand: "Four of a Kind",   payout: "25x",  highlight: false },
+  { hand: "Full House",       payout: "9x",   highlight: false },
+  { hand: "Flush",            payout: "6x",   highlight: false },
+  { hand: "Straight",         payout: "4x",   highlight: false },
+  { hand: "Three of a Kind",  payout: "3x",   highlight: false },
+  { hand: "Two Pair",         payout: "2x",   highlight: false },
+  { hand: "Jacks or Better",  payout: "1x",   highlight: false }
 ];
 
 export default function CleanPokerCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
@@ -42,6 +41,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
   const [held, setHeld] = useState([false, false, false, false, false]);
   const [result, setResult] = useState<{ won: boolean; handName: string; multiplier: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dealing, setDealing] = useState(false);
   const [cardError, setCardError] = useState("");
 
   const {
@@ -67,14 +67,14 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
 
   function applyPreset(preset: string) {
     if (preset === "0.5x") { setAmount((c) => String((parseFloat(c || "0") / 2).toFixed(4))); return; }
-    if (preset === "2x") { setAmount((c) => String((parseFloat(c || "0") * 2).toFixed(4))); return; }
+    if (preset === "2x")   { setAmount((c) => String((parseFloat(c || "0") * 2).toFixed(4))); return; }
     setAmount(preset);
   }
 
   async function ensureActionReady() {
     try {
-      if (!isConnected) { await connectWallet(); return false; }
-      if (!isCorrectChain) { await ensureTargetNetwork(); return false; }
+      if (!isConnected)    { await connectWallet();        return false; }
+      if (!isCorrectChain) { await ensureTargetNetwork();  return false; }
       await ensureEncryptedSession();
       return true;
     } catch (err) {
@@ -87,7 +87,6 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
     const handles: string[] = final
       ? await pokerRead.getFinalCardHandles(gid)
       : await pokerRead.getCardHandles(gid);
-
     return Promise.all(
       handles.map(async (h) => {
         const cardIndex = Number(await decryptForView(BigInt(h), FheTypes.Uint8));
@@ -104,8 +103,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
 
       await runTransaction("Deal poker hand", async (signer: ethers.JsonRpcSigner) => {
         const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
-        const amountWei = parseRequiredEth(amount, "Bet amount");
-        const encAmount = await encryptUint128(amountWei);
+        const encAmount = await encryptUint128(parseRequiredEth(amount, "Bet amount"));
         return poker.deal(encAmount);
       });
 
@@ -115,9 +113,11 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
       setGameId(gid);
 
       const dealtCards = await decryptHandles(pokerRead, gid, false);
+      setDealing(true);
       setCards(dealtCards);
       setHeld([false, false, false, false, false]);
       setPhase("dealt");
+      setTimeout(() => setDealing(false), 800);
     } catch (err) {
       console.warn("[CleanPokerCard] Deal failed.", err);
       setCardError("Deal failed — check your bet amount and try again.");
@@ -142,7 +142,9 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
       const provider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
       const pokerRead = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
       const finalCards = await decryptHandles(pokerRead, gameId, true);
+      setDealing(true);
       setCards(finalCards);
+      setTimeout(() => setDealing(false), 800);
       setPhase("waiting");
     } catch (err) {
       console.warn("[CleanPokerCard] Draw failed.", err);
@@ -189,7 +191,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
           ? `Your hand paid out ${result.multiplier}x your bet (minus 2% house edge).`
           : "Better luck next time.",
         metrics: [
-          { label: "Hand", value: result.handName },
+          { label: "Hand",       value: result.handName },
           { label: "Multiplier", value: result.multiplier > 0 ? `${result.multiplier}x` : "0x" }
         ]
       }
@@ -199,7 +201,7 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
           badge: "Settling",
           eyebrow: "Outcome",
           title: "Waiting for keeper resolution",
-          detail: "The keeper will call requestResolution and finalizeResolution on-chain.",
+          detail: "The keeper will finalize your hand on-chain. Check back shortly.",
           metrics: [{ label: "Game ID", value: gameId?.toString() ?? "..." }]
         }
       : {
@@ -216,11 +218,43 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
       <div className="casino-game-header">
         <div>
           <p className="casino-game-kicker">Video Poker</p>
-          <h3>Jacks or Better — hold cards and draw replacements.</h3>
+          <h3>{phase === "dealt" ? "Select cards to hold · then Draw" : phase === "waiting" ? "Waiting for keeper resolution" : "Jacks or Better — hold cards and draw replacements."}</h3>
         </div>
-        <span className="casino-game-badge">Up to 250x</span>
+        <span className="casino-game-badge">{phase === "dealt" ? "Select & Draw" : "Up to 250x"}</span>
       </div>
 
+      {/* Card area — always visible */}
+      <div className="poker-table-area">
+        <div className="poker-hand">
+          {(phase === "bet" ? [null, null, null, null, null] : cards).map((card, i) => (
+            <PokerCardDisplay
+              key={i}
+              index={i}
+              dealing={dealing}
+              faceDown={phase === "bet" || card === null}
+              rank={card?.rank}
+              suit={card?.suit}
+              held={held[i]}
+              disabled={phase !== "dealt" || actionsBusy}
+              onClick={() => {
+                if (phase !== "dealt") return;
+                setHeld((prev) => { const next = [...prev]; next[i] = !next[i]; return next; });
+              }}
+            />
+          ))}
+        </div>
+        {phase === "bet" && (
+          <p className="poker-table-hint">Deal to reveal your hand</p>
+        )}
+        {phase === "dealt" && (
+          <p className="poker-table-hint">Tap cards to hold · then Draw</p>
+        )}
+        {phase === "waiting" && (
+          <p className="poker-table-hint poker-table-hint--resolving">Resolving hand<span className="dot-anim">...</span></p>
+        )}
+      </div>
+
+      {/* Bet phase: amount + payout strip */}
       {phase === "bet" && (
         <>
           <div className="casino-field-block">
@@ -244,55 +278,37 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
             </div>
           </div>
 
-          <div className="poker-payout-table">
+          <div className="poker-payout-strip">
+            <div className="payout-strip-header">
+              <span>Hand</span>
+              <span>Pays</span>
+            </div>
             {PAYOUT_TABLE.map(({ hand, payout, highlight }) => (
-              <>
-                <span key={`${hand}-h`} className="poker-payout-hand">{hand}</span>
-                <span key={`${hand}-v`} className={`poker-payout-value${highlight ? " is-highlight" : ""}`}>{payout}</span>
-              </>
+              <div key={hand} className={`payout-strip-row${highlight ? " is-jackpot" : ""}`}>
+                <span className="payout-strip-hand">{hand}</span>
+                <span className="payout-strip-dots" />
+                <span className="payout-strip-value">{payout}</span>
+              </div>
             ))}
           </div>
         </>
       )}
 
-      {phase !== "bet" && (
-        <div className="poker-hand">
-          {cards.map((card, i) => (
-            <PokerCardDisplay
-              key={i}
-              faceDown={card === null}
-              rank={card?.rank}
-              suit={card?.suit}
-              held={held[i]}
-              disabled={phase !== "dealt" || actionsBusy}
-              onClick={() => {
-                if (phase !== "dealt") return;
-                setHeld((prev) => { const next = [...prev]; next[i] = !next[i]; return next; });
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {phase === "dealt" && <p className="poker-hand-label">Click cards to hold · then Draw</p>}
-      {phase === "waiting" && <p className="poker-hand-label">Waiting for keeper to resolve hand...</p>}
-
       {cardError ? (
-        <p style={{ color: "var(--tone-error, #ef4444)", fontSize: "0.8rem", textAlign: "center", margin: "0.5rem 0" }}>
-          {cardError}
-        </p>
+        <p className="poker-error-msg">{cardError}</p>
       ) : null}
 
+      {/* Action buttons */}
       {phase === "bet" && (
         <button className="casino-primary-button" disabled={actionsBusy || isSubmitting} onClick={() => void handleDeal()} type="button">
-          {isPending ? "Dealing..."
-            : !isConnected ? "Connect wallet to play"
-            : !isCorrectChain ? "Switch to Arbitrum Sepolia"
-            : cofheSessionReady ? "Deal Hand"
+          {isPending         ? "Dealing..."
+            : !isConnected   ? "Connect wallet to play"
+            : !isCorrectChain? "Switch to Arbitrum Sepolia"
+            : cofheSessionReady        ? "Deal Hand"
             : cofheSessionInitializing ? "Initializing CoFHE..."
-            : !cofheReady ? "Initializing encrypted session"
-            : !cofheConnected ? "Start encrypted session"
-            : "Warming encrypted session"}
+            : !cofheReady              ? "Initializing encrypted session"
+            : !cofheConnected          ? "Start encrypted session"
+            :                           "Warming encrypted session"}
         </button>
       )}
 
@@ -314,13 +330,12 @@ export default function CleanPokerCard({ casinoState, pendingAction, runTransact
         </button>
       )}
 
-      <CasinoOutcomeCard {...outcomeCard} />
+      {(phase === "waiting" || phase === "result") && (
+        <CasinoOutcomeCard {...outcomeCard} />
+      )}
 
       <div className="casino-status-grid">
-        <div className="casino-status-item">
-          <span>Settlement</span>
-          <strong>Keeper-driven</strong>
-        </div>
+        <div className="casino-status-item"><span>Settlement</span><strong>Keeper-driven</strong></div>
         <div className="casino-status-item">
           <span>Phase</span>
           <strong style={{ textTransform: "capitalize" }}>{phase}</strong>

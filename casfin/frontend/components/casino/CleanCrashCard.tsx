@@ -216,7 +216,21 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
       <div className="crash-stage-card">
         <canvas className="crash-stage-canvas" height="220" ref={canvasRef} width="900" />
         <div className="crash-stage-overlay">
-          <strong>{displayMultiplier.toFixed(2)}x</strong>
+          <strong
+            className="crash-multiplier-display"
+            style={{
+              color: latestRound?.closed
+                ? "#f87171"
+                : displayMultiplier < 2
+                  ? "#4ade80"
+                  : displayMultiplier < 5
+                    ? "#facc15"
+                    : "#f87171",
+              textShadow: `0 0 32px ${latestRound?.closed ? "rgba(248,113,113,0.6)" : displayMultiplier < 2 ? "rgba(74,222,128,0.5)" : displayMultiplier < 5 ? "rgba(250,204,21,0.5)" : "rgba(248,113,113,0.6)"}`
+            }}
+          >
+            {latestRound?.closed ? "CRASHED" : `${displayMultiplier.toFixed(2)}x`}
+          </strong>
           <span>
             {roundOpen
               ? "Live round in progress"

@@ -78,10 +78,10 @@ export default function CasinoPage() {
   }
 
   const tabLabel: Record<CasinoSection, string> = {
-    coin: "Coin Flip",
-    dice: "Dice",
-    crash: "Crash",
-    poker: "Poker"
+    coin: "🪙 Coin Flip",
+    dice: "🎲 Dice",
+    crash: "📈 Crash",
+    poker: "🃏 Poker"
   };
 
   return (
