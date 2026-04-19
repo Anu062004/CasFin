@@ -1,16 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import GlassButton from "@/components/GlassButton";
-import GlassCard from "@/components/GlassCard";
-import VaultCard from "@/components/VaultCard";
 import CleanCoinFlipCard from "@/components/casino/CleanCoinFlipCard";
 import CleanCrashCard from "@/components/casino/CleanCrashCard";
 import CleanDiceCard from "@/components/casino/CleanDiceCard";
 import CleanPokerCard from "@/components/casino/CleanPokerCard";
 import { useWallet } from "@/components/WalletProvider";
-import { formatAddress, formatEth, formatMultiplier } from "@/lib/casfin-client";
-import { CASFIN_CONFIG } from "@/lib/casfin-config";
+import { formatEth, formatMultiplier } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 type CasinoSection = "coin" | "dice" | "crash" | "poker";
@@ -86,65 +82,58 @@ export default function CasinoPage() {
 
   return (
     <main className="casino-page casino-page-clean">
-      {/* ── Header ── */}
-      <section className="casino-hero-panel">
-        <div className="casino-hero-copy">
-          <p className="casino-eyebrow">Game Floor</p>
-          <h1 className="casino-title">Casino</h1>
-        </div>
+      {/* Terminal scanlines */}
+      <div className="casino-scanlines" aria-hidden="true" />
 
-        <div className="casino-hero-center">
-          <div className="fhe-visualizer">
-            <div className="fhe-icon-wrapper">
-              <div className="fhe-pulse-ring ring-1"></div>
-              <div className="fhe-pulse-ring ring-2"></div>
-              <div className="fhe-core">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-              </div>
-            </div>
-            <div className="fhe-data-stream">
-              <strong>Fhenix Engine</strong>
-              <span>On-Chain Encrypted State</span>
-            </div>
-          </div>
+      {/* Ticker tape marquee */}
+      <div className="casino-ticker">
+        <div className="casino-ticker-inner">
+          <span className="casino-ticker-item">VAULT_TVL <span className="casino-ticker-val">{formatEth(casinoState.vaultBalance)} ETH</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">YOUR_BALANCE <span className="casino-ticker-encrypted casino-glitch-text">{playerBalanceLabel}</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">CRASH_CEILING <span className="casino-ticker-val">{formatMultiplier(casinoState.crash.maxCashOutMultiplierBps)}</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">CRASH_STATUS <span className={crashStatus === "No round yet" ? "casino-ticker-red" : "casino-ticker-green"}>{crashStatus.toUpperCase().replace(/ /g, "_")}</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">FHENIX_ENGINE <span className="casino-ticker-green">ACTIVE</span></span>
+          <span className="casino-ticker-sep">///</span>
+          {/* Duplicate for seamless loop */}
+          <span className="casino-ticker-item">VAULT_TVL <span className="casino-ticker-val">{formatEth(casinoState.vaultBalance)} ETH</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">YOUR_BALANCE <span className="casino-ticker-encrypted casino-glitch-text">{playerBalanceLabel}</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">CRASH_CEILING <span className="casino-ticker-val">{formatMultiplier(casinoState.crash.maxCashOutMultiplierBps)}</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">CRASH_STATUS <span className={crashStatus === "No round yet" ? "casino-ticker-red" : "casino-ticker-green"}>{crashStatus.toUpperCase().replace(/ /g, "_")}</span></span>
+          <span className="casino-ticker-sep">///</span>
+          <span className="casino-ticker-item">FHENIX_ENGINE <span className="casino-ticker-green">ACTIVE</span></span>
+          <span className="casino-ticker-sep">///</span>
         </div>
+      </div>
 
-        <div className="casino-hero-actions">
-          <GlassButton disabled={Boolean(pendingAction)} onClick={handleRefresh}>
-            {!isConnected ? "Connect Wallet" : !isCorrectChain ? "Switch Network" : "Refresh"}
-          </GlassButton>
-          <div className="casino-hero-network">
-            <span className={`casino-network-dot ${isConnected && isCorrectChain ? "is-live" : "is-idle"}`} />
-            <div>
-              <strong>{isConnected ? CASFIN_CONFIG.chainName : "Not connected"}</strong>
-              {isConnected && <span style={{ opacity: 0.6, fontSize: "0.8rem" }}>{formatAddress(account)}</span>}
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Game tabs (pill style) */}
+      <div className="casino-section-switcher">
+        {(["coin", "dice", "crash", "poker"] as CasinoSection[]).map((s) => (
+          <button
+            key={s}
+            className={activeSection === s ? "casino-section-tab is-active" : "casino-section-tab"}
+            onClick={() => setActiveSection(s)}
+            type="button"
+          >
+            {tabLabel[s]}
+          </button>
+        ))}
+      </div>
 
-      {/* ── Stat strip ── */}
-      <section className="casino-stat-grid">
-        <article className="casino-stat-card">
-          <span>Vault TVL</span>
-          <strong>{formatEth(casinoState.vaultBalance)} ETH</strong>
-        </article>
-        <article className="casino-stat-card">
-          <span>Your balance</span>
-          <strong>{playerBalanceLabel}</strong>
-        </article>
-        <article className="casino-stat-card">
-          <span>Crash ceiling</span>
-          <strong>{formatMultiplier(casinoState.crash.maxCashOutMultiplierBps)}</strong>
-        </article>
-        <article className="casino-stat-card">
-          <span>Crash status</span>
-          <strong>{crashStatus}</strong>
-        </article>
-      </section>
+      {/* Fhenix Engine badge */}
+      <div className="casino-fhe-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        Fhenix Engine · On-Chain Encrypted State
+      </div>
 
       {casinoLoadError ? (
         <div className="casino-error-bar">{casinoLoadError}</div>
@@ -156,57 +145,9 @@ export default function CasinoPage() {
         </div>
       ) : null}
 
-      {/* ── Main layout ── */}
+      {/* Active game panel */}
       <div className="casino-content-grid">
-        {/* Sidebar */}
-        <aside className="casino-side-rail">
-          <VaultCard
-            casinoState={casinoState}
-            className="casino-vault-card"
-            isOperator={isOperator}
-            large
-            pendingAction={pendingAction}
-            runTransaction={runTransaction}
-            setVaultForm={setVaultForm}
-            stagger={1}
-            vaultForm={vaultForm}
-            walletBlocked={walletBlocked}
-          />
-
-          <GlassCard eyebrow="Session" stagger={2} title="Status">
-            <div className="casino-support-list">
-              {[
-                ["Wallet", isConnected ? "Connected" : "Not connected"],
-                ["Network", isCorrectChain ? CASFIN_CONFIG.chainName : "Switch required"],
-                ["Vault mode", casinoState.isFhe ? "Encrypted" : "Plaintext"],
-                ["CoFHE session", encryptedSessionLabel]
-              ].map(([label, value]) => (
-                <div className="casino-support-row" key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
-                </div>
-              ))}
-            </div>
-          </GlassCard>
-        </aside>
-
-        {/* Main stage */}
         <section className="casino-main-stage">
-          {/* Tab switcher */}
-          <div className="casino-section-switcher">
-            {(["coin", "dice", "crash", "poker"] as CasinoSection[]).map((s) => (
-              <button
-                key={s}
-                className={activeSection === s ? "casino-section-tab is-active" : "casino-section-tab"}
-                onClick={() => setActiveSection(s)}
-                type="button"
-              >
-                {tabLabel[s]}
-              </button>
-            ))}
-          </div>
-
-          {/* Active game */}
           <div className="casino-game-panel">
             {activeSection === "coin" && (
               <CleanCoinFlipCard

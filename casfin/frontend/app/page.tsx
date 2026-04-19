@@ -83,24 +83,82 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* 2 buttons revealed after intro — positioned at bottom of screen */}
+        {/* Hero overlay revealed after intro */}
         <div className={`landing-overlay ${introFinished ? "is-visible" : ""}`}>
-          <div className="landing-center-content">
-            <div className="landing-actions">
+          <div className="landing-hero-container">
+            <div className="landing-tag-row">
+              <span className="landing-tag">Encrypted</span>
+              <span className="landing-tag">Private</span>
+              <span className="landing-tag">On-Chain</span>
+            </div>
+
+            <div className="landing-hero-grid">
+              <div className="landing-hero-left">
+                <h1 className="landing-headline">
+                  Bet Private.
+                  <br />
+                  <span className="landing-headline-accent">Win Big.</span>
+                </h1>
+                <p className="landing-subtitle">
+                  The first fully encrypted casino powered by Fully Homomorphic
+                  Encryption. Your bets, your balance, your privacy - all on-chain.
+                </p>
+                <div className="landing-actions">
+                  <button
+                    className="land-btn land-btn-primary"
+                    onClick={() => enterApp("/casino")}
+                    type="button"
+                  >
+                    Enter Casino
+                  </button>
+                  <button
+                    className="land-btn land-btn-secondary"
+                    onClick={() => enterApp("/predictions")}
+                    type="button"
+                  >
+                    Predictions
+                  </button>
+                </div>
+              </div>
+
+              <div className="landing-vault-card">
+                <span className="landing-vault-eyebrow">Vault Balance</span>
+                <span className="landing-vault-label">Encrypted</span>
+                <span className="landing-vault-value">0.05 ETH</span>
+                <span className="landing-vault-tvl">Shared Vault · One balance for all games</span>
+              </div>
+            </div>
+
+            <div className="landing-features-row">
               <button
-                className="land-btn land-btn-primary"
+                className="landing-feature-card"
                 onClick={() => enterApp("/casino")}
                 type="button"
               >
-                Enter Casino
+                <div className="landing-feature-icon" aria-hidden="true" />
+                <div className="landing-feature-info">
+                  <strong>Casino Games</strong>
+                  <span>Coin Flip · Dice · Crash · Poker</span>
+                </div>
               </button>
               <button
-                className="land-btn land-btn-secondary"
+                className="landing-feature-card"
                 onClick={() => enterApp("/predictions")}
                 type="button"
               >
-                Predictions
+                <div className="landing-feature-icon" aria-hidden="true" />
+                <div className="landing-feature-info">
+                  <strong>Prediction Markets</strong>
+                  <span>Bet on real-world outcomes</span>
+                </div>
               </button>
+              <div className="landing-feature-card">
+                <div className="landing-feature-icon" aria-hidden="true" />
+                <div className="landing-feature-info">
+                  <strong>FHE Privacy</strong>
+                  <span>CoFHE encrypted bets &amp; balances</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono, DM_Serif_Display } from "next/font/google";
 import NavbarPrivy from "@/components/NavbarPrivy";
 import PrivyAppProvider from "@/components/PrivyAppProvider";
 import StatusBar from "@/components/StatusBar";
@@ -13,6 +13,20 @@ const inter = Inter({
   display: "swap"
 });
 
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+  weight: ["300", "400", "500"]
+});
+
+const dmSerif = DM_Serif_Display({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+  weight: "400"
+});
+
 export const metadata = {
   title: "CasFin",
   description: "Premium glass prediction markets and casino gaming on Arbitrum Sepolia."
@@ -21,7 +35,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={inter.variable}>
+      <body className={`${inter.variable} ${jetbrains.variable} ${dmSerif.variable}`}>
         <PrivyAppProvider>
           <CofheProvider>
             <WalletProvider>
