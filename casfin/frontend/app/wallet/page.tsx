@@ -4,6 +4,7 @@ import { useState } from "react";
 import GlassButton from "@/components/GlassButton";
 import GlassCard from "@/components/GlassCard";
 import VaultCard from "@/components/VaultCard";
+import UserProfileCard from "@/components/UserProfileCard";
 import { useWallet } from "@/components/WalletProvider";
 import { buildExplorerUrl, CASFIN_CONFIG } from "@/lib/casfin-config";
 import { formatAddress, formatEth } from "@/lib/casfin-client";
@@ -21,9 +22,11 @@ export default function WalletPage() {
     isOperator,
     lastTransaction,
     pendingAction,
+    refreshUserProfile,
     refreshWalletState,
     runTransaction,
     statusMessage,
+    userProfile,
     walletBalance,
     walletBlocked
   } = useWallet();
@@ -76,8 +79,15 @@ export default function WalletPage() {
         </div>
       </GlassCard>
 
+      {/* ── Player Profile ── */}
+      <UserProfileCard
+        onProfileUpdated={(p) => void refreshUserProfile()}
+        profile={userProfile}
+        stagger={2}
+      />
+
       {casinoLoadError ? (
-        <GlassCard className="notice-card tone-danger" stagger={2}>
+        <GlassCard className="notice-card tone-danger" stagger={3}>
           <p>{casinoLoadError}</p>
         </GlassCard>
       ) : null}
@@ -92,7 +102,7 @@ export default function WalletPage() {
           pendingAction={pendingAction}
           runTransaction={runTransaction}
           setVaultForm={setVaultForm}
-          stagger={3}
+          stagger={4}
           vaultForm={vaultForm}
           walletBlocked={walletBlocked}
         />

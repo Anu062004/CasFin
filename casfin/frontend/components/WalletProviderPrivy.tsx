@@ -18,6 +18,8 @@ import {
   pollingProvider,
   publicProvider
 } from "@/lib/casfin-client";
+import { ensureUserExists, fetchUserProfile } from "@/lib/user-client";
+import type { UserProfile } from "@/lib/user-client";
 import type {
   LastTransactionState,
   StatusTone,
@@ -130,6 +132,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const [statusTone, setStatusTone] = useState<StatusTone>("info");
   const [statusEventId, setStatusEventId] = useState(0);
   const [lastTransaction, setLastTransaction] = useState<LastTransactionState | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [casinoLoadError, setCasinoLoadError] = useState("");
   const [predictionLoadError, setPredictionLoadError] = useState("");
   const [casinoState, setCasinoState] = useState(EMPTY_CASINO_STATE);
@@ -804,6 +807,20 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  const signMessage = useCallback(async (message: string) => {
+    const provider = activeProviderRef.current || (await getActiveWalletProvider());
+    if (!provider) throw new Error("No wallet provider available.");
+    const browserProvider = new ethers.BrowserProvider(provider);
+    const signer = await browserProvider.getSigner(account);
+    return signer.signMessage(message);
+  }, [account]);
+
+  const refreshUserProfile = useCallback(async () => {
+    if (!account) return;
+    const profile = await fetchUserProfile(account);
+    if (mountedRef.current) setUserProfile(profile);
+  }, [account]);
+
   async function loadProtocolState(currentAccount = account) {
     const { shouldLoadCasino, shouldLoadPrediction } = getProtocolScope();
     const [casinoResult, predictionResult] = await Promise.allSettled([
@@ -966,6 +983,16 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   ]);
 
   useEffect(() => {
+    if (!account) {
+      setUserProfile(null);
+      return;
+    }
+    ensureUserExists(account)
+      .then((profile) => { if (mountedRef.current) setUserProfile(profile); })
+      .catch(() => {});
+  }, [account]);
+
+  useEffect(() => {
     loadProtocolState(account).catch((error) => {
       logBackgroundWalletError("Route-specific protocol refresh failed.", error);
     });
@@ -1027,7 +1054,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         predictionLoadError,
         casinoState,
         predictionState,
-        loadProtocolState
+        loadProtocolState,
+        userProfile,
+        refreshUserProfile,
+        signMessage
       }}
     >
       {children}

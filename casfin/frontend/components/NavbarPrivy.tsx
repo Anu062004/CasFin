@@ -28,10 +28,13 @@ export default function NavbarPrivy() {
     isCorrectChain,
     pendingAction,
     refreshWalletState,
+    userProfile,
     walletBalance
   } = useWallet();
 
-  const walletLabel = isConnected ? formatAddress(account) : "Connect";
+  const walletLabel = isConnected
+    ? (userProfile?.displayName ?? formatAddress(account))
+    : "Connect";
   const networkClass = !isConnected ? "is-neutral" : isCorrectChain ? "is-online" : "is-offline";
   const networkLabel = !isConnected ? "Not connected" : isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network";
 
@@ -138,6 +141,11 @@ export default function NavbarPrivy() {
               <div className="wm-avatar">
                 {account.slice(2, 4).toUpperCase()}
               </div>
+              {userProfile?.displayName ? (
+                <p className="wm-display-name">{userProfile.displayName}</p>
+              ) : (
+                <p className="wm-display-name wm-anon">Anonymous Player</p>
+              )}
               <p className="wm-address">{account}</p>
               <p className="wm-network-row">Balance: {formatEth(walletBalance)} ETH</p>
               <p className="wm-network-row">
@@ -145,6 +153,15 @@ export default function NavbarPrivy() {
                 {isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network"}
               </p>
               <div className="wm-connected-actions">
+                {!userProfile?.displayName ? (
+                  <button
+                    className="wm-action-btn wm-setname-btn"
+                    onClick={() => { router.push("/wallet"); setWalletModalOpen(false); }}
+                    type="button"
+                  >
+                    Set Display Name
+                  </button>
+                ) : null}
                 {!isCorrectChain ? (
                   <button
                     className="wm-action-btn wm-switch-btn"

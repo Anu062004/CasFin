@@ -1,5 +1,6 @@
 import type { ContractTransactionResponse, JsonRpcSigner } from "ethers";
 import type { CSSProperties, Dispatch, ElementType, ReactNode, SetStateAction } from "react";
+import type { UserProfile } from "@/lib/user-client";
 
 export type WalletType = "privy";
 export type StatusTone = "info" | "success" | "warning" | "error";
@@ -242,6 +243,9 @@ export interface WalletContextValue {
   casinoState: CasinoState;
   predictionState: PredictionState;
   loadProtocolState: (currentAccount?: string) => Promise<void>;
+  userProfile: UserProfile | null;
+  refreshUserProfile: () => Promise<void>;
+  signMessage: (message: string) => Promise<string>;
 }
 
 export type SetState<T> = Dispatch<SetStateAction<T>>;
