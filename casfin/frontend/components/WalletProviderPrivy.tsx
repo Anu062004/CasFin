@@ -35,7 +35,7 @@ const SKIPPED_PROTOCOL_LOAD = Symbol("SKIPPED_PROTOCOL_LOAD");
 const DEFAULT_WRITE_GAS_LIMIT = 800_000n;
 const ENCRYPTED_WRITE_GAS_LIMIT = 1_500_000n;
 const MIN_GAS_HEADROOM = 50_000n;
-const MIN_PRIORITY_FEE_PER_GAS = 1_000_000n;
+const MIN_PRIORITY_FEE_PER_GAS = 100_000n;
 
 const ENCRYPTED_WRITE_TARGETS = new Set(
   [
@@ -44,7 +44,8 @@ const ENCRYPTED_WRITE_TARGETS = new Set(
     CASFIN_CONFIG.addresses.diceGame,
     CASFIN_CONFIG.addresses.crashGame,
     CASFIN_CONFIG.addresses.marketFactory,
-    CASFIN_CONFIG.addresses.encryptedMarketFactory
+    CASFIN_CONFIG.addresses.encryptedMarketFactory,
+    CASFIN_CONFIG.addresses.pokerGame
   ]
     .filter((address) => address && address !== ethers.ZeroAddress)
     .map((address) => address.toLowerCase())
@@ -533,7 +534,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }
 
   function withGasHeadroom(estimatedGas: bigint) {
-    const headroom = estimatedGas / 5n;
+    const headroom = estimatedGas / 10n;
     return estimatedGas + (headroom > MIN_GAS_HEADROOM ? headroom : MIN_GAS_HEADROOM);
   }
 
