@@ -9,6 +9,23 @@ import { ENCRYPTED_CRASH_ABI } from "@/lib/casfin-abis";
 import { formatMultiplier, parseCashOutMultiplier, parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
+const SESSION_NOTICE_STYLE = {
+  background: "rgba(139, 92, 246, 0.15)",
+  border: "1px solid rgba(139, 92, 246, 0.3)",
+  borderRadius: "8px",
+  padding: "8px 12px",
+  marginBottom: "12px",
+  fontSize: "13px",
+  color: "#a78bfa",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px"
+} as const;
+const SESSION_NOTICE_SPINNER_STYLE = {
+  animation: "spin 1s linear infinite",
+  display: "inline-flex"
+} as const;
+
 export default function CleanCrashCard({ casinoState, isOperator, pendingAction, runTransaction, walletBlocked }) {
   const [amount, setAmount] = useState("0.01");
   const [cashOutMultiplier, setCashOutMultiplier] = useState("2.0");
@@ -245,6 +262,13 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
           </span>
         </div>
       </div>
+
+      {cofheSessionInitializing ? (
+        <div style={SESSION_NOTICE_STYLE}>
+          <span aria-hidden="true" style={SESSION_NOTICE_SPINNER_STYLE}>⟳</span>
+          Initializing FHE encrypted session... (first time only, ~5s)
+        </div>
+      ) : null}
 
       <div className="casino-crash-grid">
         <div className="casino-field-block">

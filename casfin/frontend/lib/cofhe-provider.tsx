@@ -48,11 +48,12 @@ export function CofheProvider({ children }) {
     try {
       const config = createCofheConfig({
         supportedChains: [ARBITRUM_SEPOLIA_CHAIN],
-        useWorkers: false
+        useWorkers: true
       });
 
       clientRef.current = createCofheClient(config);
       setReady(true);
+      initializeTfheRuntime().catch(() => {});
     } catch (error) {
       console.error("[CofheProvider] Failed to initialize CoFHE client.", error);
     }
@@ -62,36 +63,6 @@ export function CofheProvider({ children }) {
     initializeTfheRuntime().catch((error) => {
       console.error("[CofheProvider] Failed to initialize TFHE runtime.", error);
     });
-  }, []);
-
-  const connect = useCallback(async (ethersProvider, ethersSigner) => {
-    if (!clientRef.current) {
-      throw new Error("CoFHE client not initialized.");
-    }
-
-    const nextAccount = await ethersSigner.getAddress();
-    const currentAccount = connectedAccountRef.current;
-
-    if (clientRef.current.connected && currentAccount && currentAccount.toLowerCase() === nextAccount.toLowerCase()) {
-      setConnected(true);
-      return clientRef.current;
-    }
-
-    if (!connectPromiseRef.current) {
-      connectPromiseRef.current = (async () => {
-        setSessionReady(false);
-        const { publicClient, walletClient } = await Ethers6Adapter(ethersProvider, ethersSigner);
-        await clientRef.current.connect(publicClient, walletClient);
-        connectedAccountRef.current = nextAccount;
-        setConnected(Boolean(clientRef.current.connected));
-        return clientRef.current;
-      })().finally(() => {
-        connectPromiseRef.current = null;
-      });
-    }
-
-    await connectPromiseRef.current;
-    return clientRef.current;
   }, []);
 
   const ensureSessionReady = useCallback(async () => {
@@ -111,8 +82,7 @@ export function CofheProvider({ children }) {
         setSessionInitializing(true);
         await initializeTfheRuntime();
 
-        const builder = disableWorkerIfAvailable(clientRef.current.encryptInputs([Encryptable.bool(false)]));
-        await builder.execute();
+        await disableWorkerIfAvailable(clientRef.current.encryptInputs([Encryptable.bool(false)])).execute();
 
         if (clientRef.current?.connected && connectedAccountRef.current === expectedAccount) {
           setSessionReady(true);
@@ -133,6 +103,46 @@ export function CofheProvider({ children }) {
     await warmupPromiseRef.current;
     return clientRef.current;
   }, []);
+
+  const scheduleSessionWarmup = useCallback(() => {
+    window.setTimeout(() => {
+      ensureSessionReady().catch(() => {
+        // Warmup failed silently — the first encrypt call will retry.
+      });
+    }, 100);
+  }, [ensureSessionReady]);
+
+  const connect = useCallback(async (ethersProvider, ethersSigner) => {
+    if (!clientRef.current) {
+      throw new Error("CoFHE client not initialized.");
+    }
+
+    const nextAccount = await ethersSigner.getAddress();
+    const currentAccount = connectedAccountRef.current;
+
+    if (clientRef.current.connected && currentAccount && currentAccount.toLowerCase() === nextAccount.toLowerCase()) {
+      setConnected(true);
+      scheduleSessionWarmup();
+      return clientRef.current;
+    }
+
+    if (!connectPromiseRef.current) {
+      connectPromiseRef.current = (async () => {
+        setSessionReady(false);
+        const { publicClient, walletClient } = await Ethers6Adapter(ethersProvider, ethersSigner);
+        await clientRef.current.connect(publicClient, walletClient);
+        connectedAccountRef.current = nextAccount;
+        setConnected(Boolean(clientRef.current.connected));
+        scheduleSessionWarmup();
+        return clientRef.current;
+      })().finally(() => {
+        connectPromiseRef.current = null;
+      });
+    }
+
+    await connectPromiseRef.current;
+    return clientRef.current;
+  }, [scheduleSessionWarmup]);
 
   const disconnect = useCallback(() => {
     if (clientRef.current?.connected) {

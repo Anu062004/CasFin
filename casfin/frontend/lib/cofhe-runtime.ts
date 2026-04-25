@@ -33,9 +33,7 @@ export async function waitForCofheReady(cofheClient: CofheClientLike, timeoutMs 
 }
 
 export function disableWorkerIfAvailable<TBuilder extends { setUseWorker?: (enabled: boolean) => TBuilder }>(builder: TBuilder) {
-  if (typeof builder?.setUseWorker === "function") {
-    builder.setUseWorker(false);
-  }
-
+  // Worker usage is now controlled by createCofheConfig so WASM compilation,
+  // encryption, and proof generation stay off the main thread.
   return builder;
 }
