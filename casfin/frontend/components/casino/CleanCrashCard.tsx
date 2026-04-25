@@ -28,6 +28,7 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
 
   const latestRound = casinoState.crash.latestRound;
   const latestPlayerBet = casinoState.crash.latestPlayerBet;
+  const bettingPaused = !casinoState.vaultHealthy || casinoState.vaultPaused;
   const roundId = latestRound?.id?.toString() || "-";
   const roundOpen = Boolean(latestRound && !latestRound.closed);
   const isBetPending = pendingAction === "Place crash bet";
@@ -189,6 +190,10 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
   }
 
   async function handlePlaceBet() {
+    if (bettingPaused) {
+      return;
+    }
+
     if (!(await ensureActionReady("place crash bet"))) {
       return;
     }
@@ -270,12 +275,14 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
 
         <button
           className="casino-primary-button"
-          disabled={actionsBusy || isBetPending || (isConnected && isCorrectChain && !cofheSessionReady)}
+          disabled={bettingPaused || actionsBusy || isBetPending || (isConnected && isCorrectChain && !cofheSessionReady)}
           onClick={handlePlaceBet}
           type="button"
         >
           {isBetPending
             ? "Placing bet..."
+            : bettingPaused
+              ? "Betting paused"
             : !isConnected
               ? "Connect wallet to play"
               : !isCorrectChain
@@ -291,6 +298,10 @@ export default function CleanCrashCard({ casinoState, isOperator, pendingAction,
                     : "Warming encrypted session"}
         </button>
       </div>
+
+      {bettingPaused ? (
+        <div className="casino-info-bar">Casino vault is being replenished. Betting paused.</div>
+      ) : null}
 
       <CasinoOutcomeCard {...outcomeCard} />
 

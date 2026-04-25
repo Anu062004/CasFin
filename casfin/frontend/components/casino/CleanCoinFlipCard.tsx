@@ -26,6 +26,7 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
   const { account, connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const latestBet = casinoState.coin.latestBet;
   const houseEdge = casinoState.coin.houseEdgeBps ? (Number(casinoState.coin.houseEdgeBps) / 100).toFixed(0) : "2";
+  const bettingPaused = !casinoState.vaultHealthy || casinoState.vaultPaused;
   const latestBetOwnedByAccount = Boolean(
     account
       && latestBet?.player
@@ -69,6 +70,10 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
   }
 
   async function handleSubmit() {
+    if (bettingPaused) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -210,14 +215,20 @@ export default function CleanCoinFlipCard({ casinoState, pendingAction, runTrans
         </div>
       </div>
 
+      {bettingPaused ? (
+        <div className="casino-info-bar">Casino vault is being replenished. Betting paused.</div>
+      ) : null}
+
       <button
         className="casino-primary-button"
-        disabled={actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)}
+        disabled={bettingPaused || actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)}
         onClick={handleSubmit}
         type="button"
       >
         {isPending
           ? "Placing bet..."
+          : bettingPaused
+            ? "Betting paused"
           : !isConnected
             ? "Connect wallet to play"
             : !isCorrectChain

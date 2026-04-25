@@ -82,10 +82,10 @@ contract EncryptedMarketFactory is Ownable, Pausable {
         predictionMarketImplementation = _requireImplementation(predictionMarketImplementationAddress);
         marketResolverImplementation = _requireImplementation(marketResolverImplementationAddress);
 
-        feeDistributor = FeeDistributor(feeDistributorImplementation.clone());
+        feeDistributor = FeeDistributor(payable(feeDistributorImplementation.clone()));
         feeDistributor.initialize(address(this), initialTreasury);
 
-        disputeRegistry = DisputeRegistry(disputeRegistryImplementation.clone());
+        disputeRegistry = DisputeRegistry(payable(disputeRegistryImplementation.clone()));
         disputeRegistry.initialize(address(this), minDisputeBond);
 
         approvedCreators[initialOwner] = true;

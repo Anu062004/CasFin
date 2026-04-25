@@ -85,6 +85,10 @@ export interface CasinoState {
   isFhe: boolean;
   vaultOwner: string;
   vaultBalance: bigint;
+  vaultBalanceWei: bigint;
+  vaultMinimumReserveWei: bigint;
+  vaultHealthy: boolean;
+  vaultPaused: boolean;
   playerBalance: bigint;
   playerLockedBalance: bigint;
   playerBalanceHandle: SerializedHandle;

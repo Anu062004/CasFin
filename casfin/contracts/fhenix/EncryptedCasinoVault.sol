@@ -22,6 +22,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     euint128 private ENCRYPTED_MAX_BET;
 
     uint256 public totalDeposits;
+    uint256 public minimumReserveWei;
 
     event Deposited(address indexed player);
     event BetSettled(address indexed player);
@@ -31,9 +32,14 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     event Withdrawn(address indexed player);
     event MaxBetUpdated();
     event HouseFundsWithdrawn(address indexed to);
+    /// @notice Emitted when a withdrawal leaves the vault below the configured minimum reserve.
+    event VaultLowBalance(uint256 remainingBalance, uint256 minimumReserve);
+    /// @notice Emitted when the owner updates the vault minimum reserve requirement.
+    event MinimumReserveUpdated(uint256 newMinimumReserveWei);
 
     constructor(address initialOwner) {
         _initializeOwner(initialOwner);
+        minimumReserveWei = 0.5 ether;
 
         // The vault reuses encrypted zero across insufficient-balance selects and async withdrawals.
         ENCRYPTED_ZERO = FHE.asEuint128(0);
@@ -65,7 +71,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         emit Deposited(msg.sender);
     }
 
-    function fundHouseBankroll() external payable onlyOwner whenNotPaused {
+    function fundHouseBankroll() external payable onlyOwner {
         require(msg.value > 0, "ZERO_DEPOSIT");
         emit HouseBankrollFunded(msg.sender);
     }
@@ -177,9 +183,17 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         emit MaxBetUpdated();
     }
 
+    /// @notice Updates the minimum plaintext ETH reserve the vault must retain before pausing.
+    /// @param newMinimumReserveWei New reserve floor denominated in wei.
+    function setMinimumReserve(uint256 newMinimumReserveWei) external onlyOwner {
+        minimumReserveWei = newMinimumReserveWei;
+        emit MinimumReserveUpdated(newMinimumReserveWei);
+    }
+
     function withdrawHouseFunds(uint256 amount) external onlyOwner nonReentrant {
         require(amount > 0, "ZERO_AMOUNT");
         require(address(this).balance >= amount, "INSUFFICIENT_BALANCE");
+        require(address(this).balance - amount >= minimumReserveWei, "WOULD_BREACH_MINIMUM_RESERVE");
 
         (bool ok,) = owner.call{value: amount}("");
         require(ok, "TRANSFER_FAILED");
@@ -234,6 +248,11 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         require(ok, "WITHDRAW_TRANSFER_FAILED");
 
         emit Withdrawn(player);
+
+        if (address(this).balance < minimumReserveWei) {
+            _pause();
+            emit VaultLowBalance(address(this).balance, minimumReserveWei);
+        }
     }
 
     receive() external payable {}

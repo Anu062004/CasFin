@@ -11,6 +11,7 @@ type SharedSigner = import("ethers").NonceManager;
 const encryptedCoinFlipAbi = require("../frontend/lib/generated-abis/EncryptedCoinFlip.json") as readonly string[];
 const encryptedDiceAbi = require("../frontend/lib/generated-abis/EncryptedDiceGame.json") as readonly string[];
 const encryptedCrashAbi = require("../frontend/lib/generated-abis/EncryptedCrashGame.json") as readonly string[];
+const encryptedVaultAbi = require("../frontend/lib/generated-abis/EncryptedCasinoVault.json") as readonly string[];
 const marketFactoryAbi = require("../frontend/lib/generated-abis/MarketFactory.json") as readonly string[];
 const predictionMarketAbi = require("../frontend/lib/generated-abis/PredictionMarket.json") as readonly string[];
 const marketResolverAbi = require("../frontend/lib/generated-abis/MarketResolver.json") as readonly string[];
@@ -139,6 +140,10 @@ function sortNumericIds(ids: Iterable<string>): string[] {
     const rightId = BigInt(right);
     return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
   });
+}
+
+function formatEthAmount(value: bigint): string {
+  return `${ethers.formatEther(value)} ETH`;
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -290,6 +295,12 @@ function oracleTypeLabel(oracleType: number | null): string {
 }
 
 async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
+  const vault = toDynamicContract(
+    process.env.ENCRYPTED_CASINO_VAULT_ADDRESS ||
+      process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS ||
+      process.env.FHE_EXISTING_VAULT_ADDRESS,
+    encryptedVaultAbi
+  );
   const coinFlip = toDynamicContract(process.env.ENCRYPTED_COIN_FLIP_ADDRESS, encryptedCoinFlipAbi);
   const dice = toDynamicContract(process.env.ENCRYPTED_DICE_GAME_ADDRESS, encryptedDiceAbi);
   const crash = toDynamicContract(process.env.ENCRYPTED_CRASH_GAME_ADDRESS, encryptedCrashAbi);
@@ -359,6 +370,49 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
         detectCrashBet(BigInt(args[0].toString()), String(args[1]), `backfill:${start}-${end}`);
       }
     }
+  };
+
+  const checkVaultSolvency = async (signal: AbortSignal) => {
+    if (!vault) {
+      return true;
+    }
+
+    const [vaultBalanceWei, minimumReserveWei, vaultPaused] = await Promise.all([
+      provider.getBalance(String(vault.target)),
+      vault.minimumReserveWei() as Promise<bigint>,
+      vault.paused() as Promise<boolean>
+    ]);
+
+    if (minimumReserveWei === 0n) {
+      return !vaultPaused;
+    }
+
+    const warningThresholdWei = minimumReserveWei * 2n;
+
+    if (vaultBalanceWei < minimumReserveWei) {
+      if (!vaultPaused) {
+        try {
+          await sendTransaction("[Casino][Vault] pause()", signal, () => vault.pause());
+        } catch (error) {
+          if (!formatError(error).toLowerCase().includes("paused")) {
+            throw error;
+          }
+        }
+      }
+
+      console.error(
+        `[Casino][SOLVENCY CRITICAL] Vault paused - balance (${formatEthAmount(vaultBalanceWei)}) below minimum reserve (${formatEthAmount(minimumReserveWei)}). Fund the vault with fundHouseBankroll() then unpause().`
+      );
+      return false;
+    }
+
+    if (vaultBalanceWei < warningThresholdWei) {
+      console.warn(
+        `[Casino][SOLVENCY WARNING] Vault balance (${formatEthAmount(vaultBalanceWei)}) approaching minimum reserve (${formatEthAmount(minimumReserveWei)})`
+      );
+    }
+
+    return !vaultPaused;
   };
 
   const pollCoinFlipBets = async () => {
@@ -582,6 +636,7 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
   );
 
   console.log("[Casino Keeper] started");
+  console.log(`Vault: ${vault?.target ?? "not configured"}`);
   console.log(`CoinFlip: ${coinFlip?.target ?? "not configured"}`);
   console.log(`Dice: ${dice?.target ?? "not configured"}`);
   console.log(`Crash: ${crash?.target ?? "not configured"}`);
@@ -593,6 +648,11 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
   }
 
   await runLoop("Casino Keeper", CASINO_POLL_MS, signal, async () => {
+    const vaultOperational = await checkVaultSolvency(signal);
+    if (!vaultOperational) {
+      return;
+    }
+
     await Promise.all([pollCoinFlipBets(), pollDiceBets(), pollCrashRounds()]);
     if (coinFlip) {
       await processResolvableBet("CoinFlip", coinFlip, pendingCoinFlipIds);

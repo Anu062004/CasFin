@@ -34,6 +34,10 @@ export const EMPTY_CASINO_STATE = {
   isFhe: false,
   vaultOwner: "",
   vaultBalance: 0n,
+  vaultBalanceWei: 0n,
+  vaultMinimumReserveWei: 0n,
+  vaultHealthy: true,
+  vaultPaused: false,
   playerBalance: 0n,
   playerLockedBalance: 0n,
   playerBalanceHandle: null,
@@ -409,7 +413,9 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
 
   const [
     vaultOwner,
-    vaultBalance,
+    vaultBalanceWei,
+    vaultMinimumReserveWei,
+    vaultPaused,
     coinHouseEdgeBps,
     coinNextBetId,
     diceHouseEdgeBps,
@@ -419,6 +425,8 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
   ] = await Promise.all([
     vault.owner(),
     provider.getBalance(CASFIN_CONFIG.addresses.casinoVault),
+    vault.minimumReserveWei(),
+    vault.paused(),
     coin.houseEdgeBps(),
     coin.nextBetId(),
     dice.houseEdgeBps(),
@@ -470,7 +478,11 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
   return {
     isFhe: true,
     vaultOwner,
-    vaultBalance,
+    vaultBalance: vaultBalanceWei,
+    vaultBalanceWei,
+    vaultMinimumReserveWei,
+    vaultHealthy: vaultBalanceWei >= vaultMinimumReserveWei,
+    vaultPaused,
     playerBalance: 0n,
     playerLockedBalance: 0n,
     playerBalanceHandle: serializeHandle(playerBalanceHandle),

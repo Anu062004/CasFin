@@ -50,6 +50,7 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
   const { account, connectWallet, ensureEncryptedSession, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const latestBet = casinoState.dice.latestBet;
   const houseEdge = casinoState.dice.houseEdgeBps ? (Number(casinoState.dice.houseEdgeBps) / 100).toFixed(0) : "2";
+  const bettingPaused = !casinoState.vaultHealthy || casinoState.vaultPaused;
   const latestBetOwnedByAccount = Boolean(
     account
       && latestBet?.player
@@ -94,6 +95,10 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
   }
 
   async function handleSubmit() {
+    if (bettingPaused) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -239,14 +244,20 @@ export default function CleanDiceCard({ casinoState, pendingAction, runTransacti
         </div>
       </div>
 
+      {bettingPaused ? (
+        <div className="casino-info-bar">Casino vault is being replenished. Betting paused.</div>
+      ) : null}
+
       <button
         className="casino-primary-button"
-        disabled={actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)}
+        disabled={bettingPaused || actionsBusy || isSubmitting || (isConnected && isCorrectChain && !cofheSessionReady)}
         onClick={handleSubmit}
         type="button"
       >
         {isPending
           ? "Placing bet..."
+          : bettingPaused
+            ? "Betting paused"
           : !isConnected
             ? "Connect wallet to play"
             : !isCorrectChain
