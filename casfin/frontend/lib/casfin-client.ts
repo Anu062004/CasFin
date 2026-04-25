@@ -411,11 +411,10 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
   const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, provider);
   const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, provider);
 
+  // Core calls that must always succeed — these functions exist on all deployed contract versions.
   const [
     vaultOwner,
     vaultBalanceWei,
-    vaultMinimumReserveWei,
-    vaultPaused,
     coinHouseEdgeBps,
     coinNextBetId,
     diceHouseEdgeBps,
@@ -425,8 +424,6 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
   ] = await Promise.all([
     vault.owner(),
     provider.getBalance(CASFIN_CONFIG.addresses.casinoVault),
-    vault.minimumReserveWei(),
-    vault.paused(),
     coin.houseEdgeBps(),
     coin.nextBetId(),
     dice.houseEdgeBps(),
@@ -434,6 +431,15 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
     crash.nextRoundId(),
     crash.maxCashOutMultiplierBps()
   ]);
+
+  // Graceful calls — only available on the upgraded vault contract.
+  // Fall back to safe defaults if the deployed contract doesn't have these yet.
+  const [minimumReserveResult, pausedResult] = await Promise.allSettled([
+    vault.minimumReserveWei(),
+    vault.paused()
+  ]);
+  const vaultMinimumReserveWei: bigint = minimumReserveResult.status === "fulfilled" ? minimumReserveResult.value : 0n;
+  const vaultPaused: boolean = pausedResult.status === "fulfilled" ? pausedResult.value : false;
 
   const [rawLatestCoinBet, rawLatestDiceBet, rawLatestCrashRound] = await Promise.all([
     coinNextBetId > 0n ? coin.bets(coinNextBetId - 1n) : Promise.resolve(null),
