@@ -3,6 +3,7 @@ require("dotenv").config();
 import type { ContractTransactionResponse } from "ethers";
 
 const ethers = require("ethers") as typeof import("ethers");
+const IoRedis = require("ioredis");
 
 type DynamicContract = import("ethers").Contract & Record<string, any>;
 type SharedSigner = import("ethers").NonceManager;
@@ -24,11 +25,57 @@ const CASINO_POLL_MS = getEnvNumber("KEEPER_POLL_MS", 5_000);
 const PREDICTION_POLL_MS = getEnvNumber("KEEPER_PREDICTION_POLL_MS", 5_000);
 const EVENT_BACKFILL_START_BLOCK = getEnvNumber("KEEPER_START_BLOCK", 0);
 const EVENT_BACKFILL_BATCH_SIZE = Math.max(1, getEnvNumber("KEEPER_EVENT_BATCH_BLOCKS", 2_000));
+const REDIS_URL = process.env.REDIS_URL || "";
+const BET_EVENTS_CHANNEL = "casfin:bets";
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const signer: SharedSigner = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
 
 let transactionQueue: Promise<void> = Promise.resolve();
+let redisPublisher: import("ioredis").Redis | null = null;
+
+if (REDIS_URL) {
+  redisPublisher = new IoRedis(REDIS_URL, {
+    maxRetriesPerRequest: 3,
+    lazyConnect: true,
+  });
+  redisPublisher.connect().catch((err: { message?: string }) => {
+    console.warn("[Redis] Failed to connect publisher:", err?.message || String(err));
+    redisPublisher = null;
+  });
+  redisPublisher.on("error", (err: { message?: string }) => {
+    console.error("[Redis] Publisher error:", err?.message || String(err));
+  });
+  console.log("[Redis] Publisher configured for bet event notifications.");
+} else {
+  console.log("[Redis] REDIS_URL not set - bet event publishing disabled.");
+}
+
+function publishBetEvent(
+  game: "coinflip" | "dice" | "crash",
+  betId: string,
+  player: string,
+  txHash: string,
+  roundId?: string
+): void {
+  if (!redisPublisher) {
+    return;
+  }
+
+  const event = JSON.stringify({
+    game,
+    betId,
+    ...(roundId != null ? { roundId } : {}),
+    player,
+    action: "resolved" as const,
+    txHash,
+    timestamp: Math.floor(Date.now() / 1_000),
+  });
+
+  redisPublisher.publish(BET_EVENTS_CHANNEL, event).catch((err: { message?: string }) => {
+    console.warn(`[Redis] Failed to publish ${game} event:`, err?.message || String(err));
+  });
+}
 
 interface PredictionMarketState {
   address: string;
@@ -177,16 +224,19 @@ async function sendTransaction(
   label: string,
   signal: AbortSignal,
   callback: () => Promise<ContractTransactionResponse>
-): Promise<void> {
-  await withRetry(
+): Promise<string> {
+  return withRetry(
     label,
     signal,
     async () => {
+      let txHash = "";
       await enqueueTransaction(async () => {
         const tx = await callback();
-        console.log(`${label} -> ${tx.hash}`);
+        txHash = tx.hash;
+        console.log(`${label} -> ${txHash}`);
         await tx.wait();
       });
+      return txHash;
     },
     isRetryableTransactionError
   );
@@ -419,9 +469,14 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
         }
 
         console.log(`[Casino][${label}] resolving id=${id}`);
-        await sendTransaction(`[Casino][${label}] finalizeResolution(${id})`, signal, () => contract.finalizeResolution(betId));
+        const txHash = await sendTransaction(
+          `[Casino][${label}] finalizeResolution(${id})`,
+          signal,
+          () => contract.finalizeResolution(betId)
+        );
         pendingIds.delete(id);
         console.log(`[Casino][${label}] resolved id=${id}`);
+        publishBetEvent(label === "CoinFlip" ? "coinflip" : "dice", id, player, txHash);
       } catch (error) {
         if (isPendingFinalizeError(error)) {
           continue;
@@ -481,12 +536,13 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
 
             hasOutstandingSettlement = true;
             console.log(`[Casino][Crash] resolving round=${roundId} player=${player}`);
-            await sendTransaction(
+            const txHash = await sendTransaction(
               `[Casino][Crash] settleBet(${roundId},${player})`,
               signal,
               () => crash.settleBet(id, player)
             );
             console.log(`[Casino][Crash] resolved round=${roundId} player=${player}`);
+            publishBetEvent("crash", "", player, txHash, roundId);
           } catch (error) {
             if (isPendingFinalizeError(error)) {
               hasOutstandingSettlement = true;
@@ -790,6 +846,9 @@ async function main(): Promise<void> {
     if (!controller.signal.aborted) {
       console.log(`[Keeper] ${signalName} received, shutting down`);
       controller.abort();
+      if (redisPublisher) {
+        redisPublisher.quit().catch(() => {});
+      }
     }
   };
 

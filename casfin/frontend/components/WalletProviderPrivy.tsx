@@ -20,6 +20,7 @@ import {
 } from "@/lib/casfin-client";
 import { ensureUserExists, fetchUserProfile } from "@/lib/user-client";
 import type { UserProfile } from "@/lib/user-client";
+import { useBetEvents } from "@/lib/useBetEvents";
 import type {
   LastTransactionState,
   StatusTone,
@@ -1019,6 +1020,18 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       window.clearInterval(interval);
     };
   }, [account]);
+
+  // ── Redis pub/sub: instant bet settlement notifications ──
+  // When the keeper resolves a bet and publishes to Redis, this
+  // fires immediately instead of waiting for the 45s polling cycle.
+  const handleBetResolved = useCallback(() => {
+    if (!mountedRef.current) return;
+    loadProtocolState(account).catch((error) => {
+      logBackgroundWalletError("Redis event-triggered protocol refresh failed.", error);
+    });
+  }, [account]);
+
+  useBetEvents(handleBetResolved, { enabled: true });
 
   const isConnected = Boolean(account);
   const isCorrectChain = chainId === CASFIN_CONFIG.chainId;
