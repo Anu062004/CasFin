@@ -8,7 +8,6 @@ export async function tick(event: ScheduledEvent, context: Context): Promise<{ s
 
   try {
     const logs = await runKeeperTick();
-    logs.forEach((line) => console.log(line));
 
     return {
       statusCode: 200,

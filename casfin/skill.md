@@ -524,47 +524,88 @@ The massive `WalletProvider.tsx` (30KB) is the brain of the frontend. It provide
 
 ## 10. Keeper Bot Infrastructure
 
-**File:** `keeper/fhe-keeper.ts` (326 lines)
+The keeper has **two implementations**:
 
-The keeper is a long-running Node.js process that polls FHE contracts and performs async resolution.
+### 10.1 Local Keeper — `keeper/index.ts` (866 lines)
 
-### What It Does
+A long-running Node.js process. Polls every 5 seconds (`KEEPER_POLL_MS`). Used for local development.
 
-1. **CoinFlip & Dice Bets:**
-   - Iterates all bet IDs from 0 to `nextBetId`.
-   - If `!resolved && !resolutionPending` → calls `requestResolution(betId)`.
-   - If `resolutionPending` and delay elapsed → calls `finalizeResolution(betId)`.
-
-2. **Crash Rounds:**
-   - Iterates all round IDs from 0 to `nextRoundId`.
-   - If round exists but not closed and no close requested → calls `closeRound(roundId)`.
-   - If close requested but not closed and delay elapsed → calls `finalizeRound(roundId)`.
-   - After round closes → iterates `trackedCrashPlayers` and calls `settleBet(roundId, player)` for unsettled bets.
-
-3. **Prediction Markets:**
-   - Gets market addresses from factory + `ENCRYPTED_MARKET_ADDRESSES` env var.
-   - For each market: checks if past `resolvesAt` and unresolved → calls resolver's `requestResolution()`.
-   - Iterates positions → if `claimRequested && !claimed` and delay elapsed → calls `finalizeClaimWinnings(positionId)`.
-
-### Configuration
-
-| Env Variable | Default | Purpose |
-|---|---|---|
-| `KEEPER_POLL_MS` | `15000` | Polling interval between ticks |
-| `KEEPER_RESOLUTION_DELAY_MS` | `30000` | Wait time after requesting resolution before attempting finalization |
-| `KEEPER_CRASH_PLAYERS` | `""` | Comma-separated player addresses to auto-settle crash bets for |
-| `ENCRYPTED_MARKET_ADDRESSES` | `""` | Additional prediction market addresses to process |
-| `FHENIX_RPC_URL` | `https://api.helium.fhenix.zone` | RPC endpoint |
-| `FHENIX_PRIVATE_KEY` / `PRIVATE_KEY` | required | Signer key for keeper transactions |
-
-### Running the Keeper
 ```bash
-npm run keeper:start    # from casfin/ root
-# or
-npx tsx keeper/fhe-keeper.ts
+npx tsx keeper/index.ts    # from casfin/ root
 ```
 
-**Important:** Without the keeper running, all FHE bets will sit in "pending" state indefinitely. The keeper is essential for the casino to function.
+**Features:**
+- Polls CoinFlip/Dice/Crash/Prediction Markets
+- `requestResolution()` → waits for CoFHE decrypt (~15-30s) → `finalizeResolution()`
+- Publishes bet resolution events to Redis `casfin:bets` channel (fire-and-forget)
+- Redis publisher uses `ioredis` (TCP, persistent connection required for pub/sub)
+- Graceful shutdown on SIGINT/SIGTERM — closes Redis publisher
+
+### 10.2 Lambda Keeper — `keeper/lambda/` (deployed on AWS)
+
+AWS Lambda function triggered by EventBridge at `rate(1 minute)`. Serverless, $0 cost.
+
+**Key files:**
+- `keeper/lambda/keeper-logic.ts` — core tick logic (no `tx.wait()`, fire-and-forget txs)
+- `keeper/lambda/handler.ts` — Lambda entry point
+- `keeper/lambda/serverless.yml` — Serverless Framework config
+- `keeper/lambda/abis/` — copy of ABI JSON files from `frontend/lib/generated-abis/`
+
+**Lambda configuration:**
+- Timeout: 300s, Memory: 512MB
+- RPC failover: tries 3 Infura keys in order, picks first that responds
+- Hard deadline: 250s — defers remaining bets to next invocation if exceeded
+- No `tx.wait()` — submits transactions fire-and-forget, next invocation picks up continuation
+
+**Deploy/manage:**
+```bash
+cd keeper/lambda
+npm install
+npx serverless deploy              # deploy/update Lambda
+aws logs tail /aws/lambda/casfin-keeper-dev-keeperTick --region us-east-1 --since 10m --format short
+```
+
+### 10.3 Redis Pub/Sub Pipeline (Wave 3)
+
+After the keeper resolves a bet, it publishes a real-time event to eliminate the 45s polling latency:
+
+```
+Keeper resolves bet
+  → redisPublisher.publish("casfin:bets", JSON.stringify({game, betId, player, action:"resolved", timestamp}))
+  → SSE endpoint /api/events/bets subscribes to Redis channel
+  → Browser EventSource receives event
+  → useBetEvents() hook triggers loadProtocolState()
+  → UI updates instantly (< 1 second)
+```
+
+**Files:**
+- `frontend/lib/redis.ts` — Redis client factory (ioredis singleton)
+- `frontend/app/api/events/bets/route.ts` — SSE streaming endpoint
+- `frontend/lib/useBetEvents.ts` — React hook (auto-reconnect with exponential backoff)
+- `frontend/components/WalletProviderPrivy.tsx` — wires `useBetEvents` to `loadProtocolState()`
+
+**Redis instance:** Upstash (free tier), region ap-south-1
+- URL format: `rediss://default:TOKEN@known-toucan-94286.upstash.io:6379`
+- Env var: `REDIS_URL` in both `casfin/.env` and `frontend/.env.local`
+
+**Important:** The 45-second polling interval is kept as a backup. Redis events are additive — they trigger instant refreshes on top of the existing polling cycle.
+
+### 10.4 Keeper Environment Variables
+
+| Variable | Used By | Purpose |
+|---|---|---|
+| `KEEPER_POLL_MS` | Local | Polling interval (default: 5000ms) |
+| `KEEPER_PREDICTION_POLL_MS` | Local | Prediction polling interval (default: 5000ms) |
+| `PRIVATE_KEY` | Local + Lambda | Keeper signer wallet |
+| `ARBITRUM_SEPOLIA_RPC_URL` | Local | Primary RPC URL |
+| `KEEPER_RPC_URL_1/2/3` | Lambda | Failover RPC pool |
+| `ENCRYPTED_COIN_FLIP_ADDRESS` | Lambda | CoinFlip contract (must match frontend!) |
+| `ENCRYPTED_DICE_GAME_ADDRESS` | Lambda | Dice contract (must match frontend!) |
+| `ENCRYPTED_CRASH_GAME_ADDRESS` | Lambda | Crash contract (must match frontend!) |
+| `ENCRYPTED_PREDICTION_FACTORY_ADDRESS` | Lambda | Market factory |
+| `REDIS_URL` | Local | Redis pub/sub publisher URL |
+
+**Critical:** Without the keeper running, all FHE bets sit in "pending" indefinitely. The keeper is required for the casino to function.
 
 ---
 
@@ -604,24 +645,26 @@ npx tsx keeper/fhe-keeper.ts
 
 ## 12. Deployed Contract Addresses (Arbitrum Sepolia)
 
-These are the **currently live** addresses from `frontend/.env.local`:
+> ⚠️ **CANONICAL SOURCE:** `frontend/.env.local` — these are the addresses the live frontend uses. The root `casfin/.env` contains DIFFERENT (older) addresses for the same contract names. Always use the frontend addresses when targeting live bets.
 
-| Contract | Address |
-|---|---|
-| **EncryptedCasinoVault** | `0xDe635798122487CF0a61512D2D7229D28436d9f8` |
-| **EncryptedCoinFlip** | `0x6dd64A41E8c2AC90eaC95b0a194c8943D40Fe945` |
-| **EncryptedDiceGame** | `0x62dA6E0a33e0E1B67240348e768dD3Aed9feFDAB` |
-| **EncryptedCrashGame** | `0xA204279bBb036e31Fc9cbFC7d6660c29E18D6F45` |
-| **GameRandomness Router** | `0xA35D1C633D6E4178dD3DCE567ddb76d6C341f111` |
-| **EncryptedMarketFactory** | `0xC876De943508B4938d3d8f010cc97dbac7Ab0B43` |
-| **FeeDistributor** | `0xFDD1E5A48739831DbF655338DE5996D283a79295` |
-| **DisputeRegistry** | `0x5c15ABfe97bAF24540fbc13d9a9d35d052C655db` |
-| **CasinoToken** | `0x64982D01A94298FD5b8294A30DAaB6Fdad2d3203` |
-| **StakingPool** | `0x2E42d445FdA2644cb7Da85572Ce77D03019a4fcB` |
-| **Operator Address** | `0x6b3a924379B9408D8110f10F084ca809863B378A` |
+| Contract | Address | Source |
+|---|---|---|
+| **EncryptedCasinoVault** | `0xDe635798122487CF0a61512D2D7229D28436d9f8` | `frontend/.env.local` |
+| **EncryptedCoinFlip** | `0x2a43F77A2286ffC3ebfb5D577123CB7cEf8553Af` | `frontend/.env.local` |
+| **EncryptedDiceGame** | `0x7D7A8f22727CB618f5C96eCA151C48Bc0aa3D563` | `frontend/.env.local` |
+| **EncryptedCrashGame** | `0x6465C2f5F5c9B2F7F05dC6E6D799514D6F1d214D` | `frontend/.env.local` |
+| **GameRandomness Router** | `0xA35D1C633D6E4178dD3DCE567ddb76d6C341f111` | `casfin/.env` |
+| **EncryptedMarketFactory** | `0xC876De943508B4938d3d8f010cc97dbac7Ab0B43` | `frontend/.env.local` |
+| **FeeDistributor** | `0xFDD1E5A48739831DbF655338DE5996D283a79295` | `frontend/.env.local` |
+| **DisputeRegistry** | `0x5c15ABfe97bAF24540fbc13d9a9d35d052C655db` | `frontend/.env.local` |
+| **CasinoToken** | `0x64982D01A94298FD5b8294A30DAaB6Fdad2d3203` | `frontend/.env.local` |
+| **StakingPool** | `0x2E42d445FdA2644cb7Da85572Ce77D03019a4fcB` | `frontend/.env.local` |
+| **Operator/Keeper Wallet** | `0x6b3a924379B9408D8110f10F084ca809863B378A` | `casfin/.env DEPLOYER_ADDRESS` |
 
 **Network:** Arbitrum Sepolia (`421614` / `0x66eee`)
 **Explorer:** `https://sepolia.arbiscan.io`
+
+> ⚠️ **Address Mismatch Warning:** `casfin/.env` has `ENCRYPTED_COIN_FLIP_ADDRESS=0x9c0F6a4...`, `ENCRYPTED_DICE_GAME_ADDRESS=0xAc90DF4...`, etc. These are DIFFERENT from the frontend addresses. The Lambda keeper uses `serverless.yml` hardcoded defaults which match the FRONTEND addresses. Always verify which address set you are targeting.
 
 ---
 
@@ -797,7 +840,9 @@ Located in `test/`. Run with `npm test`.
 | **CasinoToken** | ✅ Deployed | ERC20, 10M initial supply |
 | **StakingPool** | ✅ Deployed | Stake CasinoToken, earn fee share |
 | **Encrypted Prediction Markets** | ✅ Deployed | Full encrypted prediction suite (Factory, Market, AMM, LP, Resolver, Escrow) |
-| **FHE Keeper Bot** | ✅ Running | Polling-based async resolution for all FHE games + predictions |
+| **Local FHE Keeper** | ✅ Built | `keeper/index.ts` — polling every 5s, full resolution pipeline |
+| **AWS Lambda Keeper** | ✅ Deployed | `keeper/lambda/` on EventBridge rate(1 min), 300s timeout, 3-RPC failover |
+| **Redis Pub/Sub Pipeline** | ✅ Built | Keeper → Redis `casfin:bets` → SSE `/api/events/bets` → `useBetEvents` hook → instant UI refresh |
 | **Frontend Landing Page** | ✅ Complete | Cinematic intro video → fade → CTA buttons |
 | **Frontend Casino Page** | ✅ Complete | Tab-based game selection, vault sidebar, stat strip, Fhenix visualizer |
 | **Frontend Predictions Page** | ✅ Complete | Market factory, live market cards, trading interface |
@@ -808,14 +853,21 @@ Located in `test/`. Run with `npm test`.
 | **Deployment Automation** | ✅ Complete | Full stack deploy with verification, authorization, and JSON snapshot |
 | **Multi-RPC Load Balancer** | ✅ Complete | Round-robin with retry, failover, rate-limit detection across 4+ RPCs |
 
+### 🔴 Active Bugs (Lambda Keeper — As of April 26, 2026)
+
+| Bug | Location | Status | Details |
+|---|---|---|---|
+| **Stale ABI files** | `keeper/lambda/abis/` | 🔴 Unfixed | ABIs copied from old version of frontend. `EncryptedPredictionMarket.json` missing `nextPositionId` function → `market.nextPositionId is not a function` runtime error |
+| **RPC individual call timeouts** | `keeper/lambda/keeper-logic.ts` | 🔴 Unfixed | Per-call RPC timeouts still occurring on some invocations — individual `game.bets(betId)` calls timeout even after provider init succeeds |
+| **Unknown custom error on revert** | `keeper/lambda/keeper-logic.ts` | 🔴 Unfixed | `execution reverted (unknown custom error)` — `formatError()` doesn't extract raw revert data — real reason hidden |
+
 ### 🟡 Partially Complete / In Progress
 
 | Feature | Status | Details |
 |---|---|---|
+| **Lambda Keeper End-to-End** | 🟡 Running but not settling | Lambda starts, reads nextBetId=7, hits per-section timeouts, no tx hashes in logs yet — 3 bugs above blocking |
 | **Subgraph Indexing** | 🟡 Directory exists, empty | The Graph integration planned but not implemented |
-| **Oracle-Driven Resolution** | 🟡 Strategy decided, not wired | MarketResolver supports `oracleType` + `oracleAddress`. Testnet strategy: `OracleType.Manual` + keeper fetching from CoinGecko API. Mainnet: swap to Chainlink/Pyth — zero contract changes needed. |
-| **Borrowing/Lending** | 🟡 Discussed in conversations | Architecture explored but not implemented |
-| **x402 Payment Integration** | 🟡 Investigated | x402 micropayments explored in prior conversations |
+| **Oracle-Driven Resolution** | 🟡 Strategy decided, not wired | MarketResolver supports `oracleType` + `oracleAddress`. Testnet: CoinGecko via keeper. Mainnet: Chainlink/Pyth — zero contract changes needed |
 
 ### ❌ Not Yet Built
 
@@ -825,10 +877,9 @@ Located in `test/`. Run with `npm test`.
 | **Security Audit** | Codebase is unaudited |
 | **Subgraph / Event Indexing** | No indexer running, all reads are direct RPC calls |
 | **MockPriceFeed Contract** | Needed for testnet simulation — see §20 for design |
-| **Keeper Auto-Resolve (Manual Markets)** | CoinGecko API fetch + resolveManual() logic not yet added to fhe-keeper.ts |
+| **Keeper Auto-Resolve (Manual Markets)** | CoinGecko API fetch + resolveManual() logic not yet added |
 | **Mobile Optimization** | Works on mobile but not specifically optimized |
 | **Rate Limiting / Anti-Abuse** | No on-chain or off-chain rate limiting |
-| **Production Keeper Infrastructure** | Currently single-process Node.js, needs hardening (PM2, alerts, etc.) |
 | **Governance** | CasinoToken exists but no governance mechanism implemented |
 
 ---
@@ -855,13 +906,17 @@ Located in `test/`. Run with `npm test`.
 
 8. **RPC Rate Limiting** — Using Infura free tier can hit rate limits. The `loadBalancedTransport.ts` mitigates this with 4 endpoints + retry logic, but heavy polling can still exhaust quotas.
 
-9. **Vault Mode Detection** — The frontend auto-detects whether the vault is FHE-encrypted or transparent based on the deployed address. If the vault address changes, `casfin-config.ts` must be updated.
+9. **`vault.minimumReserveWei()` / `vault.paused()` not on deployed contract** — Frontend `loadCasinoState` calls these functions added for future insolvency protection. The deployed vault doesn't have them yet. Fixed by wrapping in `Promise.allSettled` with `0n`/`false` fallbacks in `frontend/lib/casfin-client.ts`.
 
-### Deployment Issues
+### Lambda Keeper Issues (Active)
 
-10. **Hardhat ABI Exporter** — ABIs export on compile, but if a contract name changes, old ABI files persist in `generated-abis/`. May need manual cleanup.
+10. **Stale ABIs in `keeper/lambda/abis/`** — These are NOT auto-synced from `frontend/lib/generated-abis/`. Must be manually copied after any contract recompile. `EncryptedPredictionMarket.json` is currently outdated — missing `nextPositionId` function.
 
-11. **Gas Estimation** — FHE transactions have unpredictable gas costs. Some transactions may fail with out-of-gas on Arbitrum Sepolia if the CoFHE precompiles have issues.
+11. **Contract Address Mismatch** — `casfin/.env` has different addresses for CoinFlip/Dice/Crash than `frontend/.env.local`. The Lambda `serverless.yml` defaults use the FRONTEND addresses (correct). The root `.env` addresses are stale. Do NOT use `casfin/.env` game addresses for the keeper.
+
+12. **Individual RPC call timeouts** — Even after provider init succeeds, individual calls like `game.bets(betId)` can timeout on slow testnet. The 30s `RPC_TIMEOUT_MS` per call is set in `FetchRequest`, but testnet can be slower.
+
+13. **`execution reverted (unknown custom error)`** — On-chain custom errors (e.g., `NOT_RESOLVER`, `BET_RESOLVED`) have their 4-byte selectors but ethers.js can't decode them without ABI error definitions. Need to improve `formatError()` to log raw error data.
 
 ---
 
@@ -1036,4 +1091,8 @@ Chainlink Arbitrum Sepolia feeds exist (e.g., ETH/USD at `0xd30e2101a97dcbAeBCBC
 
 ---
 
-*Last updated: April 17, 2026. This document should be updated whenever significant architectural changes are made to the CasFin protocol.*
+*Last updated: April 26, 2026. This document should be updated whenever significant architectural changes are made to the CasFin protocol.*
+
+### Change Log
+- **April 26, 2026:** Updated contract addresses (frontend addresses are canonical), added Lambda keeper architecture (§10.2), Redis pub/sub pipeline (§10.3), active Lambda bugs in progress tracker (§17), new keeper gotchas (§18 items 9-13).
+- **April 17, 2026:** Initial comprehensive documentation.

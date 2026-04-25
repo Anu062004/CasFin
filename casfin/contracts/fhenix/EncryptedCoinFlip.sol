@@ -142,6 +142,8 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         // The game must retain access to the intermediate gross payout before applying house edge.
         FHE.allowThis(grossReturn);
         euint128 winReturn = _applyHouseEdge(grossReturn);
+        // The game must retain access to the net payout before granting vault access or selecting the return.
+        FHE.allowThis(winReturn);
         // won is plaintext from getDecryptResultSafe — use a direct ternary, not FHE.select.
         euint128 returnHandle = won ? winReturn : ENCRYPTED_ZERO;
 
