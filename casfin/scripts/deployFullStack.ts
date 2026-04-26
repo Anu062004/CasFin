@@ -131,18 +131,18 @@ async function main() {
   const casinoToken = await deployContract(ethers, "CasinoToken", [deployer.address, ethers.parseEther("10000000")]);
   const stakingPool = await deployContract(ethers, "StakingPool", [deployer.address, casinoToken.address]);
 
-  const predictionConfigTxs = {};
+  const predictionConfigTxs: Record<string, unknown> = {};
   if (approvedCreator && approvedCreator.toLowerCase() !== owner.toLowerCase()) {
     predictionConfigTxs.setCreatorApproval = await trackTransaction(
       "setCreatorApproval",
-      factory.contract.setCreatorApproval(approvedCreator, true)
+      (factory.contract as any).setCreatorApproval(approvedCreator, true)
     );
   }
 
   if (stakingShareBps > 0) {
     predictionConfigTxs.setStakingPool = await trackTransaction(
       "setStakingPool",
-      factory.contract.setStakingPool(stakingPool.address, stakingShareBps)
+      (factory.contract as any).setStakingPool(stakingPool.address, stakingShareBps)
     );
   }
 

@@ -1,4 +1,5 @@
-import { ethers } from "hardhat";
+const hre = require("hardhat");
+const { ethers } = hre;
 import * as fs from "fs";
 import * as path from "path";
 
@@ -130,3 +131,5 @@ main().catch((err) => {
   console.error("[error] Authorization failed:", err);
   process.exit(1);
 });
+
+export {};

@@ -1,2 +1,7 @@
 .claude/
 cofhesdk-upstream/
+PRIVATE_KEY
+KEEPER_PRIVATE_KEY
+.env
+.env.local
+.env*.local

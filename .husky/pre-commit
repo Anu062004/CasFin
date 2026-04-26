@@ -1,0 +1,14 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACM)"
+
+if [ -n "$STAGED_FILES" ] && printf '%s\n' "$STAGED_FILES" | xargs grep -l "PRIVATE_KEY\s*=\s*[0-9a-fA-F]\{64\}" 2>/dev/null; then
+  echo "ERROR: Possible private key detected in staged files. Commit blocked."
+  exit 1
+fi
+
+if git diff --cached --diff-filter=ACM | grep -E "(PRIVATE_KEY|KEEPER_PRIVATE_KEY)\s*=\s*0x?[0-9a-fA-F]{60,}" >/dev/null 2>&1; then
+  echo "ERROR: Private key pattern detected. Commit blocked."
+  exit 1
+fi

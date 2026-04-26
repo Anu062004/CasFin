@@ -2,9 +2,13 @@ node_modules
 artifacts
 cache
 coverage
+PRIVATE_KEY
+KEEPER_PRIVATE_KEY
 .env
 .env.local
+.env.example.local
 .env.production
+.env*.local
 deployments/
 *.tsbuildinfo
 frontend/.next

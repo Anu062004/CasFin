@@ -81,7 +81,7 @@ async function trackTransaction(label, txPromise) {
   };
 }
 
-async function verifyDeployment(hre, deployment, constructorArguments = deployment.constructorArguments, contractPath) {
+async function verifyDeployment(hre, deployment, constructorArguments = deployment.constructorArguments, contractPath = undefined) {
   if (!process.env.ARBISCAN_API_KEY) {
     return { skipped: true, reason: "ARBISCAN_API_KEY not configured" };
   }

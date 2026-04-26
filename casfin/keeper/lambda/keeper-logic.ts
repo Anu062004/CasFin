@@ -29,6 +29,10 @@ const RPC_URLS = [
   process.env.KEEPER_RPC_URL_3 || ""
 ].filter(Boolean);
 
+type KeeperRuntime = {
+  keeperKey: string;
+};
+
 function logLine(logs: string[], line: string, level: "log" | "error" = "log"): void {
   logs.push(line);
   if (level === "error") {
@@ -81,17 +85,15 @@ async function getWorkingProvider(): Promise<KeeperProvider> {
   throw new Error(`All RPC URLs failed (${lastError})`);
 }
 
-async function getSigner(): Promise<{ provider: KeeperProvider; signer: ethers.Wallet }> {
+async function getSigner(keeperKey: string): Promise<{ provider: KeeperProvider; signer: ethers.Wallet }> {
   const provider = await getWorkingProvider();
-  const rawKey = process.env.KEEPER_PRIVATE_KEY || "";
-  if (!rawKey) {
-    throw new Error("KEEPER_PRIVATE_KEY not set");
+  if (!keeperKey) {
+    throw new Error("KEEPER_PRIVATE_KEY not loaded");
   }
 
-  const key = rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`;
   return {
     provider,
-    signer: new ethers.Wallet(key, provider)
+    signer: new ethers.Wallet(keeperKey, provider)
   };
 }
 
@@ -370,7 +372,7 @@ async function processPredictionMarkets(
   return true;
 }
 
-export async function runKeeperTick(): Promise<string[]> {
+export async function runKeeperTick(runtime: KeeperRuntime): Promise<string[]> {
   const logs: string[] = [];
   const hardDeadline = Date.now() + HARD_DEADLINE_MS;
   const candidates = RPC_URLS.length > 0 ? RPC_URLS : [DEFAULT_RPC_URL];
@@ -383,7 +385,7 @@ export async function runKeeperTick(): Promise<string[]> {
   logLine(logs, `Prediction Factory addr: ${process.env.ENCRYPTED_PREDICTION_FACTORY_ADDRESS || process.env.ENCRYPTED_MARKET_FACTORY_ADDRESS || "unset"}`);
   logLine(logs, `Hard deadline: ${new Date(hardDeadline).toISOString()}`);
 
-  const { provider, signer } = await getSigner();
+  const { provider, signer } = await getSigner(runtime.keeperKey);
 
   logLine(logs, `Signer: ${await signer.getAddress()}`);
   logLine(logs, `Selected RPC: ${(provider as KeeperProvider)._casfinRpcUrl || "unknown"}`);

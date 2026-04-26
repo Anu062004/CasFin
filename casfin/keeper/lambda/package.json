@@ -9,6 +9,7 @@
     "logs": "npx serverless logs -f keeperTick --tail"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1037.0",
     "ethers": "^6.16.0"
   },
   "devDependencies": {

@@ -36,7 +36,7 @@ async function main() {
   console.log("Owner:", owner);
   console.log("Treasury:", treasury);
 
-  const implementations = {};
+  const implementations: Record<string, any> = {};
   for (const name of [
     "FeeDistributor",
     "DisputeRegistry",
@@ -62,12 +62,12 @@ async function main() {
     implementations.EncryptedMarketResolver.address
   ]);
 
-  const configTxs = {};
+  const configTxs: Record<string, unknown> = {};
 
   if (approvedCreator && approvedCreator.toLowerCase() !== owner.toLowerCase()) {
     configTxs.setCreatorApproval = await trackTransaction(
       "setCreatorApproval",
-      factory.contract.setCreatorApproval(approvedCreator, true)
+      (factory.contract as any).setCreatorApproval(approvedCreator, true)
     );
     console.log("Approved creator:", approvedCreator);
   }
@@ -75,7 +75,7 @@ async function main() {
   if (stakingPool && stakingShareBps > 0) {
     configTxs.setStakingPool = await trackTransaction(
       "setStakingPool",
-      factory.contract.setStakingPool(stakingPool, stakingShareBps)
+      (factory.contract as any).setStakingPool(stakingPool, stakingShareBps)
     );
     console.log("Configured staking pool:", stakingPool, "shareBps:", stakingShareBps);
   }

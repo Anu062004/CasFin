@@ -6,12 +6,19 @@ provider:
   region: us-east-1
   timeout: 300
   memorySize: 512
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - arn:aws:secretsmanager:${self:provider.region}:*:secret:casfin/keeper-key*
   environment:
     KEEPER_RPC_URL_1: https://arbitrum-sepolia.infura.io/v3/2a16fc884a10441eae11c29cd9b9aa5f
     KEEPER_RPC_URL_2: https://arbitrum-sepolia.infura.io/v3/63a92704fd4c46b5957bf6a6764f21d2
     KEEPER_RPC_URL_3: https://arbitrum-sepolia.infura.io/v3/9ee8a68f33e54ef18ac51210fb67bfbd
     KEEPER_RPC_URL: ${env:KEEPER_RPC_URL, 'https://arbitrum-sepolia.infura.io/v3/2a16fc884a10441eae11c29cd9b9aa5f'}
-    KEEPER_PRIVATE_KEY: ${env:KEEPER_PRIVATE_KEY}
     ENCRYPTED_COIN_FLIP_ADDRESS: ${env:ENCRYPTED_COIN_FLIP_ADDRESS, '0xd12112826e4Efd575f579a1f5EF00f9cEECd7f35'}
     ENCRYPTED_DICE_GAME_ADDRESS: ${env:ENCRYPTED_DICE_GAME_ADDRESS, '0x7D7A8f22727CB618f5C96eCA151C48Bc0aa3D563'}
     ENCRYPTED_CRASH_GAME_ADDRESS: ${env:ENCRYPTED_CRASH_GAME_ADDRESS, '0x6465C2f5F5c9B2F7F05dC6E6D799514D6F1d214D'}

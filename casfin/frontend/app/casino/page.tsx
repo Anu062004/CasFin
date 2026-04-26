@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import CleanCoinFlipCard from "@/components/casino/CleanCoinFlipCard";
-import CleanCrashCard from "@/components/casino/CleanCrashCard";
-import CleanDiceCard from "@/components/casino/CleanDiceCard";
+import CoinFlipCard from "@/components/CoinFlipCard";
+import CrashCard from "@/components/CrashCard";
+import DiceCard from "@/components/DiceCard";
 import CleanPokerCard from "@/components/casino/CleanPokerCard";
 import { useWallet } from "@/components/WalletProvider";
 import { formatEth, formatMultiplier } from "@/lib/casfin-client";
@@ -150,7 +150,7 @@ export default function CasinoPage() {
         <section className="casino-main-stage">
           <div className="casino-game-panel">
             {activeSection === "coin" && (
-              <CleanCoinFlipCard
+              <CoinFlipCard
                 casinoState={casinoState}
                 pendingAction={pendingAction}
                 runTransaction={runTransaction}
@@ -158,7 +158,7 @@ export default function CasinoPage() {
               />
             )}
             {activeSection === "dice" && (
-              <CleanDiceCard
+              <DiceCard
                 casinoState={casinoState}
                 pendingAction={pendingAction}
                 runTransaction={runTransaction}
@@ -166,7 +166,7 @@ export default function CasinoPage() {
               />
             )}
             {activeSection === "crash" && (
-              <CleanCrashCard
+              <CrashCard
                 casinoState={casinoState}
                 isOperator={isOperator}
                 pendingAction={pendingAction}
