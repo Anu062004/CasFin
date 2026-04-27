@@ -1,3 +1,4 @@
+import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 import { ethers } from "ethers";
 
 const EncryptedCoinFlipAbi = require("./abis/EncryptedCoinFlip.json");
@@ -10,6 +11,12 @@ const EncryptedMarketResolverAbi = require("./abis/EncryptedMarketResolver.json"
 type KeeperContract = ethers.Contract & Record<string, any>;
 type ContractValue = Awaited<ReturnType<KeeperContract["bets"]>>;
 type KeeperProvider = ethers.JsonRpcProvider & { _casfinRpcUrl?: string };
+export type CloudWatchLike = {
+  putMetricData: (input: {
+    Namespace: string;
+    MetricData: Array<{ MetricName: string; Unit: string; Value: number }>;
+  }) => Promise<void>;
+};
 
 const TASK_MANAGER_ADDRESS = "0xeA30c4B8b44078Bbf8a6ef5b9f1eC1626C7848D9";
 const TASK_MANAGER_ABI = [
@@ -33,16 +40,18 @@ type KeeperRuntime = {
   keeperKey: string;
 };
 
-function logLine(logs: string[], line: string, level: "log" | "error" = "log"): void {
+function logLine(logs: string[], line: string, level: "log" | "error" | "warn" = "log"): void {
   logs.push(line);
   if (level === "error") {
     console.error(line);
+  } else if (level === "warn") {
+    console.warn(line);
   } else {
     console.log(line);
   }
 }
 
-function deadlineReached(logs: string[], hardDeadline: number): boolean {
+export function deadlineReached(logs: string[], hardDeadline: number): boolean {
   if (Date.now() <= hardDeadline) {
     return false;
   }
@@ -51,7 +60,7 @@ function deadlineReached(logs: string[], hardDeadline: number): boolean {
   return true;
 }
 
-function createProvider(rpcUrl: string): KeeperProvider {
+export function createProvider(rpcUrl: string): KeeperProvider {
   const request = new ethers.FetchRequest(rpcUrl);
   request.timeout = RPC_TIMEOUT_MS;
 
@@ -65,7 +74,7 @@ function createProvider(rpcUrl: string): KeeperProvider {
   return provider;
 }
 
-async function getWorkingProvider(): Promise<KeeperProvider> {
+export async function getWorkingProvider(): Promise<KeeperProvider> {
   const candidates = RPC_URLS.length > 0 ? RPC_URLS : [DEFAULT_RPC_URL];
   let lastError = "unknown error";
 
@@ -85,7 +94,7 @@ async function getWorkingProvider(): Promise<KeeperProvider> {
   throw new Error(`All RPC URLs failed (${lastError})`);
 }
 
-async function getSigner(keeperKey: string): Promise<{ provider: KeeperProvider; signer: ethers.Wallet }> {
+export async function getSigner(keeperKey: string): Promise<{ provider: KeeperProvider; signer: ethers.Wallet }> {
   const provider = await getWorkingProvider();
   if (!keeperKey) {
     throw new Error("KEEPER_PRIVATE_KEY not loaded");
@@ -109,7 +118,7 @@ function optionalContract(
   return new ethers.Contract(address, abi as ethers.InterfaceAbi, signer) as KeeperContract;
 }
 
-function formatError(error: unknown): string {
+export function formatError(error: unknown): string {
   const value = error as Record<string, any> | undefined;
   const data = value?.data ? ` [data: ${value.data}]` : "";
   return (
@@ -121,7 +130,7 @@ function formatError(error: unknown): string {
   ) + data;
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+export async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
@@ -130,7 +139,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   ]);
 }
 
-function getBetState(bet: ContractValue): { player: string; resolved: boolean; resolutionPending: boolean; pendingWonFlag: string; won: boolean } {
+export function getBetState(bet: ContractValue): { player: string; resolved: boolean; resolutionPending: boolean; pendingWonFlag: string; won: boolean } {
   return {
     player: String(bet[0]),
     resolved: Boolean(bet[4]),
@@ -140,7 +149,7 @@ function getBetState(bet: ContractValue): { player: string; resolved: boolean; r
   };
 }
 
-async function processEncryptedBets(
+export async function processEncryptedBets(
   label: string,
   game: KeeperContract | null,
   logs: string[],
@@ -193,7 +202,11 @@ async function processEncryptedBets(
             `getDecryptResultSafe(${betId})`
           );
           if (!decrypted) {
-            logLine(logs, `[${label}] bet ${betId} decrypt not ready — TN hasn't published yet, skipping`);
+            logLine(
+              logs,
+              `[${label}] bet ${betId} decrypt not ready - Threshold Network may be down or has not published yet, skipping`,
+              "warn"
+            );
             continue;
           }
         } catch (preErr: unknown) {
@@ -235,7 +248,7 @@ async function processEncryptedBets(
   return true;
 }
 
-async function processCrashRounds(
+export async function processCrashRounds(
   crash: KeeperContract | null,
   logs: string[],
   hardDeadline: number
@@ -291,7 +304,7 @@ async function processCrashRounds(
   return true;
 }
 
-async function processPredictionMarkets(
+export async function processPredictionMarkets(
   factory: KeeperContract | null,
   signer: ethers.Wallet,
   logs: string[],
@@ -372,6 +385,31 @@ async function processPredictionMarkets(
   return true;
 }
 
+export function getCloudWatchClient(): CloudWatchLike {
+  const client = new CloudWatchClient({
+    region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || "us-east-1",
+  });
+
+  return {
+    putMetricData: async (input) => {
+      await client.send(new PutMetricDataCommand(input));
+    },
+  };
+}
+
+export async function emitExecutionMetric(cloudWatch: CloudWatchLike = getCloudWatchClient()): Promise<void> {
+  await cloudWatch.putMetricData({
+    Namespace: "CasFin/Keeper",
+    MetricData: [
+      {
+        MetricName: "ExecutionComplete",
+        Unit: "Count",
+        Value: 1,
+      },
+    ],
+  });
+}
+
 export async function runKeeperTick(runtime: KeeperRuntime): Promise<string[]> {
   const logs: string[] = [];
   const hardDeadline = Date.now() + HARD_DEADLINE_MS;
@@ -448,6 +486,11 @@ export async function runKeeperTick(runtime: KeeperRuntime): Promise<string[]> {
     }
   }
 
+  try {
+    await emitExecutionMetric();
+  } catch (error: unknown) {
+    logLine(logs, `[Metrics] ${formatError(error)}`, "error");
+  }
   logLine(logs, `Done at ${new Date().toISOString()}`);
   return logs;
 }

@@ -9,7 +9,7 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "strict": false,
-    "types": ["node", "mocha"]
+    "types": ["node", "mocha", "jest"]
   },
   "include": ["hardhat.config.ts", "scripts/**/*.ts", "keeper/**/*.ts", "test/**/*.ts"],
   "exclude": ["artifacts", "cache", "frontend", "node_modules"]

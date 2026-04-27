@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import GlassButton from "@/components/GlassButton";
 import GlassCard from "@/components/GlassCard";
 import MarketCard from "@/components/MarketCard";
@@ -95,6 +96,16 @@ export default function PredictionsPage() {
           </GlassButton>
         </div>
       </section>
+
+      {/* ── Tab strip ── */}
+      <div className="pill-grid" style={{ marginBottom: "8px" }}>
+        <Link href="/predictions">
+          <GlassButton active variant="pill">Markets</GlassButton>
+        </Link>
+        <Link href="/predictions/sports">
+          <GlassButton variant="pill">Sports</GlassButton>
+        </Link>
+      </div>
 
       {predictionLoadError ? (
         <GlassCard className="notice-card tone-danger" stagger={1}>

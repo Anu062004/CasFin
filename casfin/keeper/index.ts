@@ -621,9 +621,11 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
     }
   };
 
-  coinFlip?.on("EncryptedBetPlaced", (betId: bigint, player: string) => detectCoinFlipBet(betId, player, "event"));
-  dice?.on("EncryptedDiceBetPlaced", (betId: bigint, player: string) => detectDiceBet(betId, player, "event"));
-  crash?.on("CrashBetPlaced", (roundId: bigint, player: string) => detectCrashBet(roundId, player, "event"));
+  // Event subscriptions are best-effort (HTTP RPCs don't support eth_subscribe).
+  // Polling fallback covers all bets regardless.
+  try { coinFlip?.on("EncryptedBetPlaced", (betId: bigint, player: string) => detectCoinFlipBet(betId, player, "event")); } catch { /* polling handles this */ }
+  try { dice?.on("EncryptedDiceBetPlaced", (betId: bigint, player: string) => detectDiceBet(betId, player, "event")); } catch { /* polling handles this */ }
+  try { crash?.on("CrashBetPlaced", (roundId: bigint, player: string) => detectCrashBet(roundId, player, "event")); } catch { /* polling handles this */ }
 
   signal.addEventListener(
     "abort",
@@ -641,9 +643,13 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
   console.log(`Dice: ${dice?.target ?? "not configured"}`);
   console.log(`Crash: ${crash?.target ?? "not configured"}`);
 
-  if (crash && EVENT_BACKFILL_START_BLOCK >= 0) {
+  if (crash) {
     const latestBlock = await provider.getBlockNumber();
-    await scanCrashEvents(EVENT_BACKFILL_START_BLOCK, latestBlock);
+    // If no explicit start block, only backfill recent 500 blocks to avoid hammering RPC on startup.
+    const backfillFrom = EVENT_BACKFILL_START_BLOCK > 0
+      ? EVENT_BACKFILL_START_BLOCK
+      : Math.max(0, latestBlock - 500);
+    await scanCrashEvents(backfillFrom, latestBlock);
     lastCrashBackfillBlock = latestBlock;
   }
 
@@ -865,9 +871,7 @@ async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
     }
   };
 
-  factory?.on("MarketCreated", () => {
-    void syncFactoryMarkets();
-  });
+  try { factory?.on("MarketCreated", () => { void syncFactoryMarkets(); }); } catch { /* polling handles this */ }
 
   signal.addEventListener(
     "abort",
@@ -900,6 +904,17 @@ async function main(): Promise<void> {
   if (!PRIVATE_KEY || PRIVATE_KEY === "0xyour_private_key_here") {
     throw new Error("Set PRIVATE_KEY in casfin/.env before starting the keeper.");
   }
+
+  // Prevent ethers.js polling-based event subscription errors from crashing the process.
+  // These are non-fatal — the polling loop handles everything regardless.
+  process.on("unhandledRejection", (reason: unknown) => {
+    const msg = String((reason as any)?.shortMessage || (reason as any)?.message || reason);
+    if (msg.includes("coalesce") || msg.includes("eth_newFilter") || msg.includes("Too Many Requests")) {
+      console.warn(`[Keeper] Suppressed non-fatal RPC subscription error: ${msg}`);
+      return;
+    }
+    console.error(`[Keeper] Unhandled rejection:`, reason);
+  });
 
   const controller = new AbortController();
   const stop = (signalName: string) => {
