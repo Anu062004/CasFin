@@ -11,8 +11,7 @@ import {
   formatShares,
   getMarketPhase,
   parseRequiredEth,
-  parseRequiredInteger,
-  parseRequiredShares
+  parseRequiredInteger
 } from "@/lib/casfin-client";
 import { MARKET_FACTORY_ABI, MARKET_RESOLVER_ABI, PREDICTION_MARKET_ABI } from "@/lib/casfin-abis";
 import { ActionButton, AddressLink } from "@/components/ProtocolBits";
@@ -279,7 +278,8 @@ export default function PredictionRail({
                         const encAmount = await encryptUint128(collateralIn);
 
                         return predictionMarket.buyShares(outcomeIndex, encAmount, {
-                          value: collateralIn
+                          value: collateralIn,
+                          gasLimit: 1_500_000n
                         });
                       })
                     }
@@ -290,38 +290,10 @@ export default function PredictionRail({
 
                 <label className="field-card">
                   <span>Sell shares</span>
-                  <select
-                    onChange={(event) => updateMarketForm(market.address, { sellOutcome: event.target.value })}
-                    value={marketForm.sellOutcome}
-                  >
-                    {market.outcomeLabels.map((label, index) => (
-                      <option key={`${market.address}-sell-${label}`} value={String(index)}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    onChange={(event) => updateMarketForm(market.address, { sellShares: event.target.value })}
-                    type="number"
-                    value={marketForm.sellShares}
-                  />
-                  <p className="field-hint">Shares use 18 decimals, so values like 1.5 are valid.</p>
-                  <ActionButton
-                    disabled={walletBlocked || market.resolved || !cofheConnected}
-                    onClick={() =>
-                      runTransaction("Sell market shares", async (signer) => {
-                        const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
-                        const encShares = await encryptUint128(parseRequiredShares(marketForm.sellShares, "Shares"));
-                        return predictionMarket.sell(
-                          parseRequiredInteger(marketForm.sellOutcome, "Sell outcome"),
-                          encShares
-                        );
-                      })
-                    }
-                    variant="secondary"
-                  >
-                    {pendingAction === "Sell market shares" ? "Selling..." : "Sell shares"}
-                  </ActionButton>
+                  <p className="field-hint">
+                    Shares cannot be sold before market resolution. After the market is finalized, use
+                    {" "}Request Claim and Finalize Claim to redeem your winnings.
+                  </p>
                 </label>
 
                 <label className="field-card">

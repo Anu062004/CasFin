@@ -13,8 +13,7 @@ import {
   formatShares,
   getMarketPhase,
   parseRequiredEth,
-  parseRequiredInteger,
-  parseRequiredShares
+  parseRequiredInteger
 } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
@@ -192,7 +191,8 @@ export default function MarketCard({
                 const encAmount = await encryptUint128(collateralIn);
 
                 return predictionMarket.buyShares(outcomeIndex, encAmount, {
-                  value: collateralIn
+                  value: collateralIn,
+                  gasLimit: 1_500_000n
                 });
               })
             }
@@ -204,48 +204,10 @@ export default function MarketCard({
 
       {activeTab === "sell" ? (
         <div className="market-tab-panel">
-          <div className="field-grid-two">
-            <GlassInput
-              as="select"
-              label="Outcome"
-              onChange={(event) => updateMarketForm(market.address, { sellOutcome: event.target.value })}
-              value={marketForm.sellOutcome}
-            >
-              {market.outcomeLabels.map((label, index) => (
-                <option key={`${market.address}-sell-${label}`} value={String(index)}>
-                  {label}
-                </option>
-              ))}
-            </GlassInput>
-
-            <GlassInput
-              hint="Shares use 18 decimals, so values like 1.5 are valid."
-              label="Shares"
-              min="0"
-              onChange={(event) => updateMarketForm(market.address, { sellShares: event.target.value })}
-              step="0.0001"
-              type="number"
-              value={marketForm.sellShares}
-            />
-          </div>
-
-          <GlassButton
-            disabled={walletBlocked || market.resolved || !cofheConnected}
-            loading={pendingAction === "Sell market shares"}
-            onClick={() =>
-              runTransaction("Sell market shares", async (signer) => {
-                const predictionMarket = new ethers.Contract(market.address, PREDICTION_MARKET_ABI, signer);
-                const encShares = await encryptUint128(parseRequiredShares(marketForm.sellShares, "Shares"));
-                return predictionMarket.sell(
-                  parseRequiredInteger(marketForm.sellOutcome, "Sell outcome"),
-                  encShares
-                );
-              })
-            }
-            variant="secondary"
-          >
-            Sell Shares
-          </GlassButton>
+          <p className="info-note">
+            Shares cannot be sold before market resolution. After the market is finalized, use
+            {" "}<strong>Request Claim</strong> and <strong>Finalize Claim</strong> in the Resolve tab to redeem your winnings.
+          </p>
         </div>
       ) : null}
 
