@@ -46,7 +46,7 @@ async function buildEncryptedInput(
   signer?: Signer,
   makePublic = true,
 ): Promise<EncryptedInput> {
-  const taskManager = await getTaskManager();
+  const taskManager = await getTaskManager() as any;
   const effectiveSigner = signer ?? (await getDefaultSigner());
   const account = await effectiveSigner.getAddress();
   const handle = await taskManager.nextHandle();
@@ -101,18 +101,18 @@ export async function mockEncryptBoolInput(value: boolean, signer?: Signer): Pro
 }
 
 export async function mockDecrypt(handle: bigint): Promise<bigint> {
-  const taskManager = await getTaskManager();
+  const taskManager = await getTaskManager() as any;
   await (await taskManager.MOCK_resolveDecrypt(handle)).wait();
   return toHandle(await taskManager.mockStorage(handle));
 }
 
 export async function mockResolveDecrypt(handle: bigint): Promise<void> {
-  const taskManager = await getTaskManager();
+  const taskManager = await getTaskManager() as any;
   await (await taskManager.MOCK_resolveDecrypt(handle)).wait();
 }
 
 export async function mockSetPlaintext(handle: bigint, value: bigint): Promise<void> {
-  const taskManager = await getTaskManager();
+  const taskManager = await getTaskManager() as any;
   await (await taskManager.MOCK_setHandleValue(handle, value)).wait();
 }
 

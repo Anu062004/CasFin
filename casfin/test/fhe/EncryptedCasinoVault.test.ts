@@ -28,6 +28,10 @@ describe("EncryptedCasinoVault", function () {
   const depositWei = ethers.parseEther("0.1");
   const halfDepositWei = ethers.parseEther("0.05");
 
+  function encodeHandle(handle: bigint): string {
+    return ethers.toBeHex(handle, 32);
+  }
+
   async function decryptBalance(signer: typeof player): Promise<bigint> {
     const handle = await vault.connect(signer).getEncryptedBalance();
     return mockDecrypt(asHandle(handle));
@@ -72,7 +76,7 @@ describe("EncryptedCasinoVault", function () {
     await (await vault.connect(player).depositETH({ value: depositWei })).wait();
 
     const reserveAmount = await mockEncrypt(halfDepositWei);
-    await (await vault.connect(game).reserveFunds(await player.getAddress(), reserveAmount)).wait();
+    await (await vault.connect(game).reserveFunds(await player.getAddress(), encodeHandle(reserveAmount))).wait();
 
     expect(await decryptLockedBalance(player)).to.equal(halfDepositWei);
     expect(await decryptBalance(player)).to.equal(halfDepositWei);
@@ -82,7 +86,7 @@ describe("EncryptedCasinoVault", function () {
     await (await vault.connect(player).depositETH({ value: halfDepositWei })).wait();
 
     const reserveAmount = await mockEncrypt(depositWei);
-    await (await vault.connect(game).reserveFunds(await player.getAddress(), reserveAmount)).wait();
+    await (await vault.connect(game).reserveFunds(await player.getAddress(), encodeHandle(reserveAmount))).wait();
 
     expect(await decryptLockedBalance(player)).to.equal(0n);
     expect(await decryptBalance(player)).to.equal(halfDepositWei);
@@ -92,12 +96,18 @@ describe("EncryptedCasinoVault", function () {
     await (await vault.connect(player).depositETH({ value: depositWei })).wait();
 
     const wagerHandle = await mockEncrypt(depositWei);
-    await (await vault.connect(game).reserveFunds(await player.getAddress(), wagerHandle)).wait();
+    await (await vault.connect(game).reserveFunds(await player.getAddress(), encodeHandle(wagerHandle))).wait();
 
     const lockedHandle = asHandle(await vault.connect(player).getEncryptedLockedBalance());
     const winReturnHandle = await mockEncrypt(ethers.parseEther("0.196"));
 
-    await (await vault.connect(game).settleBet(await player.getAddress(), lockedHandle, winReturnHandle)).wait();
+    await (
+      await vault.connect(game).settleBet(
+        await player.getAddress(),
+        encodeHandle(lockedHandle),
+        encodeHandle(winReturnHandle),
+      )
+    ).wait();
 
     expect(await decryptBalance(player)).to.equal(ethers.parseEther("0.196"));
     expect(await decryptLockedBalance(player)).to.equal(0n);
@@ -107,12 +117,18 @@ describe("EncryptedCasinoVault", function () {
     await (await vault.connect(player).depositETH({ value: depositWei })).wait();
 
     const wagerHandle = await mockEncrypt(depositWei);
-    await (await vault.connect(game).reserveFunds(await player.getAddress(), wagerHandle)).wait();
+    await (await vault.connect(game).reserveFunds(await player.getAddress(), encodeHandle(wagerHandle))).wait();
 
     const lockedHandle = asHandle(await vault.connect(player).getEncryptedLockedBalance());
     const zeroHandle = await mockEncrypt(0n);
 
-    await (await vault.connect(game).settleBet(await player.getAddress(), lockedHandle, zeroHandle)).wait();
+    await (
+      await vault.connect(game).settleBet(
+        await player.getAddress(),
+        encodeHandle(lockedHandle),
+        encodeHandle(zeroHandle),
+      )
+    ).wait();
 
     expect(await decryptBalance(player)).to.equal(0n);
     expect(await decryptLockedBalance(player)).to.equal(0n);
@@ -130,12 +146,12 @@ describe("EncryptedCasinoVault", function () {
 
     await mockResolveDecrypt(asHandle(pendingHandle));
 
-    const balanceBeforeFinalize = await ethers.provider.getBalance(await player.getAddress());
     const finalizeInput = await mockEncryptUint128Input(0n, player);
+    const balanceBeforeFinalize = await ethers.provider.getBalance(await player.getAddress());
     const finalizeTx = await vault.connect(player).withdrawETH(finalizeInput);
     const finalizeReceipt = await finalizeTx.wait();
     const balanceAfterFinalize = await ethers.provider.getBalance(await player.getAddress());
-    const gasCost = finalizeReceipt!.gasUsed * finalizeReceipt!.gasPrice;
+    const gasCost = finalizeReceipt!.fee!;
 
     expect(balanceAfterFinalize + gasCost - balanceBeforeFinalize).to.equal(halfDepositWei);
     expect(await decryptBalance(player)).to.equal(halfDepositWei);
@@ -162,15 +178,20 @@ describe("EncryptedCasinoVault", function () {
 
     expect(await vault.paused()).to.equal(true);
 
+    const zeroHandle = await mockEncrypt(0n);
     await expectRevert(
-      vault.connect(game).settleBet(await player.getAddress(), await mockEncrypt(0n), await mockEncrypt(0n)),
+      vault.connect(game).settleBet(
+        await player.getAddress(),
+        encodeHandle(zeroHandle),
+        encodeHandle(zeroHandle),
+      ),
       "PAUSED",
     );
   });
 
   it("rejects reserveFunds from unauthorized game address", async function () {
     await expectRevert(
-      vault.connect(stranger).reserveFunds(await player.getAddress(), await mockEncrypt(1n)),
+      vault.connect(stranger).reserveFunds(await player.getAddress(), encodeHandle(await mockEncrypt(1n))),
       "NOT_AUTHORIZED_GAME",
     );
   });
@@ -179,7 +200,7 @@ describe("EncryptedCasinoVault", function () {
     await (await vault.connect(player).depositETH({ value: ethers.parseEther("1") })).wait();
 
     const oversizedBetHandle = await mockEncrypt(ethers.parseEther("0.5"));
-    await (await vault.connect(game).reserveFunds(await player.getAddress(), oversizedBetHandle)).wait();
+    await (await vault.connect(game).reserveFunds(await player.getAddress(), encodeHandle(oversizedBetHandle))).wait();
 
     expect(await decryptLockedBalance(player)).to.equal(0n);
     expect(await decryptBalance(player)).to.equal(ethers.parseEther("1"));

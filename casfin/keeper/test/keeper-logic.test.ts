@@ -87,7 +87,6 @@ function makeRound(overrides: {
 }
 
 async function loadKeeperLogic(env: Record<string, string | undefined> = {}) {
-  jest.resetModules();
   contractRegistry.clear();
   providerQueue.length = 0;
   providerConstructed.length = 0;
@@ -116,7 +115,35 @@ async function loadKeeperLogic(env: Record<string, string | undefined> = {}) {
     process.env.ENCRYPTED_PREDICTION_FACTORY_ADDRESS = env.ENCRYPTED_PREDICTION_FACTORY_ADDRESS;
   }
 
-  return import("../lambda/keeper-logic");
+  const keeperLogic = require("../lambda/keeper-logic");
+
+  keeperLogic.keeperDeps.createProvider = jest.fn((url: string) => {
+    const provider = providerQueue.shift() ?? defaultProvider();
+    provider._casfinRpcUrl = url;
+    providerConstructed.push(provider);
+    return provider;
+  });
+  keeperLogic.keeperDeps.makeContract = jest.fn((address: string) => {
+    const contract = contractRegistry.get(address);
+    if (!contract) {
+      throw new Error(`No mock contract registered for ${address}`);
+    }
+    return { target: address, ...contract };
+  });
+  keeperLogic.keeperDeps.getSigner = jest.fn(async () => {
+    const provider = await keeperLogic.getWorkingProvider();
+    return {
+      provider,
+      signer: {
+        getAddress: jest.fn().mockResolvedValue("0x4000000000000000000000000000000000000004"),
+      },
+    };
+  });
+  keeperLogic.keeperDeps.createCloudWatchClient = jest.fn(() => ({
+    putMetricData: jest.fn().mockResolvedValue(undefined),
+  }));
+
+  return keeperLogic;
 }
 
 describe("keeper-logic", () => {
@@ -286,7 +313,7 @@ describe("keeper-logic", () => {
     contractRegistry.set(CRASH_ADDRESS, crash);
 
     const cloudWatch = { putMetricData: jest.fn().mockResolvedValue(undefined) };
-    jest.spyOn(keeperLogic, "getCloudWatchClient").mockReturnValue(cloudWatch as any);
+    keeperLogic.keeperDeps.createCloudWatchClient = jest.fn(() => cloudWatch);
 
     await keeperLogic.runKeeperTick({ keeperKey: "0xabc" });
 
@@ -298,7 +325,7 @@ describe("keeper-logic", () => {
   it("emits CloudWatch metric after successful execution", async () => {
     const keeperLogic = await loadKeeperLogic();
     const cloudWatch = { putMetricData: jest.fn().mockResolvedValue(undefined) };
-    jest.spyOn(keeperLogic, "getCloudWatchClient").mockReturnValue(cloudWatch as any);
+    keeperLogic.keeperDeps.createCloudWatchClient = jest.fn(() => cloudWatch);
 
     await keeperLogic.runKeeperTick({ keeperKey: "0xabc" });
 

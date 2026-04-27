@@ -1,4 +1,5 @@
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
+import type { PutMetricDataCommandInput } from "@aws-sdk/client-cloudwatch";
 import { ethers } from "ethers";
 
 const EncryptedCoinFlipAbi = require("./abis/EncryptedCoinFlip.json");
@@ -12,10 +13,7 @@ type KeeperContract = ethers.Contract & Record<string, any>;
 type ContractValue = Awaited<ReturnType<KeeperContract["bets"]>>;
 type KeeperProvider = ethers.JsonRpcProvider & { _casfinRpcUrl?: string };
 export type CloudWatchLike = {
-  putMetricData: (input: {
-    Namespace: string;
-    MetricData: Array<{ MetricName: string; Unit: string; Value: number }>;
-  }) => Promise<void>;
+  putMetricData: (input: PutMetricDataCommandInput) => Promise<void>;
 };
 
 const TASK_MANAGER_ADDRESS = "0xeA30c4B8b44078Bbf8a6ef5b9f1eC1626C7848D9";
@@ -80,11 +78,8 @@ export async function getWorkingProvider(): Promise<KeeperProvider> {
 
   for (const url of candidates) {
     try {
-      const provider = createProvider(url);
-      await Promise.race([
-        provider.getBlockNumber(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000))
-      ]);
+      const provider = keeperDeps.createProvider(url);
+      await withTimeout(provider.getBlockNumber(), 8000, "provider health check");
       return provider;
     } catch (error: unknown) {
       lastError = `${url}: ${formatError(error)}`;
@@ -115,8 +110,16 @@ function optionalContract(
     return null;
   }
 
-  return new ethers.Contract(address, abi as ethers.InterfaceAbi, signer) as KeeperContract;
+  return keeperDeps.makeContract(address, abi, signer);
 }
+
+export const keeperDeps = {
+  createProvider,
+  getSigner,
+  makeContract: (address: string, abi: unknown, runner: ethers.ContractRunner) =>
+    new ethers.Contract(address, abi as ethers.InterfaceAbi, runner) as KeeperContract,
+  createCloudWatchClient: () => getCloudWatchClient(),
+};
 
 export function formatError(error: unknown): string {
   const value = error as Record<string, any> | undefined;
@@ -131,12 +134,19 @@ export function formatError(error: unknown): string {
 }
 
 export async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-    )
-  ]);
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 }
 
 export function getBetState(bet: ContractValue): { player: string; resolved: boolean; resolutionPending: boolean; pendingWonFlag: string; won: boolean } {
@@ -194,7 +204,7 @@ export async function processEncryptedBets(
 
         // Pre-check: skip finalizeResolution if TN hasn't published the decrypt result yet.
         try {
-          const taskManager = new ethers.Contract(TASK_MANAGER_ADDRESS, TASK_MANAGER_ABI, provider);
+          const taskManager = keeperDeps.makeContract(TASK_MANAGER_ADDRESS, TASK_MANAGER_ABI, provider);
           const ctHash = BigInt(bet.pendingWonFlag);
           const [, decrypted] = await withTimeout(
             taskManager.getDecryptResultSafe(ctHash) as Promise<[bigint, boolean]>,
@@ -337,7 +347,7 @@ export async function processPredictionMarkets(
       continue;
     }
 
-    const market = new ethers.Contract(address, EncryptedPredictionMarketAbi, signer) as KeeperContract;
+    const market = keeperDeps.makeContract(address, EncryptedPredictionMarketAbi, signer);
     try {
       const [resolvesAt, resolved, finalized, disputed, resolvedAt, disputeWindowSecs, resolverAddress] = await Promise.all([
         market.resolvesAt() as Promise<bigint>,
@@ -353,7 +363,7 @@ export async function processPredictionMarkets(
 
       if (!resolved && now >= Number(resolvesAt)) {
         try {
-          const resolver = new ethers.Contract(resolverAddress, EncryptedMarketResolverAbi, signer) as KeeperContract;
+          const resolver = keeperDeps.makeContract(resolverAddress, EncryptedMarketResolverAbi, signer);
           if (deadlineReached(logs, hardDeadline)) {
             return false;
           }
@@ -397,13 +407,13 @@ export function getCloudWatchClient(): CloudWatchLike {
   };
 }
 
-export async function emitExecutionMetric(cloudWatch: CloudWatchLike = getCloudWatchClient()): Promise<void> {
+export async function emitExecutionMetric(cloudWatch: CloudWatchLike = keeperDeps.createCloudWatchClient()): Promise<void> {
   await cloudWatch.putMetricData({
     Namespace: "CasFin/Keeper",
     MetricData: [
       {
         MetricName: "ExecutionComplete",
-        Unit: "Count",
+        Unit: "Count" as const,
         Value: 1,
       },
     ],
@@ -423,7 +433,7 @@ export async function runKeeperTick(runtime: KeeperRuntime): Promise<string[]> {
   logLine(logs, `Prediction Factory addr: ${process.env.ENCRYPTED_PREDICTION_FACTORY_ADDRESS || process.env.ENCRYPTED_MARKET_FACTORY_ADDRESS || "unset"}`);
   logLine(logs, `Hard deadline: ${new Date(hardDeadline).toISOString()}`);
 
-  const { provider, signer } = await getSigner(runtime.keeperKey);
+  const { provider, signer } = await keeperDeps.getSigner(runtime.keeperKey);
 
   logLine(logs, `Signer: ${await signer.getAddress()}`);
   logLine(logs, `Selected RPC: ${(provider as KeeperProvider)._casfinRpcUrl || "unknown"}`);
