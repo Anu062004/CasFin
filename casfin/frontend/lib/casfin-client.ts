@@ -526,9 +526,90 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
   };
 }
 
+async function loadMarketDetails(address, factory, provider, currentAccount) {
+  const market = new ethers.Contract(address, PREDICTION_MARKET_ABI, provider);
+
+  // meta uses positional access — ABI has unnamed return fields
+  const meta = await schedulePredictionRead(() => factory.marketMeta(address));
+
+  const [
+    question,
+    description,
+    resolvesAt,
+    resolved,
+    finalized,
+    winningOutcome,
+    creator,
+    resolverAddress,
+    // outcomesCount() reverts on older deployed contracts; derive count from getTotalSharesPerOutcome()
+    totalSharesRaw
+  ] = await Promise.all([
+    schedulePredictionRead(() => market.question()),
+    schedulePredictionRead(() => market.description()),
+    schedulePredictionRead(() => market.resolvesAt()),
+    schedulePredictionRead(() => market.resolved()),
+    schedulePredictionRead(() => market.finalized()),
+    schedulePredictionRead(() => market.winningOutcome()),
+    schedulePredictionRead(() => market.creator()),
+    schedulePredictionRead(() => market.resolver()),
+    schedulePredictionRead(() => market.getTotalSharesPerOutcome())
+  ]);
+
+  const outcomeIndexes = Array.from({ length: totalSharesRaw.length }, (_, index) => index);
+  const outcomeLabels = await Promise.all(
+    outcomeIndexes.map((index) => schedulePredictionRead(() => market.outcomes(index)))
+  );
+
+  const hasClaimed = currentAccount
+    ? await schedulePredictionRead(() => market.hasClaimed(currentAccount))
+    : false;
+
+  const resolver = new ethers.Contract(resolverAddress, MARKET_RESOLVER_ABI, provider);
+  const [manualResolver, feeRecipient, oracleType, resolutionRequested] = await Promise.all([
+    schedulePredictionRead(() => resolver.manualResolver()),
+    schedulePredictionRead(() => resolver.feeRecipient()),
+    schedulePredictionRead(() => resolver.oracleType()),
+    schedulePredictionRead(() => resolver.resolutionRequested())
+  ]);
+
+  return {
+    address,
+    question,
+    description,
+    resolvesAt,
+    resolved,
+    finalized,
+    winningOutcome: Number(winningOutcome),
+    creator,
+    collateralPool: 0n,
+    outcomeLabels,
+    totalShares: outcomeIndexes.map(() => 0n),
+    userShares: outcomeIndexes.map(() => 0n),
+    hasClaimed,
+    poolBalance: 0n,
+    meta: {
+      // positional access because ABI has unnamed return fields
+      market: meta[0],
+      amm: meta[1],
+      pool: meta[2],
+      resolver: meta[3],
+      creator: meta[4],
+      createdAt: meta[5],
+      oracleType: Number(meta[6])
+    },
+    resolver: {
+      address: resolverAddress,
+      manualResolver,
+      feeRecipient,
+      oracleType: Number(oracleType),
+      resolutionRequested
+    }
+  };
+}
+
 async function loadPredictionStateWithProvider(currentAccount, provider) {
   const factory = new ethers.Contract(CASFIN_CONFIG.addresses.marketFactory, MARKET_FACTORY_ABI, provider);
-  const [factoryOwner, totalMarketsRaw, feeConfig, approvedCreator] = await Promise.all([
+  const [factoryOwner, totalMarketsRaw, feeConfigRaw, approvedCreator] = await Promise.all([
     schedulePredictionRead(() => factory.owner()),
     schedulePredictionRead(() => factory.totalMarkets()),
     schedulePredictionRead(() => factory.feeConfig()),
@@ -541,93 +622,28 @@ async function loadPredictionStateWithProvider(currentAccount, provider) {
     indexes.map((index) => schedulePredictionRead(() => factory.allMarkets(index)))
   );
 
-  const markets = await Promise.all(
-    marketAddresses.map(async (address) => {
-      const market = new ethers.Contract(address, PREDICTION_MARKET_ABI, provider);
-      const meta = await schedulePredictionRead(() => factory.marketMeta(address));
-
-      const [
-        question,
-        description,
-        resolvesAt,
-        resolved,
-        finalized,
-        winningOutcome,
-        creator,
-        resolverAddress,
-        outcomesCount
-      ] = await Promise.all([
-        schedulePredictionRead(() => market.question()),
-        schedulePredictionRead(() => market.description()),
-        schedulePredictionRead(() => market.resolvesAt()),
-        schedulePredictionRead(() => market.resolved()),
-        schedulePredictionRead(() => market.finalized()),
-        schedulePredictionRead(() => market.winningOutcome()),
-        schedulePredictionRead(() => market.creator()),
-        schedulePredictionRead(() => market.resolver()),
-        schedulePredictionRead(() => market.outcomesCount())
-      ]);
-
-      const outcomeIndexes = Array.from({ length: Number(outcomesCount) }, (_, index) => index);
-      const outcomeLabels = await Promise.all(
-        outcomeIndexes.map((index) => schedulePredictionRead(() => market.outcomes(index)))
-      );
-
-      const hasClaimed = currentAccount
-        ? await schedulePredictionRead(() => market.hasClaimed(currentAccount))
-        : false;
-
-      const resolver = new ethers.Contract(resolverAddress, MARKET_RESOLVER_ABI, provider);
-      const [manualResolver, feeRecipient, oracleType, resolutionRequested] = await Promise.all([
-        schedulePredictionRead(() => resolver.manualResolver()),
-        schedulePredictionRead(() => resolver.feeRecipient()),
-        schedulePredictionRead(() => resolver.oracleType()),
-        schedulePredictionRead(() => resolver.resolutionRequested())
-      ]);
-
-      return {
-        address,
-        question,
-        description,
-        resolvesAt,
-        resolved,
-        finalized,
-        winningOutcome: Number(winningOutcome),
-        creator,
-        collateralPool: 0n,
-        outcomeLabels,
-        totalShares: outcomeIndexes.map(() => 0n),
-        userShares: outcomeIndexes.map(() => 0n),
-        hasClaimed,
-        poolBalance: 0n,
-        meta: {
-          market: meta.market,
-          amm: meta.amm,
-          pool: meta.pool,
-          resolver: meta.resolver,
-          creator: meta.creator,
-          createdAt: meta.createdAt,
-          oracleType: Number(meta.oracleType)
-        },
-        resolver: {
-          address: resolverAddress,
-          manualResolver,
-          feeRecipient,
-          oracleType: Number(oracleType),
-          resolutionRequested
-        }
-      };
-    })
+  // Use allSettled so a single broken market doesn't crash the whole page
+  const marketResults = await Promise.allSettled(
+    marketAddresses.map((address) => loadMarketDetails(address, factory, provider, currentAccount))
   );
+  const markets = marketResults
+    .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof loadMarketDetails>>> => r.status === "fulfilled")
+    .map((r) => r.value);
+
+  if (marketResults.some((r) => r.status === "rejected")) {
+    const failures = marketResults.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+    console.error("[casfin-client] Some markets failed to load:", failures.map((r) => r.reason));
+  }
 
   return {
     factoryOwner,
     totalMarkets,
     approvedCreator,
+    // feeConfig() returns positional tuple — ABI has no field names
     feeConfig: {
-      platformFeeBps: Number(feeConfig.platformFeeBps),
-      lpFeeBps: Number(feeConfig.lpFeeBps),
-      resolverFeeBps: Number(feeConfig.resolverFeeBps)
+      platformFeeBps: Number(feeConfigRaw[0]),
+      lpFeeBps: Number(feeConfigRaw[1]),
+      resolverFeeBps: Number(feeConfigRaw[2])
     },
     markets
   };

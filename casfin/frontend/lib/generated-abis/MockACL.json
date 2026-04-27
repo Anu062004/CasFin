@@ -1,0 +1,7 @@
+[
+  "function exists() pure returns (bool)",
+  "function isAllowed(uint256,address) view returns (bool)",
+  "function isPubliclyAllowed(uint256) view returns (bool)",
+  "function setAllowed(uint256,address,bool)",
+  "function setPublicAllowed(uint256,bool)"
+]

@@ -97,11 +97,17 @@ export default function PredictionFactory({
         />
       </div>
 
+      {!predictionState.approvedCreator && (
+        <p className="subtle-copy" style={{ color: "var(--color-warning, #f59e0b)", marginBottom: "0.5rem" }}>
+          Your wallet is not approved to create markets. Ask the factory owner to whitelist your address.
+        </p>
+      )}
+
       <div className="factory-footer">
         <p className="subtle-copy">
           {predictionState.approvedCreator
             ? "This wallet can create markets from the live factory."
-            : "This wallet is not approved by the factory owner yet."}
+            : ""}
         </p>
 
         <GlassButton
@@ -122,6 +128,9 @@ export default function PredictionFactory({
               const resolvesAt = Math.floor(new Date(createMarketForm.resolveAt).getTime() / 1000);
               if (!Number.isFinite(resolvesAt) || resolvesAt <= 0) {
                 throw new Error("Choose a valid resolve time.");
+              }
+              if (resolvesAt <= Math.floor(Date.now() / 1000) + 3600) {
+                throw new Error("Resolve time must be at least 1 hour from now.");
               }
 
               const initialLiquidity = parseRequiredEth(createMarketForm.initialLiquidity, "Initial liquidity");
