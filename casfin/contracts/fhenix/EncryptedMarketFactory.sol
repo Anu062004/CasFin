@@ -26,8 +26,8 @@ contract EncryptedMarketFactory is Ownable, Pausable {
     }
 
     uint256 public constant MAX_TOTAL_FEE_BPS = 1_000;
-    uint256 public constant DEFAULT_AMM_SPREAD_BPS = 150;
-    uint256 public constant DEFAULT_AMM_VIRTUAL_LIQUIDITY_FLOOR = 1e15;
+    uint256 public constant DEFAULT_AMM_SPREAD_BPS = 400;
+    uint256 public constant DEFAULT_AMM_VIRTUAL_LIQUIDITY_FLOOR = 1e17;
 
     address public treasury;
     FeeDistributor public feeDistributor;
