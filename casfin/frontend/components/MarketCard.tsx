@@ -236,7 +236,6 @@ export default function MarketCard({
                   return resolver.requestResolution();
                 })
               }
-              variant="secondary"
             >
               Request Resolution
             </GlassButton>
@@ -263,7 +262,6 @@ export default function MarketCard({
                   return predictionMarket.finalizeMarket();
                 })
               }
-              variant="secondary"
             >
               Finalize
             </GlassButton>
@@ -290,7 +288,6 @@ export default function MarketCard({
                   return predictionMarket.finalizeClaim();
                 })
               }
-              variant="secondary"
             >
               Finalize Claim
             </GlassButton>
