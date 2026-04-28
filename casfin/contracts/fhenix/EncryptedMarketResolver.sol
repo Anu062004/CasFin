@@ -15,6 +15,7 @@ contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
     address public oracleAddress;
     address public feeRecipient;
     address public manualResolver;
+    address public factoryOwner;
     PredictionTypes.OracleType public oracleType;
     bytes public oracleParams;
     bool public resolutionRequested;
@@ -39,7 +40,8 @@ contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
         address feeRecipientAddress,
         PredictionTypes.OracleType resolverType,
         address externalOracle,
-        bytes memory params
+        bytes memory params,
+        address factoryOwnerAddress
     ) external initializer {
         require(marketAddress != address(0), "ZERO_MARKET");
         require(feeRecipientAddress != address(0), "ZERO_FEE_RECIPIENT");
@@ -51,6 +53,7 @@ contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
         oracleType = resolverType;
         oracleAddress = externalOracle;
         oracleParams = params;
+        factoryOwner = factoryOwnerAddress;
     }
 
     function requestResolution() external whenNotPaused {
@@ -69,13 +72,19 @@ contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
 
     function resolveManual(uint8 winningOutcome) external whenNotPaused {
         require(oracleType == PredictionTypes.OracleType.Manual, "NOT_MANUAL");
-        require(msg.sender == manualResolver || msg.sender == owner, "NOT_AUTHORIZED");
+        require(
+            msg.sender == manualResolver || msg.sender == owner || msg.sender == factoryOwner,
+            "NOT_AUTHORIZED"
+        );
         _submitResolution(winningOutcome);
         emit ManualResolutionSubmitted(winningOutcome);
     }
 
     function allowPublicResolvedOutcome() external whenNotPaused {
-        require(msg.sender == manualResolver || msg.sender == owner, "NOT_AUTHORIZED");
+        require(
+            msg.sender == manualResolver || msg.sender == owner || msg.sender == factoryOwner,
+            "NOT_AUTHORIZED"
+        );
         FHE.allowPublic(encryptedResolvedOutcome);
         publicOutcomeAllowed = true;
         emit ResolvedOutcomeMadePublic(EncryptedPredictionMarket(market).winningOutcome());

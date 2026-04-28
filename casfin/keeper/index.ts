@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 import type { ContractTransactionResponse } from "ethers";
+import { trySportsResolve } from "./sports-resolver";
 
 const ethers = require("ethers") as typeof import("ethers");
 const IoRedis = require("ioredis");
@@ -12,7 +13,8 @@ const encryptedCoinFlipAbi = require("../frontend/lib/generated-abis/EncryptedCo
 const encryptedDiceAbi = require("../frontend/lib/generated-abis/EncryptedDiceGame.json") as readonly string[];
 const encryptedCrashAbi = require("../frontend/lib/generated-abis/EncryptedCrashGame.json") as readonly string[];
 const encryptedVaultAbi = require("../frontend/lib/generated-abis/EncryptedCasinoVault.json") as readonly string[];
-const marketFactoryAbi = require("../frontend/lib/generated-abis/MarketFactory.json") as readonly string[];
+const encryptedPredictionMarketAbi = require("../frontend/lib/generated-abis/EncryptedPredictionMarket.json") as readonly string[];
+const marketFactoryAbi = require("../frontend/lib/generated-abis/EncryptedMarketFactory.json") as readonly string[];
 const predictionMarketAbi = require("../frontend/lib/generated-abis/PredictionMarket.json") as readonly string[];
 const marketResolverAbi = require("../frontend/lib/generated-abis/MarketResolver.json") as readonly string[];
 const feeDistributorAbi = require("../frontend/lib/generated-abis/FeeDistributor.json") as readonly string[];
@@ -88,6 +90,7 @@ interface PredictionMarketState {
   resolvedAt: number;
   finalized: boolean;
   oracleType: number | null;
+  question: string;
   expiryLogged: boolean;
   feeDistributionLogged: boolean;
 }
@@ -671,7 +674,10 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
 }
 
 async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
-  const factory = toDynamicContract(process.env.MARKET_FACTORY_ADDRESS, marketFactoryAbi);
+  const factory = toDynamicContract(
+    process.env.MARKET_FACTORY_ADDRESS || process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS,
+    marketFactoryAbi
+  );
   const activeMarkets = new Map<string, PredictionMarketState>();
   let nextFactoryIndex = 0;
   let syncInFlight: Promise<void> | null = null;
@@ -703,6 +709,16 @@ async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
       }
     }
 
+    let question = "";
+    const encMarket = toDynamicContract(marketAddress, encryptedPredictionMarketAbi);
+    if (encMarket) {
+      try {
+        question = String(await encMarket.question());
+      } catch {
+        // non-encrypted markets or older deployments may not have question()
+      }
+    }
+
     return {
       address: marketAddress,
       resolverAddress,
@@ -713,6 +729,7 @@ async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
       resolvedAt: Number(resolvedAtRaw),
       finalized,
       oracleType,
+      question,
       expiryLogged: false,
       feeDistributionLogged: false
     };
@@ -834,6 +851,24 @@ async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
         const resolver = toDynamicContract(state.resolverAddress, marketResolverAbi);
         if (!resolver) {
           throw new Error(`Missing resolver for market ${state.address}`);
+        }
+
+        // For Manual oracle sports markets, attempt direct resolution via BallDontLie API.
+        if (state.oracleType === 0 && state.question) {
+          try {
+            const resolved = await trySportsResolve(
+              state.address,
+              state.resolverAddress,
+              state.question,
+              signer
+            );
+            if (resolved) {
+              state.resolved = true;
+              return;
+            }
+          } catch (err) {
+            console.warn(`[Sports] resolution attempt failed for ${state.address}: ${err}`);
+          }
         }
 
         const resolutionRequested = (await resolver.resolutionRequested().catch(() => false)) as boolean;
