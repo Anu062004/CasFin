@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Inter, JetBrains_Mono, DM_Serif_Display } from "next/font/google";
+import FheProgressBar from "@/components/FheProgressBar";
 import NavbarPrivy from "@/components/NavbarPrivy";
 import PrivyAppProvider from "@/components/PrivyAppProvider";
 import StatusBar from "@/components/StatusBar";
@@ -42,6 +43,7 @@ export default function RootLayout({ children }) {
               <VideoBackground />
               <NavbarPrivy />
               <StatusBar />
+              <FheProgressBar />
               <div className="app-chrome">{children}</div>
             </WalletProvider>
           </CofheProvider>

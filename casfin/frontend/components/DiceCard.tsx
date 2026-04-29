@@ -15,7 +15,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
   const [resolveBetId, setResolveBetId] = useState("");
   const [isRolling, setIsRolling] = useState(false);
   const [rolledFace, setRolledFace] = useState(null);
-  const { encryptUint128, encryptUint8, connected: cofheConnected } = useCofhe();
+  const { encryptUint128, encryptUint8, connected: cofheConnected, sessionInitializing } = useCofhe();
   const latestBet = casinoState.dice.latestBet;
   const latestBetId = casinoState.dice.nextBetId > 0n ? (casinoState.dice.nextBetId - 1n).toString() : "0";
   const usesEncryptedGame = casinoState.isFhe;
@@ -115,7 +115,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
         onClick={handleRoll}
         type="button"
       >
-        {isRollPending ? "ROLLING..." : !cofheConnected ? "CONNECT WALLET" : "ROLL DICE"}
+        {isRollPending ? (sessionInitializing ? "ENCRYPTING..." : "ROLLING...") : !cofheConnected ? "CONNECT WALLET" : "ROLL DICE"}
       </button>
 
       <div className="resolve-row">

@@ -13,6 +13,14 @@ const ARBITRUM_SEPOLIA_CHAIN = arbSepolia;
 
 const CofheContext = createContext(null);
 
+const WARMUP_PROGRESS: Record<string, number> = {
+  initTfhe: 20,
+  fetchKeys: 40,
+  pack: 60,
+  prove: 80,
+  verify: 100
+};
+
 function toBigIntValue(value) {
   if (typeof value === "bigint") {
     return value;
@@ -31,6 +39,8 @@ export function CofheProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionInitializing, setSessionInitializing] = useState(false);
+  const [sessionStep, setSessionStep] = useState<string | null>(null);
+  const [sessionProgress, setSessionProgress] = useState(0);
   const sessionReadyRef = useRef(false);
   const warmupPromiseRef = useRef<Promise<unknown> | null>(null);
   const connectPromiseRef = useRef<Promise<unknown> | null>(null);
@@ -80,18 +90,33 @@ export function CofheProvider({ children }) {
       warmupPromiseRef.current = (async () => {
         const expectedAccount = connectedAccountRef.current;
         setSessionInitializing(true);
+        setSessionProgress(0);
         await initializeTfheRuntime();
 
-        await disableWorkerIfAvailable(clientRef.current.encryptInputs([Encryptable.bool(false)])).execute();
+        await clientRef.current.encryptInputs([Encryptable.bool(false)])
+          .onStep((step, ctx) => {
+            setSessionStep(step as string);
+            const target = WARMUP_PROGRESS[step as string] ?? 0;
+            if (ctx?.isEnd) {
+              setSessionProgress(target);
+            } else if (ctx?.isStart) {
+              setSessionProgress(Math.max(0, target - 15));
+            }
+          })
+          .execute();
 
         if (clientRef.current?.connected && connectedAccountRef.current === expectedAccount) {
           setSessionReady(true);
         }
 
+        setSessionStep(null);
+        setSessionProgress(100);
         return clientRef.current;
       })()
         .catch((error) => {
           setSessionReady(false);
+          setSessionStep(null);
+          setSessionProgress(0);
           throw error;
         })
         .finally(() => {
@@ -104,14 +129,6 @@ export function CofheProvider({ children }) {
     return clientRef.current;
   }, []);
 
-  const scheduleSessionWarmup = useCallback(() => {
-    window.setTimeout(() => {
-      ensureSessionReady().catch(() => {
-        // Warmup failed silently — the first encrypt call will retry.
-      });
-    }, 100);
-  }, [ensureSessionReady]);
-
   const connect = useCallback(async (ethersProvider, ethersSigner) => {
     if (!clientRef.current) {
       throw new Error("CoFHE client not initialized.");
@@ -122,7 +139,6 @@ export function CofheProvider({ children }) {
 
     if (clientRef.current.connected && currentAccount && currentAccount.toLowerCase() === nextAccount.toLowerCase()) {
       setConnected(true);
-      scheduleSessionWarmup();
       return clientRef.current;
     }
 
@@ -133,7 +149,6 @@ export function CofheProvider({ children }) {
         await clientRef.current.connect(publicClient, walletClient);
         connectedAccountRef.current = nextAccount;
         setConnected(Boolean(clientRef.current.connected));
-        scheduleSessionWarmup();
         return clientRef.current;
       })().finally(() => {
         connectPromiseRef.current = null;
@@ -142,7 +157,7 @@ export function CofheProvider({ children }) {
 
     await connectPromiseRef.current;
     return clientRef.current;
-  }, [scheduleSessionWarmup]);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (clientRef.current?.connected) {
@@ -153,6 +168,8 @@ export function CofheProvider({ children }) {
     connectPromiseRef.current = null;
     setSessionReady(false);
     setSessionInitializing(false);
+    setSessionStep(null);
+    setSessionProgress(0);
     setConnected(false);
   }, []);
 
@@ -209,6 +226,8 @@ export function CofheProvider({ children }) {
       ready,
       sessionReady,
       sessionInitializing,
+      sessionStep,
+      sessionProgress,
       connect,
       ensureSessionReady,
       disconnect,
@@ -226,6 +245,8 @@ export function CofheProvider({ children }) {
       ready,
       sessionReady,
       sessionInitializing,
+      sessionStep,
+      sessionProgress,
       connect,
       ensureSessionReady,
       disconnect,

@@ -5575,6 +5575,93 @@ button.landing-feature-card:hover {
   color: var(--accent) !important;
 }
 
+/* ── FHE encryption progress bar ── */
+@keyframes fheSlideUp {
+  from { opacity: 0; transform: translateY(100%); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fheSlideDown {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(100%); }
+}
+
+@keyframes fhePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.fhe-progress-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9000;
+  padding: 14px 24px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  animation: fheSlideUp 280ms ease forwards;
+}
+
+.fhe-progress-bar.is-exiting {
+  animation: fheSlideDown 500ms ease forwards;
+}
+
+.fhe-progress-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.fhe-progress-icon {
+  font-size: 1.05rem;
+  flex-shrink: 0;
+  animation: fhePulse 1.4s ease-in-out infinite;
+}
+
+.fhe-progress-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fhe-progress-label {
+  font-family: var(--font-mono-terminal);
+  font-size: 0.76rem;
+  color: var(--green-soft);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fhe-progress-track {
+  height: 3px;
+  background: rgba(117, 255, 177, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.fhe-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--green-deep), var(--green));
+  border-radius: 999px;
+  transition: width 300ms ease;
+}
+
+.fhe-progress-pct {
+  font-family: var(--font-mono-terminal);
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  min-width: 34px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 /* ── vault-hero flex alignment ── */
 .vault-hero {
   align-items: center;

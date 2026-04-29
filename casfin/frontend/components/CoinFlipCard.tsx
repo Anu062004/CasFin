@@ -12,7 +12,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
   const [amount, setAmount] = useState("0.01");
   const [guessHeads, setGuessHeads] = useState(true);
   const [isFlipping, setIsFlipping] = useState(false);
-  const { encryptUint128, encryptBool, connected: cofheConnected } = useCofhe();
+  const { encryptUint128, encryptBool, connected: cofheConnected, sessionInitializing } = useCofhe();
   const latestBet = casinoState.coin.latestBet;
   const resolveBetId = "";
   const setResolveBetId = (_value?: string) => {};
@@ -115,7 +115,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
         onClick={handleFlip}
         type="button"
       >
-        {isFlipPending ? "FLIPPING..." : !cofheConnected ? "CONNECT WALLET" : "FLIP COIN"}
+        {isFlipPending ? (sessionInitializing ? "ENCRYPTING..." : "FLIPPING...") : !cofheConnected ? "CONNECT WALLET" : "FLIP COIN"}
       </button>
 
       <div className="resolve-row">

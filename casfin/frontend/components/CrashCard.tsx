@@ -21,7 +21,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
   const canvasRef = useRef(null);
   const pointsRef = useRef([]);
   const frameRef = useRef(null);
-  const { encryptUint128, connected: cofheConnected } = useCofhe();
+  const { encryptUint128, connected: cofheConnected, sessionInitializing } = useCofhe();
 
   const latestRound = casinoState.crash.latestRound;
   const roundId = latestRound?.id?.toString() || "—";
@@ -144,7 +144,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
             }
             type="button"
           >
-            {isBetPending ? "PLACING..." : !cofheConnected ? "CONNECT WALLET" : "PLACE BET"}
+            {isBetPending ? (sessionInitializing ? "ENCRYPTING..." : "PLACING...") : !cofheConnected ? "CONNECT WALLET" : "PLACE BET"}
           </button>
         </div>
 
