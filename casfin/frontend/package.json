@@ -14,7 +14,7 @@
     "db:backfill": "tsx scripts/indexer.ts --backfill"
   },
   "dependencies": {
-    "@cofhe/sdk": "^0.4.0",
+    "@cofhe/sdk": "^0.5.1",
     "@prisma/client": "^6.19.3",
     "@privy-io/react-auth": "^3.19.1",
     "@rainbow-me/rainbowkit": "^2.2.10",
