@@ -142,7 +142,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const [chainId, setChainId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState("");
   // Session key state
-  const sessionWalletRef = useRef<ethers.Wallet | null>(null);
+  const sessionWalletRef = useRef<ethers.HDNodeWallet | ethers.Wallet | null>(null);
   const sessionExpiryRef = useRef<number>(0);
   const sessionPlayerRef = useRef<string>("");
   const [sessionActive, setSessionActive] = useState(false);

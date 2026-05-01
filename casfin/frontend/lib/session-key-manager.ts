@@ -9,7 +9,7 @@ export interface SessionKeyState {
 
 const STORAGE_KEY = "casfin_session_key_v1";
 
-export function generateSessionWallet(): ethers.Wallet {
+export function generateSessionWallet(): ethers.HDNodeWallet {
   return ethers.Wallet.createRandom();
 }
 
