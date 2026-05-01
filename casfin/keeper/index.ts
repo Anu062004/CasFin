@@ -33,7 +33,11 @@ const EVENT_BACKFILL_BATCH_SIZE = Math.max(1, getEnvNumber("KEEPER_EVENT_BATCH_B
 const REDIS_URL = process.env.REDIS_URL || "";
 const BET_EVENTS_CHANNEL = "casfin:bets";
 
-const provider = new ethers.JsonRpcProvider(RPC_URL);
+const provider = new ethers.JsonRpcProvider(
+  RPC_URL,
+  { chainId: 421614, name: "arbitrum-sepolia" },
+  { staticNetwork: true }
+);
 const signer: SharedSigner = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
 
 let transactionQueue: Promise<void> = Promise.resolve();
@@ -511,6 +515,7 @@ async function runCasinoKeeper(
     contract: DynamicContract,
     pendingIds: Set<string>
   ) => {
+    const seenIds = label === "CoinFlip" ? seenCoinFlipIds : seenDiceIds;
     for (const id of sortNumericIds(pendingIds)) {
       try {
         const betId = BigInt(id);
@@ -521,6 +526,7 @@ async function runCasinoKeeper(
 
         if (isZeroAddress(player) || resolved) {
           pendingIds.delete(id);
+          seenIds.delete(id);
           continue;
         }
 
@@ -537,6 +543,7 @@ async function runCasinoKeeper(
           () => contract.finalizeResolution(betId)
         );
         pendingIds.delete(id);
+        seenIds.delete(id);
         console.log(`[Casino][${label}] resolved id=${id}`);
         publishBetEvent(label === "CoinFlip" ? "coinflip" : "dice", id, player, txHash);
       } catch (error) {
@@ -564,6 +571,10 @@ async function runCasinoKeeper(
 
         if (!exists) {
           pendingCrashRoundIds.delete(roundId);
+          const stalePlayers = trackedCrashPlayers.get(roundId);
+          if (stalePlayers) {
+            for (const p of stalePlayers) seenCrashBets.delete(`${roundId}:${p}`);
+          }
           trackedCrashPlayers.delete(roundId);
           continue;
         }
@@ -618,6 +629,8 @@ async function runCasinoKeeper(
 
         if (!hasOutstandingSettlement) {
           pendingCrashRoundIds.delete(roundId);
+          for (const p of players) seenCrashBets.delete(`${roundId}:${p}`);
+          trackedCrashPlayers.delete(roundId);
         }
       } catch (error) {
         if (isPendingFinalizeError(error)) {
@@ -1008,8 +1021,12 @@ async function main(): Promise<void> {
 
   if (WSS_URL) {
     console.log(`[Keeper] WSS URL configured — using push-based event subscriptions`);
-    void startResilientWssSubscriptions(WSS_URL, controller.signal, (wssProvider) => {
-      for (const fn of wssSetupFns) { fn(wssProvider); }
+    // Defer until after Promise.all schedules both keepers so their onWssSetup
+    // callbacks are registered before the first WSS connect fires setupListeners.
+    setImmediate(() => {
+      void startResilientWssSubscriptions(WSS_URL, controller.signal, (wssProvider) => {
+        for (const fn of wssSetupFns) { fn(wssProvider); }
+      });
     });
   } else {
     console.log(`[Keeper] ARBITRUM_SEPOLIA_WSS_URL not set — falling back to polling-only mode`);
