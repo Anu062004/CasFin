@@ -1,7 +1,8 @@
 require("dotenv").config();
 
-import type { ContractTransactionResponse } from "ethers";
+import type { ContractTransactionResponse, WebSocketProvider } from "ethers";
 import { trySportsResolve } from "./sports-resolver";
+import { startResilientWssSubscriptions } from "./ws-provider";
 
 const ethers = require("ethers") as typeof import("ethers");
 const IoRedis = require("ioredis");
@@ -23,6 +24,7 @@ const RPC_URL =
   process.env.ARBITRUM_SEPOLIA_RPC_URL ||
   process.env.FHENIX_RPC_URL ||
   "https://sepolia-rollup.arbitrum.io/rpc";
+const WSS_URL = process.env.ARBITRUM_SEPOLIA_WSS_URL || "";
 const PRIVATE_KEY = normalizePrivateKey(process.env.PRIVATE_KEY || process.env.FHENIX_PRIVATE_KEY || "");
 const CASINO_POLL_MS = getEnvNumber("KEEPER_POLL_MS", 5_000);
 const PREDICTION_POLL_MS = getEnvNumber("KEEPER_PREDICTION_POLL_MS", 5_000);
@@ -297,7 +299,10 @@ function oracleTypeLabel(oracleType: number | null): string {
   return oracleType === 0 ? "manual" : `oracle-${oracleType}`;
 }
 
-async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
+async function runCasinoKeeper(
+  signal: AbortSignal,
+  onWssSetup?: (fn: (provider: WebSocketProvider) => void) => void
+): Promise<void> {
   const vault = toDynamicContract(
     process.env.ENCRYPTED_CASINO_VAULT_ADDRESS ||
       process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS ||
@@ -624,21 +629,39 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
     }
   };
 
-  // Event subscriptions are best-effort (HTTP RPCs don't support eth_subscribe).
-  // Polling fallback covers all bets regardless.
-  try { coinFlip?.on("EncryptedBetPlaced", (betId: bigint, player: string) => detectCoinFlipBet(betId, player, "event")); } catch { /* polling handles this */ }
-  try { dice?.on("EncryptedDiceBetPlaced", (betId: bigint, player: string) => detectDiceBet(betId, player, "event")); } catch { /* polling handles this */ }
-  try { crash?.on("CrashBetPlaced", (roundId: bigint, player: string) => detectCrashBet(roundId, player, "event")); } catch { /* polling handles this */ }
+  // Register WSS listener setup for push-based bet detection.
+  // Falls back to polling when WSS is not configured or disconnected.
+  if (onWssSetup) {
+    const coinFlipAddr = String(coinFlip?.target ?? "");
+    const diceAddr = String(dice?.target ?? "");
+    const crashAddr = String(crash?.target ?? "");
+    let wssContracts: import("ethers").Contract[] = [];
 
-  signal.addEventListener(
-    "abort",
-    () => {
-      coinFlip?.removeAllListeners();
-      dice?.removeAllListeners();
-      crash?.removeAllListeners();
-    },
-    { once: true }
-  );
+    onWssSetup((wssProvider) => {
+      for (const c of wssContracts) { c.removeAllListeners(); }
+      wssContracts = [];
+
+      if (!isZeroAddress(coinFlipAddr)) {
+        const c = new ethers.Contract(coinFlipAddr, encryptedCoinFlipAbi, wssProvider) as DynamicContract;
+        c.on("EncryptedBetPlaced", (betId: bigint, player: string) => detectCoinFlipBet(betId, player, "wss"));
+        wssContracts.push(c);
+      }
+      if (!isZeroAddress(diceAddr)) {
+        const c = new ethers.Contract(diceAddr, encryptedDiceAbi, wssProvider) as DynamicContract;
+        c.on("EncryptedDiceBetPlaced", (betId: bigint, player: string) => detectDiceBet(betId, player, "wss"));
+        wssContracts.push(c);
+      }
+      if (!isZeroAddress(crashAddr)) {
+        const c = new ethers.Contract(crashAddr, encryptedCrashAbi, wssProvider) as DynamicContract;
+        c.on("CrashBetPlaced", (roundId: bigint, player: string) => detectCrashBet(roundId, player, "wss"));
+        wssContracts.push(c);
+      }
+    });
+
+    signal.addEventListener("abort", () => {
+      for (const c of wssContracts) { c.removeAllListeners(); }
+    }, { once: true });
+  }
 
   console.log("[Casino Keeper] started");
   console.log(`Vault: ${vault?.target ?? "not configured"}`);
@@ -673,7 +696,10 @@ async function runCasinoKeeper(signal: AbortSignal): Promise<void> {
   });
 }
 
-async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
+async function runPredictionKeeper(
+  signal: AbortSignal,
+  onWssSetup?: (fn: (provider: WebSocketProvider) => void) => void
+): Promise<void> {
   const factory = toDynamicContract(
     process.env.MARKET_FACTORY_ADDRESS || process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS,
     marketFactoryAbi
@@ -906,15 +932,24 @@ async function runPredictionKeeper(signal: AbortSignal): Promise<void> {
     }
   };
 
-  try { factory?.on("MarketCreated", () => { void syncFactoryMarkets(); }); } catch { /* polling handles this */ }
+  if (onWssSetup) {
+    const factoryAddr = String(factory?.target ?? "");
+    let wssFactory: import("ethers").Contract | null = null;
 
-  signal.addEventListener(
-    "abort",
-    () => {
-      factory?.removeAllListeners();
-    },
-    { once: true }
-  );
+    onWssSetup((wssProvider) => {
+      wssFactory?.removeAllListeners();
+      wssFactory = null;
+
+      if (!isZeroAddress(factoryAddr)) {
+        wssFactory = new ethers.Contract(factoryAddr, marketFactoryAbi, wssProvider) as DynamicContract;
+        wssFactory.on("MarketCreated", () => { void syncFactoryMarkets(); });
+      }
+    });
+
+    signal.addEventListener("abort", () => {
+      wssFactory?.removeAllListeners();
+    }, { once: true });
+  }
 
   console.log("[Prediction Keeper] started");
   console.log(`MarketFactory: ${factory?.target ?? "not configured"}`);
@@ -966,7 +1001,24 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => stop("SIGTERM"));
 
   await buildSharedRuntime();
-  await Promise.all([runCasinoKeeper(controller.signal), runPredictionKeeper(controller.signal)]);
+
+  // Collect WSS setup functions from each keeper; called on every WSS (re)connect.
+  const wssSetupFns: Array<(provider: WebSocketProvider) => void> = [];
+  const onWssSetup = (fn: (provider: WebSocketProvider) => void) => wssSetupFns.push(fn);
+
+  if (WSS_URL) {
+    console.log(`[Keeper] WSS URL configured — using push-based event subscriptions`);
+    void startResilientWssSubscriptions(WSS_URL, controller.signal, (wssProvider) => {
+      for (const fn of wssSetupFns) { fn(wssProvider); }
+    });
+  } else {
+    console.log(`[Keeper] ARBITRUM_SEPOLIA_WSS_URL not set — falling back to polling-only mode`);
+  }
+
+  await Promise.all([
+    runCasinoKeeper(controller.signal, onWssSetup),
+    runPredictionKeeper(controller.signal, onWssSetup)
+  ]);
 }
 
 main().catch((error) => {

@@ -11,10 +11,10 @@ export const FHE_CASFIN_CONFIG = {
   chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 421614),
   rpcUrl: CASFIN_CONFIG.fheRpcUrl,
   addresses: {
-    encryptedCasinoVault: process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS || ethers.ZeroAddress,
-    encryptedCoinFlip: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || ethers.ZeroAddress,
-    encryptedDiceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || ethers.ZeroAddress,
-    encryptedCrashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || ethers.ZeroAddress
+    encryptedCasinoVault: process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS || "0xA6406C70FaF7E86B9B8b1cdbC21F7148f6d3E175",
+    encryptedCoinFlip: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || "0x084408DC6278f599C9A41A0CF594852afd26b662",
+    encryptedDiceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || "0xDfC7da5259aEe8BaEd8A07449FD771ce6683896E",
+    encryptedCrashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || "0xd920Ca5F942Cf7EfE4E389E8F98830d4664de668"
   }
 };
 
