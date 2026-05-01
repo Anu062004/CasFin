@@ -100,11 +100,12 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         FHE.allow(requestedAmount, address(vault));
         euint8 rolledHandle = GameRandomnessLib.randomDiceRoll();
 
-        euint128 lockedHandle = vault.reserveFunds(msg.sender, requestedAmount);
+        address player = vault.resolvePlayer(msg.sender);
+        euint128 lockedHandle = vault.reserveFunds(player, requestedAmount);
 
         betId = nextBetId++;
         bets[betId] = EncryptedBet({
-            player: msg.sender,
+            player: player,
             lockedHandle: lockedHandle,
             encGuess: safeGuess,
             rolledHandle: rolledHandle,

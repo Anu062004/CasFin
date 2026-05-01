@@ -84,11 +84,12 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         FHE.allowThis(encryptedGuess);
         ebool outcomeHeads = GameRandomnessLib.randomCoinFlip();
 
-        euint128 lockedHandle = vault.reserveFunds(msg.sender, requestedAmount);
+        address player = vault.resolvePlayer(msg.sender);
+        euint128 lockedHandle = vault.reserveFunds(player, requestedAmount);
 
         betId = nextBetId++;
         bets[betId] = EncryptedBet({
-            player: msg.sender,
+            player: player,
             lockedHandle: lockedHandle,
             encGuessHeads: encryptedGuess,
             outcomeHeads: outcomeHeads,

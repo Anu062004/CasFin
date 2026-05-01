@@ -21,6 +21,15 @@ import {
 import { ensureUserExists, fetchUserProfile } from "@/lib/user-client";
 import type { UserProfile } from "@/lib/user-client";
 import { useBetEvents } from "@/lib/useBetEvents";
+import {
+  clearSessionKey,
+  generateSessionWallet,
+  getSessionWallet,
+  isSessionValid,
+  persistSessionKey,
+  restoreSessionKey
+} from "@/lib/session-key-manager";
+import EncryptedCasinoVaultAbi from "@/lib/generated-abis/EncryptedCasinoVault.json";
 import type {
   LastTransactionState,
   StatusTone,
@@ -123,13 +132,22 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     connected: cofheConnected,
     sessionReady: cofheSessionReady,
     sessionInitializing: cofheSessionInitializing,
-    ensureSessionReady: ensureCofheSessionReady
+    ensureSessionReady: ensureCofheSessionReady,
+    switchEncryptToSessionKey,
+    switchEncryptToRealWallet
   } = useCofhe();
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [account, setAccount] = useState("");
   const [walletBalance, setWalletBalance] = useState(0n);
   const [chainId, setChainId] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState("");
+  // Session key state
+  const sessionWalletRef = useRef<ethers.Wallet | null>(null);
+  const sessionExpiryRef = useRef<number>(0);
+  const sessionPlayerRef = useRef<string>("");
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionExpiry, setSessionExpiry] = useState<number | null>(null);
+  const [sessionAddress, setSessionAddress] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState(`Read-only data is live from ${CASFIN_CONFIG.chainName}.`);
   const [statusTone, setStatusTone] = useState<StatusTone>("info");
   const [statusEventId, setStatusEventId] = useState(0);
@@ -843,6 +861,127 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     applyProtocolLoadResults(casinoResult, predictionResult);
   }
 
+  const SESSION_GAS_FUND = ethers.parseEther("0.005");
+  const SESSION_MAX_DURATION_SECONDS = 86400;
+
+  async function startSession(durationMinutes: number = 60): Promise<void> {
+    if (!account) throw new Error("Connect a wallet before starting a session.");
+    if (sessionActive) throw new Error("A session is already active.");
+
+    const sessionWallet = generateSessionWallet();
+    const durationSeconds = Math.min(durationMinutes * 60, SESSION_MAX_DURATION_SECONDS);
+    const provider = activeProviderRef.current || (await getActiveWalletProvider());
+    if (!provider) throw new Error("No wallet provider available.");
+
+    pushStatus("Step 1/2: Authorizing session key on-chain. Approve in your wallet.", "info");
+
+    // Step 1: authorize session key on-chain (1 wallet popup)
+    const authOk = await runTransaction("Authorize Session Key", async (signer) => {
+      const vault = new ethers.Contract(
+        CASFIN_CONFIG.addresses.casinoVault,
+        EncryptedCasinoVaultAbi,
+        signer
+      );
+      return vault.authorizeSessionKey(sessionWallet.address, durationSeconds);
+    });
+    if (!authOk) throw new Error("Session key authorization failed.");
+
+    pushStatus("Step 2/2: Funding session key for gas. Approve in your wallet.", "info");
+
+    // Step 2: fund session key with gas ETH (1 wallet popup)
+    const fundOk = await runTransaction("Fund Session Key", async (signer) => {
+      return signer.sendTransaction({
+        to: sessionWallet.address,
+        value: SESSION_GAS_FUND
+      });
+    });
+    if (!fundOk) throw new Error("Session key gas funding failed.");
+
+    // Step 3: connect CoFHE encrypt client to session key signer
+    const sessionProvider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl, {
+      chainId: CASFIN_CONFIG.chainId,
+      name: "arbitrum-sepolia"
+    });
+    const connectedWallet = sessionWallet.connect(sessionProvider);
+    await switchEncryptToSessionKey(connectedWallet, sessionProvider);
+
+    // Step 4: persist and update state
+    const expiresAt = Date.now() + durationSeconds * 1000;
+    persistSessionKey({
+      privateKey: sessionWallet.privateKey,
+      address: sessionWallet.address,
+      playerAddress: account,
+      expiresAt
+    });
+    sessionWalletRef.current = connectedWallet;
+    sessionExpiryRef.current = expiresAt;
+    sessionPlayerRef.current = account;
+    setSessionActive(true);
+    setSessionExpiry(expiresAt);
+    setSessionAddress(sessionWallet.address);
+    pushStatus("Session started. Bets will now sign silently — no wallet popups needed.", "success");
+  }
+
+  async function endSession(): Promise<void> {
+    const sessionWallet = sessionWalletRef.current;
+    if (!sessionWallet) return;
+
+    // Revoke on-chain using the session key itself (no popup needed)
+    try {
+      const vault = new ethers.Contract(
+        CASFIN_CONFIG.addresses.casinoVault,
+        EncryptedCasinoVaultAbi,
+        sessionWallet
+      );
+      const tx = await vault.revokeSessionKey(sessionWallet.address, {
+        gasLimit: 80_000n
+      });
+      await tx.wait();
+    } catch (e) {
+      console.warn("[SessionKey] On-chain revoke failed (session may have expired):", e);
+    }
+
+    // Sweep remaining gas ETH back to the real wallet
+    try {
+      const balance = await sessionWallet.provider!.getBalance(sessionWallet.address);
+      const feeData = await sessionWallet.provider!.getFeeData();
+      const gasPrice = feeData.gasPrice ?? 1_000_000_000n;
+      const gasCost = 21_000n * gasPrice;
+      if (balance > gasCost + 1n) {
+        const tx = await sessionWallet.sendTransaction({
+          to: account,
+          value: balance - gasCost,
+          gasLimit: 21_000n
+        });
+        await tx.wait();
+      }
+    } catch (e) {
+      console.warn("[SessionKey] Gas sweep failed:", e);
+    }
+
+    // Switch CoFHE encrypt client back to real wallet
+    try {
+      const provider = activeProviderRef.current;
+      if (provider) {
+        const browserProvider = new ethers.BrowserProvider(provider);
+        const signer = await browserProvider.getSigner(account);
+        await switchEncryptToRealWallet(browserProvider, signer);
+      }
+    } catch (e) {
+      console.warn("[SessionKey] Failed to restore CoFHE encrypt client:", e);
+    }
+
+    // Clear all session state
+    sessionWalletRef.current = null;
+    sessionExpiryRef.current = 0;
+    sessionPlayerRef.current = "";
+    setSessionActive(false);
+    setSessionExpiry(null);
+    setSessionAddress(null);
+    clearSessionKey();
+    pushStatus("Session ended. Wallet required for future transactions.", "info");
+  }
+
   async function runTransaction(label, handler): Promise<boolean> {
     if (!activeWalletRef.current) {
       pushStatus("Connect a wallet before sending transactions.", "warning");
@@ -868,6 +1007,44 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       }
 
       await ensureWalletNetworkConfig(provider);
+
+      // Check if a valid session key is active for this account
+      const isSessionKeyActive =
+        sessionWalletRef.current !== null &&
+        Date.now() < sessionExpiryRef.current &&
+        sessionPlayerRef.current.toLowerCase() === nextAccount.toLowerCase();
+
+      if (isSessionKeyActive) {
+        // Session key path — no wallet popup
+        setPendingAction(label);
+        pushStatus(`${label} signing silently via session key.`, "info");
+        const sessionSigner = sessionWalletRef.current!;
+        const transaction = await handler(
+          new Proxy(sessionSigner, {
+            get(target, property, receiver) {
+              if (property === "sendTransaction") {
+                return async (txRequest) => {
+                  const to = (txRequest.to || "").toLowerCase();
+                  const gasLimit = ENCRYPTED_WRITE_TARGETS.has(to)
+                    ? ENCRYPTED_WRITE_GAS_LIMIT
+                    : DEFAULT_WRITE_GAS_LIMIT;
+                  return target.sendTransaction({ ...txRequest, gasLimit });
+                };
+              }
+              const value = Reflect.get(target, property, receiver);
+              return typeof value === "function" ? value.bind(target) : value;
+            }
+          })
+        );
+        setLastTransaction({ label, hash: transaction.hash, status: "submitted", timestamp: Date.now() });
+        pushStatus(`${label} submitted to ${CASFIN_CONFIG.chainName}.`, "info");
+        await transaction.wait();
+        setLastTransaction({ label, hash: transaction.hash, status: "confirmed", timestamp: Date.now() });
+        pushStatus(`${label} confirmed.`, "success");
+        await loadProtocolState(nextAccount);
+        return true;
+      }
+
       await ensureWalletBalance(provider, nextAccount);
       await ensureEncryptedSession(nextAccount);
 
@@ -1033,6 +1210,60 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
   useBetEvents(handleBetResolved, { enabled: true });
 
+  // Restore session key from sessionStorage on mount (handles page reload within same tab)
+  useEffect(() => {
+    const stored = restoreSessionKey();
+    if (!stored || !isSessionValid(stored)) return;
+
+    const sessionProvider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl, {
+      chainId: CASFIN_CONFIG.chainId,
+      name: "arbitrum-sepolia"
+    });
+    const wallet = getSessionWallet(stored, sessionProvider);
+    sessionWalletRef.current = wallet;
+    sessionExpiryRef.current = stored.expiresAt;
+    sessionPlayerRef.current = stored.playerAddress;
+    setSessionActive(true);
+    setSessionExpiry(stored.expiresAt);
+    setSessionAddress(stored.address);
+
+    // Re-attach CoFHE encrypt client to the restored session key
+    switchEncryptToSessionKey(wallet, sessionProvider).catch((e) => {
+      console.warn("[SessionKey] Failed to restore CoFHE encrypt client on mount:", e);
+    });
+  // Only run once on mount; switchEncryptToSessionKey is stable
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When CoFHE becomes ready, ensure the encrypt client is attached to the session key (if active).
+  // This handles the page-reload case where switchEncryptToSessionKey ran before CoFHE was ready.
+  useEffect(() => {
+    if (!cofheReady || !sessionActive || !sessionWalletRef.current) return;
+    const wallet = sessionWalletRef.current;
+    const sessionProvider = wallet.provider as ethers.JsonRpcProvider;
+    if (!sessionProvider) return;
+    switchEncryptToSessionKey(wallet, sessionProvider).catch((e) => {
+      console.warn("[SessionKey] Failed to re-attach encrypt client after CoFHE ready:", e);
+    });
+  // sessionActive is the trigger; wallet ref is read at call time
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cofheReady]);
+
+  // Auto-expire session when the timer runs out
+  useEffect(() => {
+    if (!sessionActive || !sessionExpiry) return;
+    const msRemaining = sessionExpiry - Date.now();
+    if (msRemaining <= 0) {
+      void endSession();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void endSession();
+    }, msRemaining);
+    return () => window.clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionActive, sessionExpiry]);
+
   const isConnected = Boolean(account);
   const isCorrectChain = chainId === CASFIN_CONFIG.chainId;
   const isOperator = Boolean(account) && account.toLowerCase() === CASFIN_CONFIG.operatorAddress.toLowerCase();
@@ -1053,6 +1284,11 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         walletBlocked,
         cofheSessionReady,
         cofheSessionInitializing,
+        sessionActive,
+        sessionExpiry,
+        sessionAddress,
+        startSession,
+        endSession,
         connectWallet,
         disconnectWallet,
         ensureTargetNetwork,

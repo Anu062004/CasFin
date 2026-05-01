@@ -70,14 +70,15 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
         euint128 requestedAmount = FHE.asEuint128(encAmount);
         FHE.allow(requestedAmount, address(vault));
 
-        euint128 lockedHandle = vault.reserveFunds(msg.sender, requestedAmount);
+        address player = vault.resolvePlayer(msg.sender);
+        euint128 lockedHandle = vault.reserveFunds(player, requestedAmount);
 
         gameId = nextGameId++;
         PokerGame storage game = games[gameId];
-        game.player = msg.sender;
+        game.player = player;
         game.lockedHandle = lockedHandle;
         game.phase = GamePhase.DEALT;
-        latestGameIdByPlayer[msg.sender] = gameId;
+        latestGameIdByPlayer[player] = gameId;
 
         FHE.allowThis(lockedHandle);
 

@@ -1,5 +1,8 @@
 [
   "function authorizeGame(address,bool)",
+  "function authorizeSessionKey(address,uint256)",
   "function reserveFunds(address,bytes32) returns (bytes32)",
+  "function resolvePlayer(address) view returns (address)",
+  "function revokeSessionKey(address)",
   "function settleBet(address,bytes32,bytes32)"
 ]

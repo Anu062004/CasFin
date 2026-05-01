@@ -18,6 +18,10 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     mapping(address => PendingWithdrawal) private pendingWithdrawals;
     mapping(address => bool) public authorizedGames;
 
+    // Session key delegation: sessionKey → player address (and expiry)
+    mapping(address => address) public sessionKeyOwner;
+    mapping(address => uint256) public sessionKeyExpiry;
+
     euint128 private ENCRYPTED_ZERO;
     euint128 private ENCRYPTED_MAX_BET;
 
@@ -32,6 +36,8 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     event Withdrawn(address indexed player);
     event MaxBetUpdated();
     event HouseFundsWithdrawn(address indexed to);
+    event SessionKeyAuthorized(address indexed player, address indexed sessionKey, uint256 expiresAt);
+    event SessionKeyRevoked(address indexed player, address indexed sessionKey);
     /// @notice Emitted when a withdrawal leaves the vault below the configured minimum reserve.
     event VaultLowBalance(uint256 remainingBalance, uint256 minimumReserve);
     /// @notice Emitted when the owner updates the vault minimum reserve requirement.
@@ -56,7 +62,39 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         _;
     }
 
+    /// @notice Returns the player address for a given caller, resolving session key delegation.
+    function resolvePlayer(address caller) public view returns (address) {
+        address owner = sessionKeyOwner[caller];
+        if (owner != address(0) && block.timestamp <= sessionKeyExpiry[caller]) {
+            return owner;
+        }
+        return caller;
+    }
+
+    /// @notice Authorize a session key to act on behalf of msg.sender for game transactions.
+    /// @param sessionKey The ephemeral wallet address to authorize.
+    /// @param durationSeconds How long the session should last (max 86400 = 24 hours).
+    function authorizeSessionKey(address sessionKey, uint256 durationSeconds) external whenNotPaused {
+        require(sessionKeyOwner[msg.sender] == address(0), "SESSION_KEY_CANNOT_DELEGATE");
+        require(sessionKey != address(0), "ZERO_SESSION_KEY");
+        require(sessionKey != msg.sender, "CANNOT_SELF_DELEGATE");
+        require(durationSeconds > 0 && durationSeconds <= 86400, "BAD_DURATION");
+        sessionKeyOwner[sessionKey] = msg.sender;
+        sessionKeyExpiry[sessionKey] = block.timestamp + durationSeconds;
+        emit SessionKeyAuthorized(msg.sender, sessionKey, block.timestamp + durationSeconds);
+    }
+
+    /// @notice Revoke a session key. Can be called by the player or the session key itself.
+    function revokeSessionKey(address sessionKey) external {
+        address player = sessionKeyOwner[sessionKey];
+        require(player == msg.sender || sessionKey == msg.sender, "NOT_AUTHORIZED");
+        delete sessionKeyOwner[sessionKey];
+        delete sessionKeyExpiry[sessionKey];
+        emit SessionKeyRevoked(player, sessionKey);
+    }
+
     function depositETH() external payable whenNotPaused nonReentrant {
+        require(sessionKeyOwner[msg.sender] == address(0), "SESSION_KEY_CANNOT_DEPOSIT");
         require(msg.value > 0, "ZERO_DEPOSIT");
         require(msg.value <= type(uint128).max, "DEPOSIT_TOO_LARGE");
 
@@ -77,15 +115,15 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     }
 
     function getEncryptedBalance() external view returns (euint128) {
-        return balances[msg.sender];
+        return balances[resolvePlayer(msg.sender)];
     }
 
     function getEncryptedLockedBalance() external view returns (euint128) {
-        return lockedBalances[msg.sender];
+        return lockedBalances[resolvePlayer(msg.sender)];
     }
 
     function getPendingWithdrawal() external view returns (euint128 amountHandle, bool exists) {
-        PendingWithdrawal storage pending = pendingWithdrawals[msg.sender];
+        PendingWithdrawal storage pending = pendingWithdrawals[resolvePlayer(msg.sender)];
         return (pending.requestedAmount, pending.exists);
     }
 
@@ -138,6 +176,7 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
     }
 
     function withdrawETH(InEuint128 calldata encAmount) external nonReentrant whenNotPaused {
+        require(sessionKeyOwner[msg.sender] == address(0), "SESSION_KEY_CANNOT_WITHDRAW");
         PendingWithdrawal storage pending = pendingWithdrawals[msg.sender];
 
         if (pending.exists) {

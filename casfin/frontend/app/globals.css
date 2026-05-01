@@ -6229,3 +6229,121 @@ button.landing-feature-card:hover {
   box-shadow: 0 2px 12px rgba(244,191,54,0.2);
   color: var(--accent, #f4bf36) !important;
 }
+
+/* ── Session Key Panel ── */
+.casino-session-panel {
+  max-width: 860px;
+  margin: 0 auto 1rem;
+  padding: 0 1rem;
+}
+
+.casino-session-active,
+.casino-session-inactive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.625rem 1rem;
+  border-radius: 8px;
+  border: 1px solid;
+  font-family: var(--font-mono-terminal);
+  font-size: 0.78rem;
+}
+
+.casino-session-active {
+  background: rgba(48, 198, 124, 0.07);
+  border-color: rgba(48, 198, 124, 0.28);
+}
+
+.casino-session-inactive {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.casino-session-status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.casino-session-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.casino-session-dot--active {
+  background: #30c67c;
+  box-shadow: 0 0 6px rgba(48, 198, 124, 0.7);
+  animation: session-pulse 2s infinite;
+}
+
+.casino-session-dot--inactive {
+  background: #4b5563;
+}
+
+@keyframes session-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.casino-session-label {
+  color: var(--terminal-gold, #f5c842);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.casino-session-timer {
+  color: #30c67c;
+  font-weight: 500;
+}
+
+.casino-session-addr {
+  color: var(--text-dim, #829587);
+  font-size: 0.72rem;
+}
+
+.casino-session-hint {
+  color: var(--text-dim, #829587);
+}
+
+.casino-session-btn {
+  flex-shrink: 0;
+  padding: 0.375rem 0.875rem;
+  border-radius: 6px;
+  border: 1px solid;
+  font-family: var(--font-mono-terminal);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.casino-session-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.casino-session-btn--start {
+  background: rgba(245, 200, 66, 0.12);
+  border-color: rgba(245, 200, 66, 0.4);
+  color: var(--terminal-gold, #f5c842);
+}
+
+.casino-session-btn--start:not(:disabled):hover {
+  background: rgba(245, 200, 66, 0.2);
+}
+
+.casino-session-btn--end {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #f87171;
+}
+
+.casino-session-btn--end:not(:disabled):hover {
+  background: rgba(239, 68, 68, 0.18);
+}

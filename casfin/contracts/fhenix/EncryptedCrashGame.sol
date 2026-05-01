@@ -111,20 +111,21 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         require(!round.closeRequested, "ROUND_CLOSE_PENDING");
         require(cashOutMultiplierBps >= MIN_CASHOUT_BPS, "BAD_CASHOUT");
         require(cashOutMultiplierBps <= maxCashOutMultiplierBps, "CASHOUT_TOO_HIGH");
-        require(!playerBets[roundId][msg.sender].exists, "BET_EXISTS");
+        address player = vault.resolvePlayer(msg.sender);
+        require(!playerBets[roundId][player].exists, "BET_EXISTS");
 
         // The user's encrypted input is verified by the FHE runtime before the game forwards it to the vault.
         euint128 requestedAmount = FHE.asEuint128(encAmount);
         // The vault needs access to consume the encrypted amount during reserveFunds.
         FHE.allow(requestedAmount, address(vault));
 
-        euint128 lockedHandle = vault.reserveFunds(msg.sender, requestedAmount);
+        euint128 lockedHandle = vault.reserveFunds(player, requestedAmount);
         // Pre-encrypt the cash-out multiplier at bet time so settleBet avoids redundant encryption
         euint128 encCashOutBps = FHE.asEuint128(cashOutMultiplierBps);
         // The game must retain access to reuse this during settlement
         FHE.allowThis(encCashOutBps);
 
-        playerBets[roundId][msg.sender] = PlayerBet({
+        playerBets[roundId][player] = PlayerBet({
             lockedHandle: lockedHandle,
             cashOutMultiplierBps: cashOutMultiplierBps,
             encCashOutBps: encCashOutBps,
@@ -138,7 +139,7 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         // The vault also needs access again when this stored handle is passed back during settlement.
         FHE.allow(lockedHandle, address(vault));
 
-        emit CrashBetPlaced(roundId, msg.sender);
+        emit CrashBetPlaced(roundId, player);
     }
 
     function closeRound(uint256 roundId) external nonReentrant whenNotPaused onlyResolver {

@@ -34,7 +34,10 @@ function toBigIntValue(value) {
 }
 
 export function CofheProvider({ children }) {
+  // Decrypt client: always connected to real wallet — used for decryptForView and permits
   const clientRef = useRef(null);
+  // Encrypt client: switches to session key signer when a session is active
+  const encryptClientRef = useRef(null);
   const [connected, setConnected] = useState(false);
   const [ready, setReady] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
@@ -62,6 +65,7 @@ export function CofheProvider({ children }) {
       });
 
       clientRef.current = createCofheClient(config);
+      encryptClientRef.current = createCofheClient(config);
       setReady(true);
       initializeTfheRuntime().catch(() => {});
     } catch (error) {
@@ -146,7 +150,12 @@ export function CofheProvider({ children }) {
       connectPromiseRef.current = (async () => {
         setSessionReady(false);
         const { publicClient, walletClient } = await Ethers6Adapter(ethersProvider, ethersSigner);
+        // Connect decrypt client (always stays on real wallet)
         await clientRef.current.connect(publicClient, walletClient);
+        // Also connect encrypt client to real wallet initially
+        if (encryptClientRef.current) {
+          await encryptClientRef.current.connect(publicClient, walletClient);
+        }
         connectedAccountRef.current = nextAccount;
         setConnected(Boolean(clientRef.current.connected));
         return clientRef.current;
@@ -159,9 +168,32 @@ export function CofheProvider({ children }) {
     return clientRef.current;
   }, []);
 
+  // Switch the encrypt client to use a session key signer (no wallet popup for encryption).
+  const switchEncryptToSessionKey = useCallback(async (sessionWallet, sessionProvider) => {
+    if (!encryptClientRef.current) {
+      throw new Error("CoFHE encrypt client not initialized.");
+    }
+    const { publicClient, walletClient } = await Ethers6Adapter(sessionProvider, sessionWallet);
+    await encryptClientRef.current.connect(publicClient, walletClient);
+    // Warmup the encrypt client so the first real bet doesn't stall on key loading
+    await disableWorkerIfAvailable(
+      encryptClientRef.current.encryptInputs([Encryptable.bool(false)])
+    ).execute();
+  }, []);
+
+  // Restore the encrypt client to the real wallet signer (called on session end).
+  const switchEncryptToRealWallet = useCallback(async (ethersProvider, ethersSigner) => {
+    if (!encryptClientRef.current) return;
+    const { publicClient, walletClient } = await Ethers6Adapter(ethersProvider, ethersSigner);
+    await encryptClientRef.current.connect(publicClient, walletClient);
+  }, []);
+
   const disconnect = useCallback(() => {
     if (clientRef.current?.connected) {
       clientRef.current.disconnect();
+    }
+    if (encryptClientRef.current?.connected) {
+      encryptClientRef.current.disconnect();
     }
 
     connectedAccountRef.current = "";
@@ -175,9 +207,10 @@ export function CofheProvider({ children }) {
 
   const encryptUint128 = useCallback(async (value) => {
     await ensureSessionReady();
-
+    // Use the encrypt client (may be connected to session key signer)
+    const client = encryptClientRef.current ?? clientRef.current;
     const [encrypted] = await disableWorkerIfAvailable(
-      clientRef.current.encryptInputs([Encryptable.uint128(toBigIntValue(value))])
+      client.encryptInputs([Encryptable.uint128(toBigIntValue(value))])
     ).execute();
 
     return toEncryptedInputTuple(encrypted);
@@ -185,9 +218,9 @@ export function CofheProvider({ children }) {
 
   const encryptUint8 = useCallback(async (value) => {
     await ensureSessionReady();
-
+    const client = encryptClientRef.current ?? clientRef.current;
     const [encrypted] = await disableWorkerIfAvailable(
-      clientRef.current.encryptInputs([Encryptable.uint8(toBigIntValue(value))])
+      client.encryptInputs([Encryptable.uint8(toBigIntValue(value))])
     ).execute();
 
     return toEncryptedInputTuple(encrypted);
@@ -195,9 +228,9 @@ export function CofheProvider({ children }) {
 
   const encryptBool = useCallback(async (value) => {
     await ensureSessionReady();
-
+    const client = encryptClientRef.current ?? clientRef.current;
     const [encrypted] = await disableWorkerIfAvailable(
-      clientRef.current.encryptInputs([Encryptable.bool(Boolean(value))])
+      client.encryptInputs([Encryptable.bool(Boolean(value))])
     ).execute();
 
     return toEncryptedInputTuple(encrypted);
@@ -205,8 +238,8 @@ export function CofheProvider({ children }) {
 
   const encryptMultiple = useCallback(async (encryptables) => {
     await ensureSessionReady();
-
-    const encrypted = await disableWorkerIfAvailable(clientRef.current.encryptInputs(encryptables)).execute();
+    const client = encryptClientRef.current ?? clientRef.current;
+    const encrypted = await disableWorkerIfAvailable(client.encryptInputs(encryptables)).execute();
     return toEncryptedInputTuples(encrypted);
   }, [ensureSessionReady]);
 
@@ -231,6 +264,8 @@ export function CofheProvider({ children }) {
       connect,
       ensureSessionReady,
       disconnect,
+      switchEncryptToSessionKey,
+      switchEncryptToRealWallet,
       encryptUint128,
       encryptUint8,
       encryptBool,
@@ -250,6 +285,8 @@ export function CofheProvider({ children }) {
       connect,
       ensureSessionReady,
       disconnect,
+      switchEncryptToSessionKey,
+      switchEncryptToRealWallet,
       encryptUint128,
       encryptUint8,
       encryptBool,

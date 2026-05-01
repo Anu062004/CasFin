@@ -30,10 +30,17 @@ export default function CasinoPage() {
     loadProtocolState,
     pendingAction,
     runTransaction,
-    walletBlocked
+    walletBlocked,
+    sessionActive,
+    sessionExpiry,
+    sessionAddress,
+    startSession,
+    endSession
   } = useWallet();
 
   const [activeSection, setActiveSection] = useState<CasinoSection>("coin");
+  const [sessionStarting, setSessionStarting] = useState(false);
+  const [sessionEnding, setSessionEnding] = useState(false);
   const [vaultForm, setVaultForm] = useState({
     depositAmount: "0.05",
     withdrawAmount: "0.01",
@@ -43,6 +50,32 @@ export default function CasinoPage() {
   const playerBalanceLabel = casinoState.isFhe
     ? "Encrypted"
     : `${formatEth(casinoState.playerBalance)} ETH`;
+
+  const sessionMinutesRemaining = sessionActive && sessionExpiry
+    ? Math.max(0, Math.floor((sessionExpiry - Date.now()) / 60000))
+    : 0;
+
+  async function handleStartSession() {
+    setSessionStarting(true);
+    try {
+      await startSession(60);
+    } catch {
+      // error shown via status bar
+    } finally {
+      setSessionStarting(false);
+    }
+  }
+
+  async function handleEndSession() {
+    setSessionEnding(true);
+    try {
+      await endSession();
+    } catch {
+      // error shown via status bar
+    } finally {
+      setSessionEnding(false);
+    }
+  }
 
   const encryptedSessionLabel = !isConnected
     ? "Not connected"
@@ -144,6 +177,50 @@ export default function CasinoPage() {
           Encrypted vault — balances decrypted locally once your CoFHE session is ready.
         </div>
       ) : null}
+
+      {/* Session Key Panel */}
+      {isConnected && isCorrectChain && (
+        <div className="casino-session-panel">
+          {sessionActive ? (
+            <div className="casino-session-active">
+              <div className="casino-session-status">
+                <span className="casino-session-dot casino-session-dot--active" />
+                <span className="casino-session-label">SESSION ACTIVE</span>
+                <span className="casino-session-timer">{sessionMinutesRemaining}m remaining</span>
+                {sessionAddress && (
+                  <span className="casino-session-addr" title={sessionAddress}>
+                    key: {sessionAddress.slice(0, 6)}…{sessionAddress.slice(-4)}
+                  </span>
+                )}
+              </div>
+              <button
+                className="casino-session-btn casino-session-btn--end"
+                disabled={sessionEnding || Boolean(pendingAction)}
+                onClick={handleEndSession}
+                type="button"
+              >
+                {sessionEnding ? "Ending…" : "End Session"}
+              </button>
+            </div>
+          ) : (
+            <div className="casino-session-inactive">
+              <div className="casino-session-status">
+                <span className="casino-session-dot casino-session-dot--inactive" />
+                <span className="casino-session-label">NO SESSION</span>
+                <span className="casino-session-hint">Start a session to bet without wallet popups</span>
+              </div>
+              <button
+                className="casino-session-btn casino-session-btn--start"
+                disabled={sessionStarting || !cofheSessionReady || Boolean(pendingAction)}
+                onClick={handleStartSession}
+                type="button"
+              >
+                {sessionStarting ? "Starting…" : "Start Session"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Active game panel */}
       <div className="casino-content-grid">

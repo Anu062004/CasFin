@@ -138,7 +138,7 @@ contract EncryptedMarketFactory is Ownable, Pausable {
             params.oracleType,
             params.oracleAddress,
             params.oracleParams,
-            owner()
+            owner
         );
 
         amm.bindPool(address(pool));

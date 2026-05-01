@@ -229,6 +229,11 @@ export interface WalletContextValue {
   walletBlocked: boolean;
   cofheSessionReady: boolean;
   cofheSessionInitializing: boolean;
+  sessionActive: boolean;
+  sessionExpiry: number | null;
+  sessionAddress: string | null;
+  startSession: (durationMinutes?: number) => Promise<void>;
+  endSession: () => Promise<void>;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   ensureTargetNetwork: () => Promise<WalletSnapshot>;
