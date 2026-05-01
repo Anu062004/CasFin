@@ -5,6 +5,7 @@ export interface SessionKeyState {
   address: string;
   playerAddress: string;
   expiresAt: number; // ms timestamp
+  vaultAddress?: string; // vault contract this session was authorized against — drop on mismatch after redeploy
 }
 
 const STORAGE_KEY = "casfin_session_key_v1";

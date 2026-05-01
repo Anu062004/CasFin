@@ -898,10 +898,11 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     if (!fundOk) throw new Error("Session key gas funding failed.");
 
     // Step 3: connect CoFHE encrypt client to session key signer
-    const sessionProvider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl, {
-      chainId: CASFIN_CONFIG.chainId,
-      name: "arbitrum-sepolia"
-    });
+    const sessionProvider = new ethers.JsonRpcProvider(
+      CASFIN_CONFIG.publicRpcUrl,
+      { chainId: CASFIN_CONFIG.chainId, name: "arbitrum-sepolia" },
+      { staticNetwork: true }
+    );
     const connectedWallet = sessionWallet.connect(sessionProvider);
     await switchEncryptToSessionKey(connectedWallet, sessionProvider);
 
@@ -911,7 +912,8 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       privateKey: sessionWallet.privateKey,
       address: sessionWallet.address,
       playerAddress: account,
-      expiresAt
+      expiresAt,
+      vaultAddress: CASFIN_CONFIG.addresses.casinoVault
     });
     sessionWalletRef.current = connectedWallet;
     sessionExpiryRef.current = expiresAt;
@@ -1215,10 +1217,19 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     const stored = restoreSessionKey();
     if (!stored || !isSessionValid(stored)) return;
 
-    const sessionProvider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl, {
-      chainId: CASFIN_CONFIG.chainId,
-      name: "arbitrum-sepolia"
-    });
+    // Stale-session guard: if the stored session was authorized against a different vault
+    // (e.g. after a vault redeploy), drop it instead of silently routing bets through a
+    // session key the new vault does not recognize.
+    if (stored.vaultAddress && stored.vaultAddress.toLowerCase() !== CASFIN_CONFIG.addresses.casinoVault.toLowerCase()) {
+      clearSessionKey();
+      return;
+    }
+
+    const sessionProvider = new ethers.JsonRpcProvider(
+      CASFIN_CONFIG.publicRpcUrl,
+      { chainId: CASFIN_CONFIG.chainId, name: "arbitrum-sepolia" },
+      { staticNetwork: true }
+    );
     const wallet = getSessionWallet(stored, sessionProvider);
     sessionWalletRef.current = wallet;
     sessionExpiryRef.current = stored.expiresAt;

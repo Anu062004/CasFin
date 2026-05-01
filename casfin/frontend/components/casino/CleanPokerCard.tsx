@@ -79,7 +79,11 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
   }
 
   function getReadContract() {
-    const provider = new ethers.JsonRpcProvider(CASFIN_CONFIG.publicRpcUrl);
+    const provider = new ethers.JsonRpcProvider(
+      CASFIN_CONFIG.publicRpcUrl,
+      { chainId: CASFIN_CONFIG.chainId, name: "arbitrum-sepolia" },
+      { staticNetwork: true }
+    );
     return new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
   }
 
