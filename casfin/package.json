@@ -7,7 +7,7 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "test:unit": "hardhat test test/fhe/**/*.test.ts",
-    "test:keeper": "jest --config keeper/jest.config.json --testPathPattern=keeper/test",
+    "test:keeper": "jest --config keeper/jest.config.json --testPathPatterns=keeper/test",
     "test:integration": "cross-env HARDHAT_FORK=true hardhat test test/fhe/**/*.test.ts",
     "test:all": "npm run test:unit && npm run test:keeper",
     "test:coverage": "hardhat coverage",
