@@ -41,12 +41,12 @@
     "hardhat-abi-exporter": "^2.11.0",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
-    "ts-node": "^10.9.2",
     "ts-jest": "^29.4.4",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "tsx": "^4.20.5"
   },
   "dependencies": {
-    "ioredis": "^5.10.1"
+    "ioredis": "^5.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   }
 }
