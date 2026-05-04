@@ -38,7 +38,7 @@ const provider = new ethers.JsonRpcProvider(
   { chainId: 421614, name: "arbitrum-sepolia" },
   { staticNetwork: true }
 );
-const signer: SharedSigner = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
+let signer!: SharedSigner;
 
 let transactionQueue: Promise<void> = Promise.resolve();
 let redisPublisher: import("ioredis").Redis | null = null;
@@ -985,8 +985,10 @@ async function runPredictionKeeper(
 
 async function main(): Promise<void> {
   if (!PRIVATE_KEY || PRIVATE_KEY === "0xyour_private_key_here") {
-    throw new Error("Set PRIVATE_KEY in casfin/.env before starting the keeper.");
+    throw new Error("PRIVATE_KEY env variable is not set. Add it to Railway environment variables.");
   }
+
+  signer = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
 
   // Prevent ethers.js polling-based event subscription errors from crashing the process.
   // These are non-fatal — the polling loop handles everything regardless.
