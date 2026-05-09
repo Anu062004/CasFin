@@ -23,10 +23,10 @@ chown ubuntu:ubuntu /home/ubuntu/CasFin/casfin/.env
 chmod 600 /home/ubuntu/CasFin/casfin/.env
 
 runuser -l ubuntu -c 'cd /home/ubuntu/CasFin/casfin && npm ci'
-runuser -l ubuntu -c 'cd /home/ubuntu/CasFin/casfin && pm2 start npm --name casfin-keeper -- run keeper:start'
+runuser -l ubuntu -c 'cd /home/ubuntu/CasFin/casfin && pm2 start ecosystem.config.cjs --only casfin-keeper'
 runuser -l ubuntu -c 'pm2 save'
 runuser -l ubuntu -c 'pm2 status --no-color || true'
 sleep 20
 runuser -l ubuntu -c 'pm2 logs casfin-keeper --lines 50 --nostream || true'
 
-env PATH=$PATH:/usr/bin pm2 startup systemd -u ubuntu --hp /home/ubuntu || true
+runuser -l ubuntu -c 'pm2 startup systemd -u ubuntu --hp /home/ubuntu' | tail -1 | bash || true

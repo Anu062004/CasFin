@@ -223,10 +223,10 @@ Start the bot:
 ```bash
 pm2 start ecosystem.config.cjs --only casfin-keeper
 pm2 save
-sudo env PATH=$PATH:/usr/bin pm2 startup systemd -u ubuntu --hp /home/ubuntu
+pm2 startup systemd -u ubuntu --hp /home/ubuntu
 ```
 
-If PM2 prints a slightly different startup command for your machine, run the command PM2 gives you once and then run `pm2 save` again.
+PM2 will print a `sudo env PATH=...` command — copy and run that command, then run `pm2 save` again.
 
 ## 9. Monitoring and Operations
 
