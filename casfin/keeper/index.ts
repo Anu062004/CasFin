@@ -985,7 +985,7 @@ async function runPredictionKeeper(
 
 async function main(): Promise<void> {
   if (!PRIVATE_KEY || PRIVATE_KEY === "0xyour_private_key_here") {
-    throw new Error("PRIVATE_KEY env variable is not set. Add it to Railway environment variables.");
+    throw new Error("PRIVATE_KEY env variable is not set. Add it to your .env file or environment variables.");
   }
 
   signer = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
