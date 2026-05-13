@@ -60,6 +60,21 @@ if (REDIS_URL) {
   console.log("[Redis] REDIS_URL not set - bet event publishing disabled.");
 }
 
+function publishProtocolEvent(payload: Record<string, unknown>): void {
+  if (!redisPublisher) {
+    return;
+  }
+
+  const event = JSON.stringify({
+    ...payload,
+    timestamp: Math.floor(Date.now() / 1_000),
+  });
+
+  redisPublisher.publish(BET_EVENTS_CHANNEL, event).catch((err: { message?: string }) => {
+    console.warn(`[Redis] Failed to publish ${payload.type || "unknown"} event:`, err?.message || String(err));
+  });
+}
+
 function publishBetEvent(
   game: "coinflip" | "dice" | "crash",
   betId: string,
@@ -67,22 +82,14 @@ function publishBetEvent(
   txHash: string,
   roundId?: string
 ): void {
-  if (!redisPublisher) {
-    return;
-  }
-
-  const event = JSON.stringify({
+  publishProtocolEvent({
+    type: "bet:resolved",
     game,
     betId,
     ...(roundId != null ? { roundId } : {}),
     player,
     action: "resolved" as const,
     txHash,
-    timestamp: Math.floor(Date.now() / 1_000),
-  });
-
-  redisPublisher.publish(BET_EVENTS_CHANNEL, event).catch((err: { message?: string }) => {
-    console.warn(`[Redis] Failed to publish ${game} event:`, err?.message || String(err));
   });
 }
 
@@ -477,7 +484,8 @@ async function runCasinoKeeper(
     if (vaultBalanceWei < minimumReserveWei) {
       if (!vaultPaused) {
         try {
-          await sendTransaction("[Casino][Vault] pause()", signal, () => vault.pause());
+          const txHash = await sendTransaction("[Casino][Vault] pause()", signal, () => vault.pause());
+          publishProtocolEvent({ type: "vault:paused", txHash });
         } catch (error) {
           if (!formatError(error).toLowerCase().includes("paused")) {
             throw error;
@@ -654,13 +662,15 @@ async function runCasinoKeeper(
 
         if (!closeRequested) {
           console.log(`[Casino][Crash] resolving round=${roundId}`);
-          await sendTransaction(`[Casino][Crash] closeRound(${roundId})`, signal, () => crash.closeRound(id));
+          const txHash = await sendTransaction(`[Casino][Crash] closeRound(${roundId})`, signal, () => crash.closeRound(id));
+          publishProtocolEvent({ type: "crash:round_closed", roundId, txHash });
           continue;
         }
 
         if (!closed) {
           console.log(`[Casino][Crash] resolving round=${roundId}`);
-          await sendTransaction(`[Casino][Crash] finalizeRound(${roundId})`, signal, () => crash.finalizeRound(id));
+          const txHash = await sendTransaction(`[Casino][Crash] finalizeRound(${roundId})`, signal, () => crash.finalizeRound(id));
+          publishProtocolEvent({ type: "crash:round_finalized", roundId, txHash });
         }
 
         const players = trackedCrashPlayers.get(roundId);
@@ -986,11 +996,12 @@ async function runPredictionKeeper(
         const resolutionRequested = (await resolver.resolutionRequested().catch(() => false)) as boolean;
         if (!resolutionRequested) {
           console.log(`[Prediction] resolving address=${state.address}`);
-          await sendTransaction(
+          const txHash = await sendTransaction(
             `[Prediction] requestResolution(${state.address})`,
             signal,
             () => resolver.requestResolution() as Promise<ContractTransactionResponse>
           );
+          publishProtocolEvent({ type: "market:resolved", market: state.address, txHash });
         }
         return;
       }
@@ -1001,14 +1012,15 @@ async function runPredictionKeeper(
           return;
         }
 
-        console.log(`[Prediction] resolving address=${state.address}`);
-        await sendTransaction(
+        console.log(`[Prediction] finalizing address=${state.address}`);
+        const txHash = await sendTransaction(
           `[Prediction] finalizeMarket(${state.address})`,
           signal,
           () => market.finalizeMarket() as Promise<ContractTransactionResponse>
         );
         state.finalized = true;
-        console.log(`[Prediction] resolved address=${state.address}`);
+        console.log(`[Prediction] finalized address=${state.address}`);
+        publishProtocolEvent({ type: "market:finalized", market: state.address, txHash });
       }
 
       await maybeTriggerFeeDistribution(state);

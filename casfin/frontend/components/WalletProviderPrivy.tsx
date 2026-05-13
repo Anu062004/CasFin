@@ -20,7 +20,7 @@ import {
 } from "@/lib/casfin-client";
 import { ensureUserExists, fetchUserProfile } from "@/lib/user-client";
 import type { UserProfile } from "@/lib/user-client";
-import { useBetEvents } from "@/lib/useBetEvents";
+import { useProtocolEvents } from "@/lib/useProtocolEvents";
 import {
   clearSessionKey,
   generateSessionWallet,
@@ -1185,36 +1185,22 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     });
   }, [account, pathname]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      if (document.hidden) {
-        return;
-      }
-
-      refreshWalletState({ loadProtocol: false }).catch((error) => {
-        logBackgroundWalletError("Periodic wallet refresh failed.", error);
-      });
-      loadPolledProtocolState(account).catch((error) => {
-        logBackgroundWalletError("Periodic protocol refresh failed.", error);
-      });
-    }, 45000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [account]);
-
-  // ── Redis pub/sub: instant bet settlement notifications ──
-  // When the keeper resolves a bet and publishes to Redis, this
-  // fires immediately instead of waiting for the 45s polling cycle.
-  const handleBetResolved = useCallback(() => {
+  // ── Event-driven protocol refresh (replaces 45s polling) ──
+  // Keeper publishes ALL protocol events (bet resolution, crash rounds,
+  // market resolution/finalization, vault pause) to Redis pub/sub.
+  // The SSE stream forwards them here for instant UI updates.
+  // Also fires on tab visibility restore to catch missed events.
+  const handleProtocolEvent = useCallback(() => {
     if (!mountedRef.current) return;
+    refreshWalletState({ loadProtocol: false }).catch((error) => {
+      logBackgroundWalletError("Event-triggered wallet refresh failed.", error);
+    });
     loadProtocolState(account).catch((error) => {
-      logBackgroundWalletError("Redis event-triggered protocol refresh failed.", error);
+      logBackgroundWalletError("Event-triggered protocol refresh failed.", error);
     });
   }, [account]);
 
-  useBetEvents(handleBetResolved, { enabled: true });
+  useProtocolEvents(handleProtocolEvent, { enabled: true });
 
   // Restore session key from sessionStorage on mount (handles page reload within same tab)
   useEffect(() => {

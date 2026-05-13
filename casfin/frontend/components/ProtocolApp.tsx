@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, useCallback } from "react";
 import { ethers } from "ethers";
 import { CASFIN_CONFIG, buildExplorerUrl } from "@/lib/casfin-config";
 import {
@@ -17,6 +17,7 @@ import {
 import { ActionButton, AddressLink, StatCard } from "@/components/ProtocolBits";
 import CasinoRail from "@/components/CasinoRail";
 import PredictionRail from "@/components/PredictionRail";
+import { useProtocolEvents } from "@/lib/useProtocolEvents";
 
 export default function ProtocolApp() {
   const protocolRef = useRef(null);
@@ -229,24 +230,12 @@ export default function ProtocolApp() {
     };
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      Promise.all([
-        loadCasinoState(account, pollingProvider),
-        loadPredictionState(account, pollingProvider)
-      ])
-        .then(([nextCasinoState, nextPredictionState]) => {
-          setCasinoState(nextCasinoState);
-          setPredictionState(nextPredictionState);
-          setLoadError("");
-        })
-        .catch((error) => {
-          setLoadError(extractError(error));
-        });
-    }, 20000);
-
-    return () => clearInterval(interval);
+  // ── Event-driven protocol refresh (replaces 20s polling) ──
+  const handleProtocolEvent = useCallback(() => {
+    loadProtocolState(account);
   }, [account]);
+
+  useProtocolEvents(handleProtocolEvent, { enabled: true });
 
   useEffect(() => {
     if (!casinoState.crash.latestRound || crashForm.roundId) {
