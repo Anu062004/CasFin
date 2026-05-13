@@ -5,6 +5,16 @@ import { prisma } from "@/lib/db";
 const NAME_RE = /^[a-zA-Z0-9 ]{1,24}$/;
 const WALLET_RE = /^0x[0-9a-f]{40}$/i;
 
+function buildFallbackProfile(wallet: string) {
+  const now = new Date();
+  return {
+    walletAddress: wallet,
+    displayName: null,
+    firstSeenAt: now,
+    lastActiveAt: now,
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const wallet = req.nextUrl.searchParams.get("wallet")?.toLowerCase();
@@ -12,18 +22,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
     }
 
-    const [user, bets] = await Promise.all([
-      prisma.user.upsert({
-        where: { walletAddress: wallet },
-        update: { lastActiveAt: new Date() },
-        create: { walletAddress: wallet },
-        select: { walletAddress: true, displayName: true, firstSeenAt: true, lastActiveAt: true },
-      }),
-      prisma.casinoBet.findMany({
-        where: { playerAddress: wallet },
-        select: { resolved: true, won: true, payoutWei: true },
-      }),
-    ]);
+    let user;
+    let bets: Array<{ resolved: boolean; won: boolean; payoutWei: string | null }> = [];
+    try {
+      [user, bets] = await Promise.all([
+        prisma.user.upsert({
+          where: { walletAddress: wallet },
+          update: { lastActiveAt: new Date() },
+          create: { walletAddress: wallet },
+          select: { walletAddress: true, displayName: true, firstSeenAt: true, lastActiveAt: true },
+        }),
+        prisma.casinoBet.findMany({
+          where: { playerAddress: wallet },
+          select: { resolved: true, won: true, payoutWei: true },
+        }),
+      ]);
+    } catch (dbError) {
+      console.error("GET /api/user/profile database error:", dbError);
+      user = buildFallbackProfile(wallet);
+      bets = [];
+    }
 
     const totalBets = bets.length;
     const totalWins = bets.filter((b) => b.resolved && b.won).length;

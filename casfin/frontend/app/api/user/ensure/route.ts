@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+function buildFallbackProfile(wallet: string) {
+  const now = new Date();
+  return {
+    walletAddress: wallet,
+    displayName: null,
+    firstSeenAt: now,
+    lastActiveAt: now
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -10,17 +20,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid wallet address" }, { status: 400 });
     }
 
-    const user = await prisma.user.upsert({
-      where: { walletAddress: wallet },
-      update: { lastActiveAt: new Date() },
-      create: { walletAddress: wallet },
-      select: {
-        walletAddress: true,
-        displayName: true,
-        firstSeenAt: true,
-        lastActiveAt: true,
-      },
-    });
+    let user;
+    try {
+      user = await prisma.user.upsert({
+        where: { walletAddress: wallet },
+        update: { lastActiveAt: new Date() },
+        create: { walletAddress: wallet },
+        select: {
+          walletAddress: true,
+          displayName: true,
+          firstSeenAt: true,
+          lastActiveAt: true,
+        },
+      });
+    } catch (dbError) {
+      console.error("POST /api/user/ensure database error:", dbError);
+      user = buildFallbackProfile(wallet);
+    }
 
     return NextResponse.json(user);
   } catch (err) {

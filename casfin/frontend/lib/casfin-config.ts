@@ -32,6 +32,40 @@ interface CasfinConfig {
   };
 }
 
+function readEnvString(value: string | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function resolveAddress(value: string | undefined, fallback: string, label: string): string {
+  const trimmed = readEnvString(value);
+
+  if (!trimmed) {
+    return fallback;
+  }
+
+  if (ethers.isAddress(trimmed)) {
+    return trimmed;
+  }
+
+  console.warn(`[casfin-config] Ignoring invalid ${label}: ${trimmed}`);
+  return fallback;
+}
+
+const DEFAULT_ADDRESSES = {
+  operatorAddress: "0x6b3a924379B9408D8110f10F084ca809863B378A",
+  casinoToken: "0x9161f1901Ca4d98e36c4EFC23146193E7C34468B",
+  stakingPool: "0xbC5090fcEDbc70E172849fa42eF29aa3684A2408",
+  casinoVault: "0xA6406C70FaF7E86B9B8b1cdbC21F7148f6d3E175",
+  randomnessRouter: "0xA35D1C633D6E4178dD3DCE567ddb76d6C341f111",
+  coinFlipGame: "0x084408DC6278f599C9A41A0CF594852afd26b662",
+  diceGame: "0xDfC7da5259aEe8BaEd8A07449FD771ce6683896E",
+  crashGame: "0xd920Ca5F942Cf7EfE4E389E8F98830d4664de668",
+  pokerGame: "0x843fDBE340a02b41002E986d347246C6E3bE063F",
+  marketFactory: "0x6753A055CC37240De70DF635ce1E1E15cF466283",
+  feeDistributor: "0xaF50737B65f2D7A267Bd7509aF7376Cd916e4382",
+  disputeRegistry: "0x59E39d174C5Bb5D498f81C7AAcCa546a91Fdd6Ea"
+} as const;
+
 const PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC =
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1 ||
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_2 ||
@@ -52,20 +86,20 @@ export const CASFIN_CONFIG: CasfinConfig = {
   fheRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
   pollingRpcUrl: PRIMARY_ALCHEMY_ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc",
   walletRpcUrl: WALLET_ARB_SEPOLIA_RPC,
-  operatorAddress: process.env.NEXT_PUBLIC_OPERATOR_ADDRESS || "0x6b3a924379B9408D8110f10F084ca809863B378A",
+  operatorAddress: resolveAddress(process.env.NEXT_PUBLIC_OPERATOR_ADDRESS, DEFAULT_ADDRESSES.operatorAddress, "NEXT_PUBLIC_OPERATOR_ADDRESS"),
   addresses: {
-    casinoToken: process.env.NEXT_PUBLIC_CASINO_TOKEN_ADDRESS || "0x9161f1901Ca4d98e36c4EFC23146193E7C34468B",
-    stakingPool: process.env.NEXT_PUBLIC_STAKING_POOL_ADDRESS || "0xbC5090fcEDbc70E172849fa42eF29aa3684A2408",
-    casinoVault: process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS || "0xA6406C70FaF7E86B9B8b1cdbC21F7148f6d3E175",
-    randomnessRouter: process.env.NEXT_PUBLIC_RANDOMNESS_ROUTER_ADDRESS || "0xA35D1C633D6E4178dD3DCE567ddb76d6C341f111",
-    coinFlipGame: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || "0x084408DC6278f599C9A41A0CF594852afd26b662",
-    diceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || "0xDfC7da5259aEe8BaEd8A07449FD771ce6683896E",
-    crashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || "0xd920Ca5F942Cf7EfE4E389E8F98830d4664de668",
-    pokerGame: process.env.NEXT_PUBLIC_FHE_POKER_ADDRESS || "0x843fDBE340a02b41002E986d347246C6E3bE063F",
-    marketFactory: process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS || "0x6753A055CC37240De70DF635ce1E1E15cF466283",
-    encryptedMarketFactory: process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS || "0x6753A055CC37240De70DF635ce1E1E15cF466283",
-    feeDistributor: process.env.NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS || "0xaF50737B65f2D7A267Bd7509aF7376Cd916e4382",
-    disputeRegistry: process.env.NEXT_PUBLIC_DISPUTE_REGISTRY_ADDRESS || "0x59E39d174C5Bb5D498f81C7AAcCa546a91Fdd6Ea"
+    casinoToken: resolveAddress(process.env.NEXT_PUBLIC_CASINO_TOKEN_ADDRESS, DEFAULT_ADDRESSES.casinoToken, "NEXT_PUBLIC_CASINO_TOKEN_ADDRESS"),
+    stakingPool: resolveAddress(process.env.NEXT_PUBLIC_STAKING_POOL_ADDRESS, DEFAULT_ADDRESSES.stakingPool, "NEXT_PUBLIC_STAKING_POOL_ADDRESS"),
+    casinoVault: resolveAddress(process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS, DEFAULT_ADDRESSES.casinoVault, "NEXT_PUBLIC_FHE_VAULT_ADDRESS"),
+    randomnessRouter: resolveAddress(process.env.NEXT_PUBLIC_RANDOMNESS_ROUTER_ADDRESS, DEFAULT_ADDRESSES.randomnessRouter, "NEXT_PUBLIC_RANDOMNESS_ROUTER_ADDRESS"),
+    coinFlipGame: resolveAddress(process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS, DEFAULT_ADDRESSES.coinFlipGame, "NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS"),
+    diceGame: resolveAddress(process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS, DEFAULT_ADDRESSES.diceGame, "NEXT_PUBLIC_FHE_DICE_ADDRESS"),
+    crashGame: resolveAddress(process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS, DEFAULT_ADDRESSES.crashGame, "NEXT_PUBLIC_FHE_CRASH_ADDRESS"),
+    pokerGame: resolveAddress(process.env.NEXT_PUBLIC_FHE_POKER_ADDRESS, DEFAULT_ADDRESSES.pokerGame, "NEXT_PUBLIC_FHE_POKER_ADDRESS"),
+    marketFactory: resolveAddress(process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS, DEFAULT_ADDRESSES.marketFactory, "NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS"),
+    encryptedMarketFactory: resolveAddress(process.env.NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS, DEFAULT_ADDRESSES.marketFactory, "NEXT_PUBLIC_FHE_MARKET_FACTORY_ADDRESS"),
+    feeDistributor: resolveAddress(process.env.NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS, DEFAULT_ADDRESSES.feeDistributor, "NEXT_PUBLIC_FEE_DISTRIBUTOR_ADDRESS"),
+    disputeRegistry: resolveAddress(process.env.NEXT_PUBLIC_DISPUTE_REGISTRY_ADDRESS, DEFAULT_ADDRESSES.disputeRegistry, "NEXT_PUBLIC_DISPUTE_REGISTRY_ADDRESS")
   },
   predictionDefaults: {
     disputeWindowHours: 24,

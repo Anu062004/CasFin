@@ -30,6 +30,10 @@ export const fheReadProvider = sharedReadProvider;
 export const walletReadProvider = sharedReadProvider;
 export const EMPTY_ADDRESS = ethers.ZeroAddress;
 
+function normalizeOptionalAddress(value: unknown): string {
+  return typeof value === "string" && ethers.isAddress(value) ? value : "";
+}
+
 export const EMPTY_CASINO_STATE = {
   isFhe: false,
   vaultOwner: "",
@@ -303,6 +307,10 @@ export function extractError(error) {
     return "The encrypted task is still pending at the validator. Wait a bit and try again.";
   }
 
+  if (/network does not support ens|getensaddress|unsupported_operation/i.test(normalizedMessage)) {
+    return "An invalid wallet or contract address reached the Arbitrum Sepolia client. Refresh the page and verify the configured deployment addresses.";
+  }
+
   if (/execution reverted/i.test(message)) {
     return normalizedMessage ? `Transaction rejected by contract: ${normalizedMessage}` : "Transaction rejected by contract.";
   }
@@ -406,6 +414,7 @@ async function withReadProviderFailover(taskName, preferredProvider, runner) {
 }
 
 async function loadCasinoStateWithProvider(currentAccount, provider) {
+  const normalizedAccount = normalizeOptionalAddress(currentAccount);
   const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, provider);
   const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, provider);
   const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, provider);
@@ -456,12 +465,12 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
   let pendingWithdrawal = null;
   let latestCrashPlayerBet = null;
 
-  if (currentAccount) {
+  if (normalizedAccount) {
     const [balanceResult, lockedBalanceResult, withdrawalResult, crashPlayerBetResult] = await Promise.allSettled([
-      vault.getEncryptedBalance.staticCall({ from: currentAccount }),
-      vault.getEncryptedLockedBalance.staticCall({ from: currentAccount }),
-      vault.getPendingWithdrawal.staticCall({ from: currentAccount }),
-      latestCrashRound ? crash.playerBets(latestCrashRound.id, currentAccount) : Promise.resolve(null)
+      vault.getEncryptedBalance.staticCall({ from: normalizedAccount }),
+      vault.getEncryptedLockedBalance.staticCall({ from: normalizedAccount }),
+      vault.getPendingWithdrawal.staticCall({ from: normalizedAccount }),
+      latestCrashRound ? crash.playerBets(latestCrashRound.id, normalizedAccount) : Promise.resolve(null)
     ]);
 
     if (balanceResult.status === "fulfilled") {
@@ -527,6 +536,7 @@ async function loadCasinoStateWithProvider(currentAccount, provider) {
 }
 
 async function loadMarketDetails(address, factory, provider, currentAccount) {
+  const normalizedAccount = normalizeOptionalAddress(currentAccount);
   const market = new ethers.Contract(address, PREDICTION_MARKET_ABI, provider);
 
   // meta uses positional access — ABI has unnamed return fields
@@ -560,8 +570,8 @@ async function loadMarketDetails(address, factory, provider, currentAccount) {
     outcomeIndexes.map((index) => schedulePredictionRead(() => market.outcomes(index)))
   );
 
-  const hasClaimed = currentAccount
-    ? await schedulePredictionRead(() => market.hasClaimed(currentAccount))
+  const hasClaimed = normalizedAccount
+    ? await schedulePredictionRead(() => market.hasClaimed(normalizedAccount))
     : false;
 
   const resolver = new ethers.Contract(resolverAddress, MARKET_RESOLVER_ABI, provider);
@@ -608,12 +618,13 @@ async function loadMarketDetails(address, factory, provider, currentAccount) {
 }
 
 async function loadPredictionStateWithProvider(currentAccount, provider) {
+  const normalizedAccount = normalizeOptionalAddress(currentAccount);
   const factory = new ethers.Contract(CASFIN_CONFIG.addresses.marketFactory, MARKET_FACTORY_ABI, provider);
   const [factoryOwner, totalMarketsRaw, feeConfigRaw, approvedCreator] = await Promise.all([
     schedulePredictionRead(() => factory.owner()),
     schedulePredictionRead(() => factory.totalMarkets()),
     schedulePredictionRead(() => factory.feeConfig()),
-    currentAccount ? schedulePredictionRead(() => factory.approvedCreators(currentAccount)) : Promise.resolve(false)
+    normalizedAccount ? schedulePredictionRead(() => factory.approvedCreators(normalizedAccount)) : Promise.resolve(false)
   ]);
 
   const totalMarkets = Number(totalMarketsRaw);
@@ -624,7 +635,7 @@ async function loadPredictionStateWithProvider(currentAccount, provider) {
 
   // Use allSettled so a single broken market doesn't crash the whole page
   const marketResults = await Promise.allSettled(
-    marketAddresses.map((address) => loadMarketDetails(address, factory, provider, currentAccount))
+    marketAddresses.map((address) => loadMarketDetails(address, factory, provider, normalizedAccount))
   );
   const markets = marketResults
     .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof loadMarketDetails>>> => r.status === "fulfilled")

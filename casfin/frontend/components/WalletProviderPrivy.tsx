@@ -116,6 +116,10 @@ function maxBigInt(...values: Array<bigint | null | undefined>) {
   return current;
 }
 
+function normalizeConnectedAddress(value: unknown): string {
+  return typeof value === "string" && ethers.isAddress(value) ? value : "";
+}
+
 export default function WalletProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const privyWallet = usePrivyWallet();
@@ -395,7 +399,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     const currentChainId =
       await nextProvider.request({ method: "eth_chainId" }).catch(() => currentWallet.chainId);
 
-    const nextAccount = accounts[0] || currentWallet.address || "";
+    const nextAccount = normalizeConnectedAddress(accounts[0]) || normalizeConnectedAddress(currentWallet.address);
     const parsedChainId = parseChainId(currentChainId) ?? parseChainId(currentWallet.chainId);
     let nextBalance = 0n;
 
