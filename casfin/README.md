@@ -193,6 +193,8 @@ Optional keeper settings:
 - `KEEPER_START_BLOCK=0`
 - `KEEPER_EVENT_BATCH_BLOCKS=2000`
 
+If your RPC provider enforces a small `eth_getLogs` block-range cap, the keeper now automatically retries crash-event backfills in smaller chunks. For Alchemy's Arbitrum Sepolia free tier, set `KEEPER_EVENT_BATCH_BLOCKS=10` to reduce startup retries.
+
 What it does:
 
 - Runs the casino keeper and prediction market keeper together with `Promise.all`.

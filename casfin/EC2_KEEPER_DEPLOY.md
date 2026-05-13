@@ -213,6 +213,7 @@ Notes:
 - `REDIS_URL` is optional. Without it, bet-event publishing is disabled.
 - `BALLDONTLIE_API_KEY` is only needed for sports-market resolution flows.
 - `ENCRYPTED_CASINO_VAULT_ADDRESS` is optional but recommended so the keeper can run the vault solvency guard.
+- If your RPC provider restricts `eth_getLogs` block ranges, the keeper now auto-retries crash backfills in smaller chunks. On Alchemy's Arbitrum Sepolia free tier, set `KEEPER_EVENT_BATCH_BLOCKS=10` to avoid slow startup retries.
 
 ## 8. Start with PM2
 

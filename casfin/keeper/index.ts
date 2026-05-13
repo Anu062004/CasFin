@@ -122,10 +122,25 @@ function getEnvNumber(name: string, fallback: number): number {
 
 function formatError(error: unknown): string {
   const value = error as Record<string, any> | undefined;
+  const responseBody = value?.info?.responseBody;
+
+  if (typeof responseBody === "string") {
+    try {
+      const parsed = JSON.parse(responseBody) as { error?: { message?: string } };
+      const providerMessage = parsed?.error?.message;
+      if (providerMessage) {
+        return providerMessage;
+      }
+    } catch {
+      // Ignore malformed provider payloads and fall back to the usual fields.
+    }
+  }
+
   return (
-    value?.shortMessage ||
     value?.reason ||
     value?.info?.error?.message ||
+    value?.error?.message ||
+    value?.shortMessage ||
     value?.message ||
     String(error)
   );
@@ -161,15 +176,52 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   }
 
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    const onAbort = () => {
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const cleanup = () => {
       clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
+    };
+    const onAbort = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
       resolve();
     };
 
+    const onTimer = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve();
+    };
+
+    timer = setTimeout(onTimer, ms);
     signal.addEventListener("abort", onAbort, { once: true });
+
+    if (signal.aborted) {
+      onAbort();
+    }
   });
+}
+
+function isLogRangeLimitError(error: unknown): boolean {
+  const message = formatError(error).toLowerCase();
+
+  return (
+    message.includes("eth_getlogs") ||
+    message.includes("block range") ||
+    message.includes("too many blocks") ||
+    message.includes("too many results") ||
+    message.includes("response size exceeded") ||
+    message.includes("query returned more than") ||
+    message.includes("please limit the query") ||
+    message.includes("free tier")
+  );
 }
 
 function isRetryableTransactionError(error: unknown): boolean {
@@ -370,17 +422,38 @@ async function runCasinoKeeper(
       return;
     }
 
-    for (let start = fromBlock; start <= toBlock && !signal.aborted; start += EVENT_BACKFILL_BATCH_SIZE) {
-      const end = Math.min(toBlock, start + EVENT_BACKFILL_BATCH_SIZE - 1);
-      const events = await crash.queryFilter(crash.filters.CrashBetPlaced(), start, end);
-      for (const event of events) {
-        const args = (event as any).args;
-        if (!args) {
-          continue;
+    const scanCrashEventsRange = async (start: number, end: number): Promise<void> => {
+      try {
+        const events = await crash.queryFilter(crash.filters.CrashBetPlaced(), start, end);
+        for (const event of events) {
+          const args = (event as any).args;
+          if (!args) {
+            continue;
+          }
+
+          detectCrashBet(BigInt(args[0].toString()), String(args[1]), `backfill:${start}-${end}`);
+        }
+      } catch (error) {
+        if (!isLogRangeLimitError(error) || start >= end) {
+          throw error;
         }
 
-        detectCrashBet(BigInt(args[0].toString()), String(args[1]), `backfill:${start}-${end}`);
+        const midpoint = start + Math.floor((end - start) / 2);
+        console.warn(
+          `[Casino][Crash] backfill range ${start}-${end} exceeded provider log limits (${formatError(
+            error
+          )}). Retrying in smaller chunks.`
+        );
+        await scanCrashEventsRange(start, midpoint);
+        if (!signal.aborted && midpoint + 1 <= end) {
+          await scanCrashEventsRange(midpoint + 1, end);
+        }
       }
+    };
+
+    for (let start = fromBlock; start <= toBlock && !signal.aborted; start += EVENT_BACKFILL_BATCH_SIZE) {
+      const end = Math.min(toBlock, start + EVENT_BACKFILL_BATCH_SIZE - 1);
+      await scanCrashEventsRange(start, end);
     }
   };
 
