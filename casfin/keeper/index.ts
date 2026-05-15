@@ -376,6 +376,17 @@ async function runCasinoKeeper(
   const dice = toDynamicContract(process.env.ENCRYPTED_DICE_GAME_ADDRESS, encryptedDiceAbi);
   const crash = toDynamicContract(process.env.ENCRYPTED_CRASH_GAME_ADDRESS, encryptedCrashAbi);
 
+  // CoFHE task manager — on Arbitrum Sepolia testnet this is a MockTaskManager.
+  // MOCK_resolveDecrypt(handle) instantly marks a pending decrypt as ready so
+  // finalizeResolution can be called in the very next poll instead of waiting
+  // 15-30 s for the threshold network to respond.
+  const COFHE_TASK_MANAGER_ADDRESS = process.env.COFHE_TASK_MANAGER_ADDRESS || "0xeA30c4B8b44078Bbf8a6ef5b9f1eC1626C7848D9";
+  const taskManager = new ethers.Contract(
+    COFHE_TASK_MANAGER_ADDRESS,
+    ["function MOCK_resolveDecrypt(uint256 ctHash) external"],
+    signer
+  );
+
   const pendingCoinFlipIds = new Set<string>();
   const pendingDiceIds = new Set<string>();
   const pendingCrashRoundIds = new Set<string>();
@@ -591,6 +602,36 @@ async function runCasinoKeeper(
     }
   };
 
+  // Returns the FHE handles that need to be decrypt-resolved for each game type.
+  // CoinFlip: only pendingWonFlag (bet[6]).
+  // Dice: pendingWonFlag (bet[6]) + rolledHandle (bet[3]) — dice decrypts both.
+  const getDecryptHandles = (label: "CoinFlip" | "Dice", bet: any): bigint[] => {
+    const pendingWonFlag = BigInt(bet[6]);
+    if (label === "CoinFlip") {
+      return [pendingWonFlag];
+    }
+    return [pendingWonFlag, BigInt(bet[3])];
+  };
+
+  // Calls MOCK_resolveDecrypt on each handle so finalizeResolution can proceed
+  // immediately without waiting for CoFHE threshold nodes (testnet only).
+  // Errors are silently swallowed — if the task manager isn't a MockTaskManager
+  // this is a no-op and the keeper falls back to waiting for the threshold network.
+  const tryMockResolveDecrypt = async (handles: bigint[]): Promise<void> => {
+    for (const handle of handles) {
+      if (handle === 0n) continue;
+      try {
+        await sendTransaction(
+          `[CoFHE] MOCK_resolveDecrypt(${handle.toString().slice(0, 10)}...)`,
+          signal,
+          () => taskManager.MOCK_resolveDecrypt(handle)
+        );
+      } catch {
+        // Not a MockTaskManager, or handle already resolved — carry on
+      }
+    }
+  };
+
   const processResolvableBet = async (
     label: "CoinFlip" | "Dice",
     contract: DynamicContract,
@@ -614,8 +655,15 @@ async function runCasinoKeeper(
         if (!resolutionPending) {
           console.log(`[Casino][${label}] resolving id=${id}`);
           await sendTransaction(`[Casino][${label}] requestResolution(${id})`, signal, () => contract.requestResolution(betId));
+          // Immediately fulfill the CoFHE decrypt task so finalizeResolution
+          // can run on the very next poll instead of waiting for threshold nodes.
+          const updatedBet = await contract.bets(betId);
+          await tryMockResolveDecrypt(getDecryptHandles(label, updatedBet));
           continue;
         }
+
+        // resolutionPending = true: try to ensure decrypt is ready before finalizing.
+        await tryMockResolveDecrypt(getDecryptHandles(label, bet));
 
         console.log(`[Casino][${label}] resolving id=${id}`);
         const txHash = await sendTransaction(
@@ -629,6 +677,13 @@ async function runCasinoKeeper(
         publishBetEvent(label === "CoinFlip" ? "coinflip" : "dice", id, player, txHash);
       } catch (error) {
         if (isPendingFinalizeError(error)) {
+          // CoFHE hasn't returned the result yet. Attempt to mock-resolve and retry next poll.
+          try {
+            const bet = await contract.bets(BigInt(id));
+            await tryMockResolveDecrypt(getDecryptHandles(label, bet));
+          } catch {
+            // ignore
+          }
           continue;
         }
 
