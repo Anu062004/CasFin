@@ -39,17 +39,19 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
     setRolledFace(null);
 
     try {
+      // Pre-encrypt before runTransaction so the wallet popup appears immediately
+      // after "Approve in your wallet" — not seconds later after WASM work.
+      const amountWei = parseRequiredEth(amount, "Bet amount");
+      const guessValue = parseRequiredInteger(String(guess), "Guess");
+
+      if (guessValue < 1 || guessValue > 6) {
+        throw new Error("Guess must be between 1 and 6.");
+      }
+
+      const encAmount = await encryptUint128(amountWei);
+      const encGuess = await encryptUint8(guessValue);
       await runTransaction("Place dice bet", async (signer) => {
         const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
-        const amountWei = parseRequiredEth(amount, "Bet amount");
-        const guessValue = parseRequiredInteger(String(guess), "Guess");
-
-        if (guessValue < 1 || guessValue > 6) {
-          throw new Error("Guess must be between 1 and 6.");
-        }
-
-        const encAmount = await encryptUint128(amountWei);
-        const encGuess = await encryptUint8(guessValue);
         return dice.placeBet(encAmount, encGuess);
       });
     } finally {
@@ -111,7 +113,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
 
       <button
         className="game-action-btn dice-action-btn"
-        disabled={walletBlocked || isRollPending || !cofheConnected}
+        disabled={walletBlocked || isRollPending || isRolling || !cofheConnected}
         onClick={handleRoll}
         type="button"
       >

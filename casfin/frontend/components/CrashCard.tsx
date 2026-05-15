@@ -15,6 +15,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
   const [amount, setAmount] = useState("0.01");
   const [cashOutMultiplier, setCashOutMultiplier] = useState("2.0");
   const [settlePlayer, setSettlePlayer] = useState("");
+  const [isBetting, setIsBetting] = useState(false);
   const [displayMultiplier, setDisplayMultiplier] = useState(1.0);
   const [isLive, setIsLive] = useState(false);
   const multiplierRef = useRef(null);
@@ -71,6 +72,24 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
     const last = pointsRef.current[pointsRef.current.length - 1];
     ctx.font = "20px serif";
     ctx.fillText("🚀", last.x - 10, last.y - 5);
+  }
+
+  async function handleCrashBet() {
+    setIsBetting(true);
+    try {
+      // Pre-encrypt before runTransaction so the wallet popup appears immediately
+      // after "Approve in your wallet" — not seconds later after WASM work.
+      const currentRoundId = parseRequiredInteger(roundId, "Round id");
+      const amountWei = parseRequiredEth(amount, "Crash amount");
+      const targetCashOut = parseCashOutMultiplier(cashOutMultiplier);
+      const encAmount = await encryptUint128(amountWei);
+      await runTransaction("Place crash bet", async (signer) => {
+        const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
+        return crash.placeBet(currentRoundId, encAmount, targetCashOut);
+      });
+    } finally {
+      setIsBetting(false);
+    }
   }
 
   const isStartPending = pendingAction === "Start crash round";
@@ -131,17 +150,8 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
           </div>
           <button
             className="game-action-btn crash-action-btn"
-            disabled={walletBlocked || isBetPending || !cofheConnected}
-            onClick={() =>
-              runTransaction("Place crash bet", async (signer) => {
-                const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
-                const currentRoundId = parseRequiredInteger(roundId, "Round id");
-                const amountWei = parseRequiredEth(amount, "Crash amount");
-                const targetCashOut = parseCashOutMultiplier(cashOutMultiplier);
-                const encAmount = await encryptUint128(amountWei);
-                return crash.placeBet(currentRoundId, encAmount, targetCashOut);
-              })
-            }
+            disabled={walletBlocked || isBetPending || isBetting || !cofheConnected}
+            onClick={handleCrashBet}
             type="button"
           >
             {isBetPending ? (sessionInitializing ? "ENCRYPTING..." : "PLACING...") : !cofheConnected ? "CONNECT WALLET" : "PLACE BET"}

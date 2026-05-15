@@ -149,6 +149,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   const sessionWalletRef = useRef<ethers.HDNodeWallet | ethers.Wallet | null>(null);
   const sessionExpiryRef = useRef<number>(0);
   const sessionPlayerRef = useRef<string>("");
+  const postTxPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [sessionExpiry, setSessionExpiry] = useState<number | null>(null);
   const [sessionAddress, setSessionAddress] = useState<string | null>(null);
@@ -988,6 +989,25 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     pushStatus("Session ended. Wallet required for future transactions.", "info");
   }
 
+  function startPostTransactionPolling(acct: string) {
+    if (postTxPollingRef.current) {
+      clearInterval(postTxPollingRef.current);
+      postTxPollingRef.current = null;
+    }
+    let attempts = 0;
+    postTxPollingRef.current = setInterval(() => {
+      attempts++;
+      if (attempts >= 30 || !mountedRef.current) {
+        clearInterval(postTxPollingRef.current!);
+        postTxPollingRef.current = null;
+        return;
+      }
+      loadPolledProtocolState(acct).catch((error) => {
+        logBackgroundWalletError("Post-tx polling refresh failed.", error);
+      });
+    }, 3_000);
+  }
+
   async function runTransaction(label, handler): Promise<boolean> {
     if (!activeWalletRef.current) {
       pushStatus("Connect a wallet before sending transactions.", "warning");
@@ -1048,10 +1068,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         setLastTransaction({ label, hash: transaction.hash, status: "confirmed", timestamp: Date.now() });
         pushStatus(`${label} confirmed.`, "success");
         await loadProtocolState(nextAccount);
+        startPostTransactionPolling(nextAccount);
         return true;
       }
 
-      await ensureWalletBalance(provider, nextAccount);
       await ensureEncryptedSession(nextAccount);
 
       setPendingAction(label);
@@ -1078,6 +1098,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       });
       pushStatus(`${label} confirmed.`, "success");
       await loadProtocolState(nextAccount);
+      startPostTransactionPolling(nextAccount);
       return true;
     } catch (error) {
       pushStatus(extractError(error), "error");
@@ -1094,6 +1115,10 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mountedRef.current = false;
+      if (postTxPollingRef.current) {
+        clearInterval(postTxPollingRef.current);
+        postTxPollingRef.current = null;
+      }
     };
   }, []);
 
@@ -1201,6 +1226,17 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
   }, [account]);
 
   useProtocolEvents(handleProtocolEvent, { enabled: true });
+
+  // 30-second polling fallback — catches missed SSE events when Redis is unavailable or tab was hidden
+  useEffect(() => {
+    if (!account) return;
+    const id = setInterval(() => {
+      loadPolledProtocolState(account).catch((error) => {
+        logBackgroundWalletError("Polling fallback refresh failed.", error);
+      });
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [account]);
 
   // Restore session key from sessionStorage on mount (handles page reload within same tab)
   useEffect(() => {

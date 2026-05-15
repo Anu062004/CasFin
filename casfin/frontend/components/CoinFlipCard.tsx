@@ -42,11 +42,13 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
     setIsFlipping(true);
 
     try {
+      // Pre-encrypt before runTransaction so the wallet popup appears immediately
+      // after "Approve in your wallet" — not seconds later after WASM work.
+      const amountWei = parseRequiredEth(amount, "Bet amount");
+      const encAmount = await encryptUint128(amountWei);
+      const encGuess = await encryptBool(guessHeads);
       await runTransaction("Place coin flip bet", async (signer) => {
         const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
-        const amountWei = parseRequiredEth(amount, "Bet amount");
-        const encAmount = await encryptUint128(amountWei);
-        const encGuess = await encryptBool(guessHeads);
         return coin.placeBet(encAmount, encGuess);
       });
     } finally {
@@ -111,7 +113,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
 
       <button
         className="game-action-btn coin-action-btn"
-        disabled={walletBlocked || isFlipPending || !cofheConnected}
+        disabled={walletBlocked || isFlipPending || isFlipping || !cofheConnected}
         onClick={handleFlip}
         type="button"
       >
