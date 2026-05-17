@@ -8,6 +8,12 @@ const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: __dirname,
   webpack(config, { isServer, webpack }) {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@farcaster/mini-app-solana": false
+    };
+
     if (isServer) {
       // @cofhe/sdk references `self` at module initialization time (WASM worker setup).
       // In Node.js (SSR / prerender workers), `self` is undefined. Replace it with globalThis.

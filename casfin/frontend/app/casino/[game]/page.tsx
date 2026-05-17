@@ -6,10 +6,14 @@ export function generateStaticParams() {
   return CASINO_GAMES.map((game) => ({ game: game.slug }));
 }
 
-export default function CasinoGamePage({ params }: { params: { game: string } }) {
-  if (!isCasinoGameSlug(params.game)) {
+export default async function CasinoGamePage(
+  { params }: { params: Promise<{ game: string }> }
+) {
+  const { game } = await params;
+
+  if (!isCasinoGameSlug(game)) {
     notFound();
   }
 
-  return <CasinoShell activeGame={params.game} />;
+  return <CasinoShell activeGame={game} />;
 }
