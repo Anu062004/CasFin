@@ -1,10 +1,11 @@
 import "./globals.css";
+import "./casino-guide.css";
 import { Inter, JetBrains_Mono, DM_Serif_Display } from "next/font/google";
 import FheProgressBar from "@/components/FheProgressBar";
 import NavbarPrivy from "@/components/NavbarPrivy";
 import PrivyAppProvider from "@/components/PrivyAppProvider";
+import SiteFooter from "@/components/layout/SiteFooter";
 import StatusBar from "@/components/StatusBar";
-import VideoBackground from "@/components/VideoBackground";
 import WalletProvider from "@/components/WalletProvider";
 import { CofheProvider } from "@/lib/cofhe-provider";
 
@@ -30,21 +31,21 @@ const dmSerif = DM_Serif_Display({
 
 export const metadata = {
   title: "CasFin",
-  description: "Premium glass prediction markets and casino gaming on Arbitrum Sepolia."
+  description: "Encrypted casino gaming and prediction markets on Arbitrum Sepolia."
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${jetbrains.variable} ${dmSerif.variable}`}>
+      <body className={`${inter.variable} ${jetbrains.variable} ${dmSerif.variable} casfin-body`}>
         <PrivyAppProvider>
           <CofheProvider>
             <WalletProvider>
-              <VideoBackground />
               <NavbarPrivy />
               <StatusBar />
               <FheProgressBar />
               <div className="app-chrome">{children}</div>
+              <SiteFooter />
             </WalletProvider>
           </CofheProvider>
         </PrivyAppProvider>

@@ -1,5 +1,6 @@
 "use client";
 
+import ChainSelector from "@/components/layout/ChainSelector";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -8,10 +9,16 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { formatAddress, formatEth } from "@/lib/casfin-client";
 
 const NAV_LINKS = [
-  { href: "/casino", label: "Casino" },
-  { href: "/predictions", label: "Predictions" },
+  { href: "/casino/coin-toss", label: "Casino" },
+  { href: "/predictions", label: "Prediction Markets" },
   { href: "/wallet", label: "Wallet" }
 ];
+
+function railStatusLabel(isConnected: boolean, isCorrectChain: boolean) {
+  if (!isConnected) return "Read only";
+  if (!isCorrectChain) return "Switch required";
+  return "Encrypted rail live";
+}
 
 export default function NavbarPrivy() {
   const pathname = usePathname();
@@ -34,9 +41,7 @@ export default function NavbarPrivy() {
 
   const walletLabel = isConnected
     ? (userProfile?.displayName ?? formatAddress(account))
-    : "Connect";
-  const networkClass = !isConnected ? "is-neutral" : isCorrectChain ? "is-online" : "is-offline";
-  const networkLabel = !isConnected ? "Not connected" : isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network";
+    : "Connect Wallet";
 
   function closeMenu() {
     setMenuOpen(false);
@@ -63,19 +68,32 @@ export default function NavbarPrivy() {
     });
   }, [isConnected, refreshWalletState, walletModalOpen]);
 
+  function linkIsActive(href: string) {
+    if (href === "/casino/coin-toss") {
+      return pathname.startsWith("/casino");
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
   return (
     <>
-      <header className={`site-navbar ${pathname === "/" ? "is-home" : ""}`}>
-        <div className="navbar-inner">
-          <Link href="/" className="navbar-brand" aria-label="Back to home">
-            <span className="navbar-mark">C</span>
-            <span className="navbar-wordmark">CasFin</span>
+      <header className="top-nav">
+        <div className="top-nav-inner">
+          <Link aria-label="Back to home" className="top-nav-brand" href="/">
+            <span className="top-nav-mark">CF</span>
+            <span className="top-nav-wordmark">
+              <strong>CasFin</strong>
+              <span>Encrypted casino rail</span>
+            </span>
           </Link>
 
-          <nav aria-label="Primary" className="navbar-links">
+          <ChainSelector />
+
+          <nav aria-label="Primary" className="top-nav-center">
             {NAV_LINKS.map((link) => (
               <Link
-                className={pathname === link.href ? "navbar-link is-active" : "navbar-link"}
+                className={linkIsActive(link.href) ? "top-nav-link is-active" : "top-nav-link"}
                 href={link.href}
                 key={link.href}
               >
@@ -84,46 +102,36 @@ export default function NavbarPrivy() {
             ))}
           </nav>
 
-          <div className="navbar-actions">
-            {isConnected ? (
-              <button
-                className={`network-pill ${networkClass}`}
-                onClick={() => {
-                  if (!isCorrectChain) {
-                    void ensureTargetNetwork().catch((error) => {
-                      console.warn("[NavbarPrivy] Failed to switch network.", error);
-                    });
-                  }
-                }}
-                type="button"
-              >
-                <span className="network-dot" />
-                {networkLabel}
-              </button>
-            ) : null}
+          <div className="top-nav-right">
+            <div className="nav-inline-pill">
+              <span className="nav-inline-dot" />
+              <span>{railStatusLabel(isConnected, isCorrectChain)}</span>
+            </div>
 
             <button
-              className="wallet-connect-btn"
+              className={`wallet-launcher ${!isConnected ? "is-primary" : ""}`}
               disabled={Boolean(pendingAction)}
               onClick={handleWalletBtnClick}
               type="button"
             >
               {isConnected ? (
                 <>
-                  <span className="wallet-btn-dot" />
+                  <span className="wallet-launcher-dot" />
                   {walletLabel}
                 </>
               ) : (
-                "Connect Wallet"
+                walletLabel
               )}
             </button>
 
             <button
-              className={menuOpen ? "menu-toggle is-open" : "menu-toggle"}
+              className="top-nav-menu-toggle"
               onClick={() => setMenuOpen((current) => !current)}
               type="button"
             >
-              <span /><span /><span />
+              <span />
+              <span />
+              <span />
             </button>
           </div>
         </div>
@@ -144,22 +152,25 @@ export default function NavbarPrivy() {
               {userProfile?.displayName ? (
                 <p className="wm-display-name">{userProfile.displayName}</p>
               ) : (
-                <p className="wm-display-name wm-anon">Anonymous Player</p>
+                <p className="wm-display-name wm-anon">Anonymous player</p>
               )}
               <p className="wm-address">{account}</p>
               <p className="wm-network-row">Balance: {formatEth(walletBalance)} ETH</p>
               <p className="wm-network-row">
                 <span className={`wm-net-dot ${isCorrectChain ? "dot-ok" : "dot-bad"}`} />
-                {isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong Network"}
+                {isCorrectChain ? CASFIN_CONFIG.chainName : "Wrong network"}
               </p>
               <div className="wm-connected-actions">
                 {!userProfile?.displayName ? (
                   <button
                     className="wm-action-btn wm-setname-btn"
-                    onClick={() => { router.push("/wallet"); setWalletModalOpen(false); }}
+                    onClick={() => {
+                      router.push("/wallet");
+                      setWalletModalOpen(false);
+                    }}
                     type="button"
                   >
-                    Set Display Name
+                    Set display name
                   </button>
                 ) : null}
                 {!isCorrectChain ? (
@@ -173,7 +184,7 @@ export default function NavbarPrivy() {
                     }}
                     type="button"
                   >
-                    Switch to Arbitrum Sepolia
+                    Switch to {CASFIN_CONFIG.chainName}
                   </button>
                 ) : null}
                 <button
@@ -184,7 +195,7 @@ export default function NavbarPrivy() {
                   }}
                   type="button"
                 >
-                  View Wallet
+                  View wallet
                 </button>
                 <button
                   className="wm-action-btn wm-disconnect-btn"
@@ -208,15 +219,11 @@ export default function NavbarPrivy() {
         onClick={closeMenu}
         type="button"
       />
-      <aside className={menuOpen ? "mobile-drawer is-open" : "mobile-drawer"}>
-        <div className="mobile-drawer-head">
-          <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>Menu</span>
-          <button className="mobile-close" onClick={closeMenu} type="button">Close</button>
-        </div>
-        <nav className="mobile-nav">
+      <aside className={menuOpen ? "top-nav-drawer is-open" : "top-nav-drawer"}>
+        <div className="top-nav-drawer-links">
           {NAV_LINKS.map((link) => (
             <Link
-              className={pathname === link.href ? "navbar-link is-active" : "navbar-link"}
+              className={linkIsActive(link.href) ? "top-nav-link is-active" : "top-nav-link"}
               href={link.href}
               key={link.href}
               onClick={closeMenu}
@@ -224,9 +231,11 @@ export default function NavbarPrivy() {
               {link.label}
             </Link>
           ))}
-        </nav>
-        <div className="mobile-actions">
-          <button className="wallet-connect-btn" onClick={handleWalletBtnClick} type="button">
+        </div>
+
+        <div className="top-nav-drawer-actions">
+          <ChainSelector />
+          <button className={`wallet-launcher ${!isConnected ? "is-primary" : ""}`} onClick={handleWalletBtnClick} type="button">
             {isConnected ? formatAddress(account) : "Connect Wallet"}
           </button>
         </div>

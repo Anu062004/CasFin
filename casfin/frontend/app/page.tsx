@@ -1,167 +1,98 @@
-"use client";
+import Link from "next/link";
+import { CASFIN_CONFIG } from "@/lib/casfin-config";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-
-const INTRO_FADE_MS = 800;
-const LANDING_EXIT_MS = 950;
+const FEATURE_CARDS = [
+  {
+    mark: "CS",
+    title: "Casino rail",
+    description: "Route-based Coin Toss, Dice, Crash, and Video Poker with encrypted session reuse."
+  },
+  {
+    mark: "PM",
+    title: "Prediction markets",
+    description: "Manual market creation, AMM share buying, resolver controls, and final claim flows."
+  },
+  {
+    mark: "FHE",
+    title: "Private execution",
+    description: "CoFHE-backed bet encryption, keeper-assisted resolution, and wallet-aware status feedback."
+  }
+];
 
 export default function HomePage() {
-  const router = useRouter();
-  const introVideoRef = useRef(null);
-  const introTimerRef = useRef(null);
-  const exitTimerRef = useRef(null);
-
-  const [introFinished, setIntroFinished] = useState(false);
-  const [introFading, setIntroFading] = useState(false);
-  const [appEntered, setAppEntered] = useState(false);
-
-  useEffect(() => {
-    const introVideo = introVideoRef.current;
-    if (!introVideo) return undefined;
-    introVideo.play().catch(() => {});
-    return undefined;
-  }, []);
-
-  useEffect(() => {
-    if (!appEntered) document.body.classList.add("landing-lock");
-    return () => document.body.classList.remove("landing-lock");
-  }, [appEntered]);
-
-  useEffect(() => {
-    return () => {
-      if (introTimerRef.current) window.clearTimeout(introTimerRef.current);
-      if (exitTimerRef.current) window.clearTimeout(exitTimerRef.current);
-    };
-  }, []);
-
-  function finishIntro() {
-    if (introFinished || introFading) return;
-    setIntroFading(true);
-    introTimerRef.current = window.setTimeout(() => {
-      setIntroFinished(true);
-      setIntroFading(false);
-      if (introVideoRef.current) introVideoRef.current.pause();
-    }, INTRO_FADE_MS);
-  }
-
-  function enterApp(route: string) {
-    if (appEntered) return;
-    setAppEntered(true);
-    exitTimerRef.current = window.setTimeout(() => {
-      document.body.classList.remove("landing-lock");
-      router.push(route);
-    }, LANDING_EXIT_MS);
-  }
-
   return (
-    <main className={`landing-page ${appEntered ? "is-exiting" : ""}`}>
-      <section className="landing-experience">
-        {/* Looping background video */}
-        <div className="landing-loop-layer" aria-hidden="true">
-          <video autoPlay loop muted playsInline preload="auto" className="landing-video">
-            <source src="/videos/casfin-landing-loop.mp4" type="video/mp4" />
-          </video>
-          <div className="landing-backdrop-gradient" />
-        </div>
+    <main className="landing-shell">
+      <section className="landing-hero-grid">
+        <article className="landing-hero-panel">
+          <p className="hero-kicker">BetSwirl-inspired redesign</p>
+          <h1>Encrypted casino rails with a sharper on-chain shell.</h1>
+          <p>
+            CasFin now runs on a tighter dark design system: fixed top navigation, route-based casino tabs,
+            cleaner market surfaces, and a shared interface language across wallet, casino, and prediction flows.
+          </p>
 
-        {/* Intro animation video */}
-        <div className={`video-intro ${introFading || introFinished ? "fade-out" : ""}`}>
-          <video
-            ref={introVideoRef}
-            autoPlay
-            muted
-            playsInline
-            preload="auto"
-            className="landing-video"
-            onEnded={finishIntro}
-          >
-            <source src="/videos/casfin-intro.mp4" type="video/mp4" />
-          </video>
-          <button type="button" className="skip-btn" onClick={finishIntro}>
-            Skip
-          </button>
-        </div>
+          <div className="landing-action-row">
+            <Link className="glass-button is-primary" href="/casino/dice">
+              Open Casino
+            </Link>
+            <Link className="glass-button is-secondary" href="/predictions">
+              Explore Markets
+            </Link>
+            <Link className="glass-button is-secondary" href="/wallet">
+              View Wallet
+            </Link>
+          </div>
 
-        {/* Hero overlay revealed after intro */}
-        <div className={`landing-overlay ${introFinished ? "is-visible" : ""}`}>
-          <div className="landing-hero-container">
-            <div className="landing-tag-row">
-              <span className="landing-tag">Encrypted</span>
-              <span className="landing-tag">Private</span>
-              <span className="landing-tag">On-Chain</span>
+          <div className="landing-metric-grid">
+            <div className="landing-metric-card">
+              <span>Chain</span>
+              <strong>{CASFIN_CONFIG.chainName}</strong>
+              <p>Write flows target the live deployment and explorer tooling.</p>
             </div>
-
-            <div className="landing-hero-grid">
-              <div className="landing-hero-left">
-                <h1 className="landing-headline">
-                  Bet Private.
-                  <br />
-                  <span className="landing-headline-accent">Win Big.</span>
-                </h1>
-                <p className="landing-subtitle">
-                  The first fully encrypted casino powered by Fully Homomorphic
-                  Encryption. Your bets, your balance, your privacy - all on-chain.
-                </p>
-                <div className="landing-actions">
-                  <button
-                    className="land-btn land-btn-primary"
-                    onClick={() => enterApp("/casino")}
-                    type="button"
-                  >
-                    Enter Casino
-                  </button>
-                  <button
-                    className="land-btn land-btn-secondary"
-                    onClick={() => enterApp("/predictions")}
-                    type="button"
-                  >
-                    Predictions
-                  </button>
-                </div>
-              </div>
-
-              <div className="landing-vault-card">
-                <span className="landing-vault-eyebrow">Vault Balance</span>
-                <span className="landing-vault-label">Encrypted</span>
-                <span className="landing-vault-value">0.05 ETH</span>
-                <span className="landing-vault-tvl">Shared Vault · One balance for all games</span>
-              </div>
+            <div className="landing-metric-card">
+              <span>Casino games</span>
+              <strong>4 live routes</strong>
+              <p>Coin Toss, Dice, Crash, and Video Poker under one shared shell.</p>
             </div>
-
-            <div className="landing-features-row">
-              <button
-                className="landing-feature-card"
-                onClick={() => enterApp("/casino")}
-                type="button"
-              >
-                <div className="landing-feature-icon" aria-hidden="true" />
-                <div className="landing-feature-info">
-                  <strong>Casino Games</strong>
-                  <span>Coin Flip · Dice · Crash · Poker</span>
-                </div>
-              </button>
-              <button
-                className="landing-feature-card"
-                onClick={() => enterApp("/predictions")}
-                type="button"
-              >
-                <div className="landing-feature-icon" aria-hidden="true" />
-                <div className="landing-feature-info">
-                  <strong>Prediction Markets</strong>
-                  <span>Bet on real-world outcomes</span>
-                </div>
-              </button>
-              <div className="landing-feature-card">
-                <div className="landing-feature-icon" aria-hidden="true" />
-                <div className="landing-feature-info">
-                  <strong>FHE Privacy</strong>
-                  <span>CoFHE encrypted bets &amp; balances</span>
-                </div>
-              </div>
+            <div className="landing-metric-card">
+              <span>Settlement</span>
+              <strong>Keeper plus contract</strong>
+              <p>Encrypted wagers move through a visible multi-step resolution pipeline.</p>
             </div>
           </div>
-        </div>
+        </article>
+
+        <article className="landing-console-panel">
+          <p className="hero-kicker">Live interface goals</p>
+          <div className="landing-console-list">
+            <div className="landing-console-row">
+              <span>Navigation</span>
+              <strong>Fixed top bar with chain selector and wallet launcher</strong>
+            </div>
+            <div className="landing-console-row">
+              <span>Casino layout</span>
+              <strong>Two-column game stage and bet control dock</strong>
+            </div>
+            <div className="landing-console-row">
+              <span>Market layout</span>
+              <strong>Filterable market explorer plus creator controls</strong>
+            </div>
+            <div className="landing-console-row">
+              <span>Proof surface</span>
+              <strong>Provably fair badge wired to deployed contract pages</strong>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="landing-feature-grid">
+        {FEATURE_CARDS.map((feature) => (
+          <article className="landing-feature-card" key={feature.title}>
+            <span className="landing-feature-mark">{feature.mark}</span>
+            <h2>{feature.title}</h2>
+            <p>{feature.description}</p>
+          </article>
+        ))}
       </section>
     </main>
   );
