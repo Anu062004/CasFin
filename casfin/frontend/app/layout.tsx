@@ -2,6 +2,7 @@ import "./globals.css";
 import "./casino-guide.css";
 import { Inter, JetBrains_Mono, DM_Serif_Display } from "next/font/google";
 import FheProgressBar from "@/components/FheProgressBar";
+import CosmicBackground from "@/components/layout/CosmicBackground";
 import NavbarPrivy from "@/components/NavbarPrivy";
 import PrivyAppProvider from "@/components/PrivyAppProvider";
 import SiteFooter from "@/components/layout/SiteFooter";
@@ -38,6 +39,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className={`${inter.variable} ${jetbrains.variable} ${dmSerif.variable} casfin-body`}>
+        <CosmicBackground />
         <PrivyAppProvider>
           <CofheProvider>
             <WalletProvider>

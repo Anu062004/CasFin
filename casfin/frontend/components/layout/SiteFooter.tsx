@@ -19,7 +19,9 @@ export default function SiteFooter() {
     <footer className="site-footer">
       <div className="site-footer-inner">
         <div className="site-footer-brand">
-          <span className="site-footer-mark">CF</span>
+          <span className="site-footer-mark is-logo">
+            <img alt="" className="site-footer-logo" src="/casfin-logo-emblem.jpg" />
+          </span>
           <div>
             <p className="site-footer-kicker">CasFin</p>
             <h2>Private casino and prediction rails on {CASFIN_CONFIG.chainName}.</h2>

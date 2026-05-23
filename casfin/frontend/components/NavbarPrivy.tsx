@@ -89,7 +89,7 @@ export default function NavbarPrivy() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   const {
@@ -298,7 +298,9 @@ export default function NavbarPrivy() {
       <aside className={`chrome-sidebar ${sidebarCollapsed ? "is-collapsed" : ""} ${menuOpen ? "is-open" : ""}`}>
         <div className="chrome-sidebar-brand">
           <Link aria-label="Back to overview" className="chrome-brand-link" href="/" onClick={closeMenu}>
-            <span className="chrome-brand-mark">CF</span>
+            <span className="chrome-brand-mark is-logo">
+              <img alt="" className="chrome-brand-logo" src="/casfin-logo-emblem.jpg" />
+            </span>
             <span className="chrome-brand-copy">
               <strong>CasFin</strong>
               <span>Encrypted rail</span>

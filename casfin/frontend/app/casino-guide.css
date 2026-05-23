@@ -1238,3 +1238,563 @@ body::before {
     align-items: flex-start;
   }
 }
+
+/* ==========================================================================
+   Global lobby palette alignment for every route
+   ========================================================================== */
+
+:root {
+  --casino-bg: #07091c;
+  --casino-base: #0c1030;
+  --casino-card: rgba(16, 22, 58, 0.88);
+  --casino-raised: rgba(24, 32, 80, 0.94);
+  --casino-hover: rgba(31, 39, 96, 0.96);
+  --casino-border: rgba(108, 58, 237, 0.22);
+  --casino-border-strong: rgba(139, 92, 246, 0.46);
+  --accent-primary: #6c3aed;
+  --accent-hover: #8b5cf6;
+  --accent-light: #a78bfa;
+  --green-win: #10b981;
+  --red-loss: #f87171;
+  --yellow-warn: #f59e0b;
+  --text-primary: #ffffff;
+  --text-secondary: #b8c0e8;
+  --text-muted: #6f789c;
+  --shadow-soft: 0 24px 64px rgba(76, 29, 149, 0.28);
+  --shadow-hard: 0 32px 100px rgba(15, 9, 47, 0.52);
+  --bg: #07091c;
+  --bg-soft: rgba(16, 22, 58, 0.78);
+  --bg-panel: rgba(16, 22, 58, 0.82);
+  --bg-panel-strong: rgba(16, 22, 58, 0.92);
+  --line: rgba(108, 58, 237, 0.24);
+  --line-strong: rgba(139, 92, 246, 0.46);
+  --text: #ffffff;
+  --text-soft: #b8c0e8;
+  --text-dim: #6f789c;
+  --green: #10b981;
+  --green-deep: #059669;
+  --green-soft: #34d399;
+  --terminal-bg: #090c24;
+  --terminal-gold: #f59e0b;
+  --terminal-gold-deep: #d97706;
+  --terminal-gold-soft: rgba(245, 158, 11, 0.2);
+  --terminal-border: rgba(108, 58, 237, 0.24);
+}
+
+html,
+body {
+  background: #07091c;
+  color: var(--text-primary);
+}
+
+body::before {
+  background-image:
+    radial-gradient(circle at 78% 8%, rgba(108, 58, 237, 0.16), transparent 34%),
+    radial-gradient(circle at 12% 76%, rgba(6, 182, 212, 0.1), transparent 28%),
+    radial-gradient(circle at 50% 100%, rgba(245, 158, 11, 0.08), transparent 30%),
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: auto, auto, auto, 36px 36px, 36px 36px;
+  opacity: 0.52;
+}
+
+.app-chrome,
+.site-footer,
+.status-toast,
+.fhe-progress-bar {
+  position: relative;
+  z-index: 1;
+}
+
+.page-hero,
+.overview-card,
+.glass-card,
+.bet-data-panel,
+.bet-insight-card,
+.bet-feed-row,
+.casino-stage-card,
+.casino-control-dock,
+.callout-banner,
+.casino-session-banner,
+.game-tab-strip,
+.casino-canvas,
+.prediction-filter-card,
+.market-card,
+.market-card-root,
+.factory-card,
+.stat-card,
+.notice-card,
+.wallet-hero,
+.vault-card,
+.vault-action-card,
+.vault-operator-card,
+.profile-body,
+.landing-hero-panel,
+.landing-console-panel,
+.landing-feature-card,
+.site-footer-inner,
+.wm-panel {
+  border-color: rgba(108, 58, 237, 0.24);
+  background:
+    radial-gradient(circle at top left, rgba(108, 58, 237, 0.16), transparent 34%),
+    rgba(16, 22, 58, 0.86);
+  box-shadow: 0 24px 64px rgba(76, 29, 149, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+.page-hero,
+.casino-canvas,
+.landing-hero-panel {
+  background:
+    radial-gradient(circle at 78% 16%, rgba(245, 158, 11, 0.14), transparent 28%),
+    radial-gradient(circle at top left, rgba(108, 58, 237, 0.24), transparent 36%),
+    linear-gradient(128deg, rgba(18, 8, 82, 0.96), rgba(43, 13, 132, 0.9) 42%, rgba(124, 58, 237, 0.72));
+  border-color: rgba(139, 92, 246, 0.42);
+}
+
+.top-nav,
+.chrome-topbar {
+  background: rgba(7, 9, 28, 0.92);
+  border-bottom-color: rgba(108, 58, 237, 0.22);
+  backdrop-filter: blur(18px);
+}
+
+.top-nav-mark,
+.site-footer-mark,
+.game-tab-mark,
+.provably-fair-icon,
+.landing-feature-mark {
+  border-color: rgba(139, 92, 246, 0.32);
+  background: linear-gradient(135deg, rgba(108, 58, 237, 0.34), rgba(139, 92, 246, 0.12));
+  color: #fff;
+  box-shadow: 0 0 16px rgba(108, 58, 237, 0.24);
+}
+
+.top-nav-link.is-active,
+.game-tab-pill.is-active,
+.glass-button.is-pill.is-active,
+.bet-data-tab.is-active {
+  border-color: rgba(139, 92, 246, 0.44);
+  background: rgba(108, 58, 237, 0.2);
+  color: #fff;
+}
+
+.top-nav-link.is-active::after {
+  background: linear-gradient(90deg, #6c3aed, #a78bfa);
+}
+
+.top-chain-selector,
+.nav-inline-pill,
+.wallet-launcher,
+.glass-button,
+.game-tab-pill,
+.provably-fair-badge,
+.landing-console-row,
+.landing-metric-card,
+.control-chip,
+.casino-chip-button,
+.bet-data-tab,
+.profile-stat {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.top-chain-selector:hover,
+.nav-inline-pill:hover,
+.wallet-launcher:hover:not(:disabled),
+.glass-button:hover:not(:disabled),
+.game-tab-pill:hover,
+.casino-chip-button:hover:not(:disabled),
+.bet-data-tab:hover {
+  border-color: rgba(139, 92, 246, 0.42);
+  background: rgba(108, 58, 237, 0.16);
+}
+
+.wallet-launcher.is-primary,
+.glass-button.is-primary,
+.casino-primary-button,
+.game-action-btn,
+.profile-save-btn,
+.wallet-inline-link,
+.vault-action-grid .casino-primary-button {
+  border-color: rgba(245, 158, 11, 0.3);
+  background: linear-gradient(135deg, #f59e0b, #fb923c);
+  color: #fff;
+  box-shadow: 0 8px 28px rgba(245, 158, 11, 0.28);
+}
+
+.casino-secondary-button,
+.profile-cancel-btn,
+.glass-button.is-secondary,
+.glass-button.is-pill {
+  border-color: rgba(139, 92, 246, 0.24);
+  background: rgba(108, 58, 237, 0.12);
+  color: var(--text-secondary);
+}
+
+.top-chain-selector.is-live,
+.session-dot.is-active,
+.callout-pill,
+.status-toast.tone-success {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.top-chain-selector.is-live .top-chain-icon,
+.session-dot.is-active,
+.wallet-launcher-dot {
+  background: #10b981;
+  box-shadow: 0 0 13px #10b981;
+}
+
+.callout-pill {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+}
+
+.hero-kicker,
+.section-kicker,
+.site-footer-kicker,
+.nav-inline-pill,
+.status-toast-label,
+.status-toast-link,
+.control-chip,
+.provably-fair-icon,
+.landing-feature-mark,
+.wallet-balance-label,
+.profile-edit-btn,
+.profile-copy-btn {
+  color: #a78bfa;
+}
+
+.wallet-balance-value,
+.page-hero h1 strong,
+.landing-hero-panel h1 strong {
+  color: #f59e0b;
+  text-shadow: 0 0 24px rgba(245, 158, 11, 0.2);
+}
+
+.glass-input,
+.game-input,
+.profile-name-input,
+input,
+select,
+textarea {
+  border-color: rgba(108, 58, 237, 0.22);
+  background: rgba(9, 12, 36, 0.82);
+  color: #fff;
+}
+
+.glass-input:focus,
+.game-input:focus,
+.profile-name-input:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(139, 92, 246, 0.58);
+  background: rgba(16, 22, 58, 0.96);
+  box-shadow: 0 0 0 3px rgba(108, 58, 237, 0.16);
+}
+
+.casino-canvas::before,
+.casino-canvas::after {
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.fhe-progress-bar,
+.status-toast {
+  border-color: rgba(108, 58, 237, 0.24);
+  background: rgba(9, 12, 36, 0.94);
+}
+
+.chrome-brand-mark.is-logo,
+.site-footer-mark.is-logo {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid rgba(139, 92, 246, 0.42);
+  background: #07091c;
+  box-shadow:
+    0 0 18px rgba(108, 58, 237, 0.36),
+    0 0 20px rgba(245, 158, 11, 0.14);
+}
+
+.chrome-brand-mark.is-logo {
+  width: 48px;
+  height: 48px;
+}
+
+.site-footer-mark.is-logo {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.chrome-brand-logo,
+.site-footer-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.chrome-brand-logo {
+  transform: scale(1.2);
+}
+
+.site-footer-logo {
+  transform: scale(1.08);
+}
+
+.chrome-sidebar.is-collapsed .chrome-brand-mark.is-logo {
+  width: 48px;
+  height: 48px;
+}
+
+@media (min-width: 1025px) {
+  body.casfin-body .app-chrome,
+  body.casfin-body .site-footer,
+  body.shell-collapsed .app-chrome,
+  body.shell-collapsed .site-footer {
+    margin-left: var(--chrome-sidebar-collapsed);
+  }
+
+  body.casfin-body .chrome-topbar,
+  body.shell-collapsed .chrome-topbar {
+    left: var(--chrome-sidebar-collapsed);
+  }
+
+  body.casfin-body .fhe-progress-bar,
+  body.shell-collapsed .fhe-progress-bar {
+    left: calc(var(--chrome-sidebar-collapsed) + 22px);
+  }
+
+  .chrome-sidebar,
+  .chrome-sidebar.is-collapsed {
+    width: var(--chrome-sidebar-collapsed);
+    overflow: visible;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.04),
+      16px 0 44px rgba(0, 0, 0, 0);
+  }
+
+  .chrome-sidebar:hover,
+  .chrome-sidebar:focus-within,
+  .chrome-sidebar.is-open {
+    width: var(--chrome-sidebar-w);
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.04),
+      16px 0 44px rgba(4, 2, 18, 0.48);
+  }
+
+  .chrome-sidebar-brand {
+    padding-left: 16px;
+    padding-right: 12px;
+  }
+
+  .chrome-brand-link {
+    width: 100%;
+  }
+
+  .chrome-brand-copy,
+  .chrome-sidebar-label,
+  .chrome-nav-copy,
+  .chrome-nav-badge,
+  .chrome-wallet-label,
+  .chrome-wallet-balance,
+  .chrome-wallet-balance span,
+  .chrome-wallet-meta,
+  .chrome-wallet-action {
+    max-width: 0;
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity 150ms ease, max-width 180ms ease;
+  }
+
+  .chrome-sidebar:hover .chrome-brand-copy,
+  .chrome-sidebar:focus-within .chrome-brand-copy,
+  .chrome-sidebar:hover .chrome-sidebar-label,
+  .chrome-sidebar:focus-within .chrome-sidebar-label,
+  .chrome-sidebar:hover .chrome-nav-copy,
+  .chrome-sidebar:focus-within .chrome-nav-copy,
+  .chrome-sidebar:hover .chrome-nav-badge,
+  .chrome-sidebar:focus-within .chrome-nav-badge,
+  .chrome-sidebar:hover .chrome-wallet-label,
+  .chrome-sidebar:focus-within .chrome-wallet-label,
+  .chrome-sidebar:hover .chrome-wallet-balance,
+  .chrome-sidebar:focus-within .chrome-wallet-balance,
+  .chrome-sidebar:hover .chrome-wallet-balance span,
+  .chrome-sidebar:focus-within .chrome-wallet-balance span,
+  .chrome-sidebar:hover .chrome-wallet-meta,
+  .chrome-sidebar:focus-within .chrome-wallet-meta,
+  .chrome-sidebar:hover .chrome-wallet-action,
+  .chrome-sidebar:focus-within .chrome-wallet-action {
+    max-width: 180px;
+    width: auto;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+    white-space: normal;
+  }
+
+  .chrome-sidebar-label {
+    height: 0;
+    margin: 0;
+  }
+
+  .chrome-sidebar:hover .chrome-sidebar-label,
+  .chrome-sidebar:focus-within .chrome-sidebar-label {
+    height: auto;
+    margin: 0 10px 6px;
+  }
+
+  .chrome-nav-item {
+    justify-content: center;
+    gap: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .chrome-sidebar:hover .chrome-nav-item,
+  .chrome-sidebar:focus-within .chrome-nav-item {
+    justify-content: flex-start;
+    gap: 12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .chrome-nav-live-dot {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+  }
+
+  .chrome-sidebar:hover .chrome-nav-live-dot,
+  .chrome-sidebar:focus-within .chrome-nav-live-dot {
+    position: static;
+  }
+
+  .chrome-sidebar-scroll {
+    gap: 14px;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    padding-left: 12px;
+    padding-right: 12px;
+    scrollbar-color: transparent transparent;
+  }
+
+  .chrome-sidebar:hover .chrome-sidebar-scroll,
+  .chrome-sidebar:focus-within .chrome-sidebar-scroll {
+    gap: 22px;
+    overflow-y: auto;
+    scrollbar-color: rgba(139, 92, 246, 0.35) transparent;
+  }
+
+  .chrome-sidebar-scroll::-webkit-scrollbar {
+    width: 0;
+  }
+
+  .chrome-sidebar:hover .chrome-sidebar-scroll::-webkit-scrollbar,
+  .chrome-sidebar:focus-within .chrome-sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .chrome-sidebar-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(139, 92, 246, 0.36);
+  }
+
+  .chrome-sidebar-wallet {
+    padding: 12px;
+  }
+
+  .chrome-wallet-card {
+    position: relative;
+    align-items: center;
+    justify-content: center;
+    min-height: 54px;
+    padding: 10px;
+  }
+
+  .chrome-wallet-card::before {
+    content: "WL";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    background: rgba(16, 185, 129, 0.14);
+    color: #34d399;
+    font-family: var(--font-mono-terminal);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+
+  .chrome-sidebar:hover .chrome-wallet-card,
+  .chrome-sidebar:focus-within .chrome-wallet-card {
+    align-items: stretch;
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .chrome-sidebar:hover .chrome-wallet-card::before,
+  .chrome-sidebar:focus-within .chrome-wallet-card::before {
+    display: none;
+  }
+
+  .chrome-sidebar-toggle {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+.cfl-hero {
+  grid-template-columns: minmax(300px, 0.42fr) 1fr;
+  min-height: 0;
+  height: clamp(360px, 31vw, 470px);
+  aspect-ratio: auto;
+  padding: clamp(24px, 3.2vw, 38px);
+}
+
+.cfl-hero-copy {
+  max-width: 560px;
+}
+
+.cfl-hero h1 {
+  max-width: 10.5ch;
+  font-size: clamp(2.45rem, 4.2vw, 4.6rem);
+  letter-spacing: -0.04em;
+}
+
+.cfl-hero p {
+  max-width: 48ch;
+  font-size: 0.98rem;
+}
+
+.cfl-badge {
+  font-size: 0.62rem;
+  letter-spacing: 0.13em;
+}
+
+.cfl-hero-art img {
+  object-fit: contain;
+  transform: none;
+}
+
+@media (max-width: 920px) {
+  .cfl-hero {
+    height: auto;
+    min-height: 420px;
+    grid-template-columns: 1fr;
+  }
+
+  .cfl-hero h1 {
+    max-width: 11ch;
+    font-size: clamp(2.3rem, 9vw, 4.1rem);
+  }
+}
