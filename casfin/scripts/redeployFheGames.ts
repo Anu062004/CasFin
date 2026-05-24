@@ -58,7 +58,13 @@ function resolveResolver(defaultAddress) {
 }
 
 function resolveVaultAddress(contracts) {
-  return process.env.FHE_EXISTING_VAULT_ADDRESS || getAddress(contracts.encryptedCasinoVault) || DEFAULT_VAULT_ADDRESS;
+  return (
+    process.env.FHE_EXISTING_VAULT_ADDRESS ||
+    process.env.ENCRYPTED_CASINO_VAULT_ADDRESS ||
+    process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS ||
+    getAddress(contracts.encryptedCasinoVault) ||
+    DEFAULT_VAULT_ADDRESS
+  );
 }
 
 function resolveHouseEdgeBps() {

@@ -7,8 +7,7 @@ import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
 import {GameRandomnessLib} from "./GameRandomness.sol";
-import {FHE, InEuint128, InEuint8, TASK_MANAGER_ADDRESS, ebool, euint8, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
-import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
+import {FHE, InEuint128, InEuint8, ebool, euint8, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
     struct EncryptedBet {
@@ -132,10 +131,12 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
 
         ebool encWonFlag = FHE.eq(bet.encGuess, bet.rolledHandle);
         FHE.allowThis(encWonFlag);
+        // Current CoFHE decryption is keeper-driven: publish permission on-chain,
+        // then the keeper decrypts off-chain and publishes the signed result.
+        FHE.allowPublic(encWonFlag);
+        FHE.allowPublic(bet.rolledHandle);
         bet.pendingWonFlag = encWonFlag;
         bet.resolutionPending = true;
-        _requestDecrypt(encWonFlag);
-        _requestDecrypt(bet.rolledHandle);
 
         emit ResolutionRequested(betId, bet.player);
     }
@@ -193,12 +194,4 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         return FHE.div(netNumerator, ENCRYPTED_BPS_DENOMINATOR);
     }
 
-    function _requestDecrypt(ebool value) internal {
-        // The CoFHE runtime needs an explicit decrypt task so the result can be fetched in a later transaction.
-        ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(ebool.unwrap(value))), address(this));
-    }
-
-    function _requestDecrypt(euint8 value) internal {
-        ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(euint8.unwrap(value))), address(this));
-    }
 }

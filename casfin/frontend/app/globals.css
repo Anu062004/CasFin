@@ -3756,6 +3756,7 @@ button {
     linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
     radial-gradient(circle at top left, rgba(255,255,255,0.08), transparent 42%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 38px rgba(0,0,0,0.22);
+  animation: casinoResultEnter 0.42s cubic-bezier(.2,.9,.2,1) both;
 }
 
 .casino-result-card::before {
@@ -3789,6 +3790,131 @@ button {
   filter: blur(54px);
   opacity: 0.24;
   pointer-events: none;
+}
+
+.casino-result-burst {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.casino-result-burst span {
+  position: absolute;
+  top: 18px;
+  left: 24px;
+  width: 6px;
+  height: 18px;
+  border-radius: 99px;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+}
+
+.casino-result-burst span:nth-child(2) {
+  --burst-x: -34px;
+  left: 42%;
+  top: 12px;
+}
+
+.casino-result-burst span:nth-child(3) {
+  --burst-x: 56px;
+  left: 72%;
+  top: 24px;
+}
+
+.casino-result-burst span:nth-child(4) {
+  --burst-x: -48px;
+  left: 88%;
+  top: 56px;
+}
+
+.casino-result-burst span:nth-child(5) {
+  --burst-x: 28px;
+  left: 16%;
+  top: 78%;
+}
+
+.casino-result-card.is-win {
+  animation: casinoResultEnter 0.42s cubic-bezier(.2,.9,.2,1) both, casinoWinPulse 1.8s ease-out 0.08s both;
+}
+
+.casino-result-card.is-loss {
+  animation: casinoResultEnter 0.42s cubic-bezier(.2,.9,.2,1) both, casinoLossSettle 0.8s ease-out 0.08s both;
+}
+
+.casino-result-card.is-win .casino-result-burst span {
+  background: linear-gradient(180deg, #f5c842, #49cb84);
+  box-shadow: 0 0 16px rgba(73, 203, 132, 0.38);
+  animation: casinoWinBurst 1.2s cubic-bezier(.18,.86,.26,1) 0.12s both;
+}
+
+.casino-result-card.is-win .casino-result-burst span:nth-child(2) { animation-delay: 0.2s; }
+.casino-result-card.is-win .casino-result-burst span:nth-child(3) { animation-delay: 0.28s; }
+.casino-result-card.is-win .casino-result-burst span:nth-child(4) { animation-delay: 0.36s; }
+.casino-result-card.is-win .casino-result-burst span:nth-child(5) { animation-delay: 0.44s; }
+
+.casino-result-card.is-loss .casino-result-burst span {
+  width: 46px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 116, 116, 0.8), transparent);
+  box-shadow: 0 0 18px rgba(255, 116, 116, 0.28);
+  animation: casinoLossScan 1.1s ease-out 0.16s both;
+}
+
+.casino-result-card.is-loss .casino-result-burst span:nth-child(2) { animation-delay: 0.25s; }
+.casino-result-card.is-loss .casino-result-burst span:nth-child(3) { animation-delay: 0.34s; }
+.casino-result-card.is-loss .casino-result-burst span:nth-child(4) { animation-delay: 0.43s; }
+.casino-result-card.is-loss .casino-result-burst span:nth-child(5) { animation-delay: 0.52s; }
+
+@keyframes casinoResultEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes casinoWinPulse {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 16px 38px rgba(0,0,0,0.22); }
+  34% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px rgba(73,203,132,0.28), 0 22px 56px rgba(73,203,132,0.18); }
+}
+
+@keyframes casinoLossSettle {
+  0%, 100% { filter: saturate(1); }
+  32% { filter: saturate(0.72) brightness(0.9); }
+  56% { filter: saturate(1.08); }
+}
+
+@keyframes casinoWinBurst {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) rotate(0deg) scale(0.7);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--burst-x, 42px), -74px, 0) rotate(155deg) scale(1);
+  }
+}
+
+@keyframes casinoLossScan {
+  0% {
+    opacity: 0;
+    transform: translate3d(-20px, 0, 0) rotate(-8deg) scaleX(0.4);
+  }
+  34% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(38px, 0, 0) rotate(-8deg) scaleX(1);
+  }
 }
 
 .casino-result-card.is-win {
@@ -9614,7 +9740,9 @@ body.shell-collapsed .fhe-progress-bar {
   .cfl-star,
   .cfl-fe-art,
   .cfl-live-chip::before,
-  .cfl-badge::before {
+  .cfl-badge::before,
+  .casino-result-card,
+  .casino-result-burst span {
     animation: none;
   }
 

@@ -74,22 +74,18 @@ describe("EncryptedDiceGame", function () {
     expect(await mockDecrypt(asHandle((await dice.bets(0n))[2]))).to.equal(1n);
   });
 
-  it("dual decrypt - both wonFlag AND rolled value created", async function () {
+  it("requestResolution publicly allows both wonFlag and rolled value", async function () {
     await placeBet(ethers.parseEther("0.01"), 3n);
 
-    const tx = await dice.connect(resolver).requestResolution(0n);
-    const receipt = await tx.wait();
-    const decryptTaskLogs = receipt!.logs
-      .map((log: any) => {
-        try {
-          return taskManager.interface.parseLog(log);
-        } catch {
-          return null;
-        }
-      })
-      .filter((parsed: any) => parsed?.name === "DecryptTaskCreated");
+    await (await dice.connect(resolver).requestResolution(0n)).wait();
+    const bet = await dice.bets(0n);
+    const rolledHandle = asHandle(bet[3]);
+    const pendingWonFlag = asHandle(bet[6]);
 
-    expect(decryptTaskLogs).to.have.length(2);
+    expect(rolledHandle).to.not.equal(0n);
+    expect(pendingWonFlag).to.not.equal(0n);
+    expect(await taskManager.isPubliclyAllowed(rolledHandle)).to.equal(true);
+    expect(await taskManager.isPubliclyAllowed(pendingWonFlag)).to.equal(true);
   });
 
   it("finalizeResolution reads both decrypt results", async function () {

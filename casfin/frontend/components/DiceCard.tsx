@@ -5,6 +5,7 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_DICE_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
+import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
@@ -20,13 +21,31 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
   const latestBetId = casinoState.dice.nextBetId > 0n ? (casinoState.dice.nextBetId - 1n).toString() : "0";
   const usesEncryptedGame = casinoState.isFhe;
   const houseEdge = casinoState.dice.houseEdgeBps ? (Number(casinoState.dice.houseEdgeBps) / 100).toFixed(0) : "2";
-  const latestBetStatus = !latestBet
-    ? "No dice bet submitted yet."
-    : latestBet.resolved
-      ? `Latest bet #${latestBet.id.toString()} ${latestBet.won ? "won" : "lost"}${latestBet.rolled ? ` with a ${latestBet.rolled}.` : "."}`
-      : latestBet.resolutionPending
-        ? `Latest bet #${latestBet.id.toString()} is waiting for keeper finalization.`
-        : `Latest bet #${latestBet.id.toString()} is waiting for keeper resolution.`;
+  const diceOutcomeTone: "idle" | "pending" | "win" | "loss" = !latestBet ? "idle" : latestBet.resolved ? (latestBet.won ? "win" : "loss") : "pending";
+  const diceBetLabel = latestBet?.id !== null && latestBet?.id !== undefined ? `#${latestBet.id.toString()}` : "--";
+  const diceGuessLabel = typeof latestBet?.guess === "number" ? latestBet.guess.toString() : "Encrypted";
+  const diceRollLabel = latestBet?.resolved && latestBet.rolled ? latestBet.rolled.toString() : "--";
+  const diceOutcomeCard = {
+    tone: diceOutcomeTone,
+    eyebrow: "Latest dice roll",
+    title: !latestBet
+      ? "Ready for the next roll"
+      : latestBet.resolved
+        ? latestBet.won ? "Exact match paid" : "Roll missed the pick"
+        : latestBet.resolutionPending ? "Keeper finalizing roll" : "Keeper resolving roll",
+    badge: !latestBet ? "6x payout" : `Bet ${diceBetLabel}`,
+    detail: !latestBet
+      ? "Choose one number, encrypt the stake, and wait for the keeper-settled roll."
+      : latestBet.resolved
+        ? latestBet.won
+          ? "The latest dice bet matched the resolved roll."
+          : "The latest dice bet settled without a match."
+        : "The encrypted roll is moving through the keeper settlement path.",
+    metrics: [
+      { label: "Pick", value: diceGuessLabel },
+      { label: "Roll", value: diceRollLabel }
+    ]
+  };
 
   function applyPreset(preset) {
     if (preset === "½") setAmount((prev) => String((parseFloat(prev) / 2).toFixed(4)));
@@ -120,6 +139,8 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
         {isRollPending ? (sessionInitializing ? "ENCRYPTING..." : "ROLLING...") : !cofheConnected ? "CONNECT WALLET" : "ROLL DICE"}
       </button>
 
+      <CasinoOutcomeCard {...diceOutcomeCard} />
+
       <div className="resolve-row">
         <input
           className="game-input resolve-input"
@@ -140,10 +161,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
       </div>
 
       <p className="game-footer-text">{houseEdge}% house edge · FHE-encrypted on Arbitrum</p>
-      {usesEncryptedGame ? (
-        <p className="game-footer-text">Dice resolution is keeper-driven on the encrypted contract after randomness is ready.</p>
-      ) : null}
-      <p className="game-footer-text">{latestBetStatus}</p>
+      {usesEncryptedGame ? <p className="game-footer-text">Encrypted settlement runs through the keeper.</p> : null}
     </div>
   );
 }

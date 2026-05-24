@@ -66,25 +66,16 @@ describe("EncryptedCoinFlip", function () {
     expect(await coinFlip.nextBetId()).to.equal(1n);
   });
 
-  it("requestResolution sets resolutionPending and creates decrypt task", async function () {
+  it("requestResolution sets resolutionPending and publicly allows the win flag", async function () {
     await placeBet(ethers.parseEther("0.01"), true);
 
-    const tx = await coinFlip.connect(resolver).requestResolution(0n);
-    const receipt = await tx.wait();
+    await (await coinFlip.connect(resolver).requestResolution(0n)).wait();
     const bet = await coinFlip.bets(0n);
-
-    const decryptTaskLogs = receipt!.logs
-      .map((log: any) => {
-        try {
-          return taskManager.interface.parseLog(log);
-        } catch {
-          return null;
-        }
-      })
-      .filter((parsed: any) => parsed?.name === "DecryptTaskCreated");
+    const pendingWonFlag = asHandle(bet[6]);
 
     expect(bet[5]).to.equal(true);
-    expect(decryptTaskLogs).to.have.length(1);
+    expect(pendingWonFlag).to.not.equal(0n);
+    expect(await taskManager.isPubliclyAllowed(pendingWonFlag)).to.equal(true);
   });
 
   it("finalizeResolution for WINNING bet credits vault", async function () {

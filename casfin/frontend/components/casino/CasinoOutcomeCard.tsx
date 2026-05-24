@@ -16,7 +16,7 @@ interface CasinoOutcomeCardProps {
 
 const TONE_META = {
   idle: {
-    glyph: "•",
+    glyph: ".",
     label: "Standby"
   },
   pending: {
@@ -44,8 +44,15 @@ export default function CasinoOutcomeCard({
   const toneMeta = TONE_META[tone];
 
   return (
-    <section className={`casino-result-card is-${tone}`}>
+    <section className={`casino-result-card is-${tone}`} aria-live="polite">
       <div className="casino-result-glow" aria-hidden="true" />
+      <div className="casino-result-burst" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
 
       <div className="casino-result-header">
         <div className="casino-result-lead">

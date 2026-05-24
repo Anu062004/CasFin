@@ -5,6 +5,7 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_COIN_FLIP_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
+import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 
@@ -20,13 +21,30 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
   const usesEncryptedGame = true;
 
   const houseEdge = casinoState.coin.houseEdgeBps ? (Number(casinoState.coin.houseEdgeBps) / 100).toFixed(0) : "2";
-  const latestBetStatus = !latestBet
-    ? "No coin flip bet submitted yet."
-    : latestBet.resolved
-      ? `Latest bet #${latestBet.id.toString()} ${latestBet.won ? "won" : "lost"}.`
-      : latestBet.resolutionPending
-        ? `Latest bet #${latestBet.id.toString()} is waiting for keeper finalization.`
-        : `Latest bet #${latestBet.id.toString()} is waiting for keeper resolution.`;
+  const coinOutcomeTone: "idle" | "pending" | "win" | "loss" = !latestBet ? "idle" : latestBet.resolved ? (latestBet.won ? "win" : "loss") : "pending";
+  const coinBetLabel = latestBet?.id !== null && latestBet?.id !== undefined ? `#${latestBet.id.toString()}` : "--";
+  const coinGuessLabel = typeof latestBet?.guessHeads === "boolean" ? (latestBet.guessHeads ? "Heads" : "Tails") : "Encrypted";
+  const coinOutcomeCard = {
+    tone: coinOutcomeTone,
+    eyebrow: "Latest coin flip",
+    title: !latestBet
+      ? "Ready for the first flip"
+      : latestBet.resolved
+        ? latestBet.won ? "Winning flip paid" : "Flip settled as loss"
+        : latestBet.resolutionPending ? "Keeper finalizing result" : "Keeper resolving bet",
+    badge: !latestBet ? "2x payout" : `Bet ${coinBetLabel}`,
+    detail: !latestBet
+      ? "Place an encrypted heads or tails wager and the keeper will settle the outcome on-chain."
+      : latestBet.resolved
+        ? latestBet.won
+          ? "The latest settled coin flip finished in profit."
+          : "The latest settled coin flip missed the pick."
+        : "The keeper has picked up the encrypted result path and will publish the settlement.",
+    metrics: [
+      { label: "Pick", value: coinGuessLabel },
+      { label: "Edge", value: `${houseEdge}%` }
+    ]
+  };
 
   function applyPreset(preset) {
     if (preset === "½") {
@@ -120,6 +138,8 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
         {isFlipPending ? (sessionInitializing ? "ENCRYPTING..." : "FLIPPING...") : !cofheConnected ? "CONNECT WALLET" : "FLIP COIN"}
       </button>
 
+      <CasinoOutcomeCard {...coinOutcomeCard} />
+
       <div className="resolve-row">
         <input
           className="game-input resolve-input"
@@ -140,10 +160,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
       </div>
 
       <p className="game-footer-text">{houseEdge}% house edge · Provably fair on-chain</p>
-      {usesEncryptedGame ? (
-        <p className="game-footer-text">Coin flip resolution is keeper-driven on the encrypted contract after randomness is ready.</p>
-      ) : null}
-      <p className="game-footer-text">{latestBetStatus}</p>
+      {usesEncryptedGame ? <p className="game-footer-text">Encrypted settlement runs through the keeper.</p> : null}
     </div>
   );
 }

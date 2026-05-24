@@ -7,8 +7,7 @@ import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
 import {GameRandomnessLib} from "./GameRandomness.sol";
-import {FHE, InEbool, InEuint128, TASK_MANAGER_ADDRESS, ebool, euint8, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
-import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
+import {FHE, InEbool, InEuint128, ebool, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
     struct EncryptedBet {
@@ -112,18 +111,14 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         require(bet.player != address(0), "UNKNOWN_BET");
         require(!bet.resolved, "BET_RESOLVED");
         require(!bet.resolutionPending, "RESOLUTION_PENDING");
-        // Cast booleans to euint8 for comparison since FHE.eq(ebool, ebool) may not be available.
-        euint8 guessAsUint = FHE.asEuint8(bet.encGuessHeads);
-        FHE.allowThis(guessAsUint);
-        euint8 outcomeAsUint = FHE.asEuint8(bet.outcomeHeads);
-        FHE.allowThis(outcomeAsUint);
-        ebool encWonFlag = FHE.eq(guessAsUint, outcomeAsUint);
+        ebool encWonFlag = FHE.eq(bet.encGuessHeads, bet.outcomeHeads);
         // The game must retain access to the stored encrypted win flag for later finalization.
         FHE.allowThis(encWonFlag);
+        // Current CoFHE decryption is keeper-driven: publish permission on-chain,
+        // then the keeper decrypts off-chain and publishes the signed result.
+        FHE.allowPublic(encWonFlag);
         bet.pendingWonFlag = encWonFlag;
         bet.resolutionPending = true;
-        // The CoFHE runtime needs an explicit decrypt task so the result can be fetched in a later transaction.
-        _requestDecrypt(encWonFlag);
 
         emit ResolutionRequested(betId, bet.player);
     }
@@ -180,8 +175,4 @@ contract EncryptedCoinFlip is Ownable, Pausable, ReentrancyGuard {
         return FHE.div(netNumerator, ENCRYPTED_BPS_DENOMINATOR);
     }
 
-    function _requestDecrypt(ebool value) internal {
-        // The CoFHE runtime needs an explicit decrypt task so the result can be fetched in a later transaction.
-        ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(ebool.unwrap(value))), address(this));
-    }
 }

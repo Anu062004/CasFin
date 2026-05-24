@@ -32,6 +32,8 @@ const EVENT_BACKFILL_START_BLOCK = getEnvNumber("KEEPER_START_BLOCK", 0);
 const EVENT_BACKFILL_BATCH_SIZE = Math.max(1, getEnvNumber("KEEPER_EVENT_BATCH_BLOCKS", 2_000));
 const REDIS_URL = process.env.REDIS_URL || "";
 const BET_EVENTS_CHANNEL = "casfin:bets";
+const COFHE_TASK_MANAGER_ADDRESS =
+  process.env.COFHE_TASK_MANAGER_ADDRESS || "0xeA30c4B8b44078Bbf8a6ef5b9f1eC1626C7848D9";
 
 const provider = new ethers.JsonRpcProvider(
   RPC_URL,
@@ -42,6 +44,7 @@ let signer!: SharedSigner;
 
 let transactionQueue: Promise<void> = Promise.resolve();
 let redisPublisher: import("ioredis").Redis | null = null;
+let cofheClientPromise: Promise<any> | null = null;
 
 if (REDIS_URL) {
   redisPublisher = new IoRedis(REDIS_URL, {
@@ -315,6 +318,97 @@ async function sendTransaction(
   );
 }
 
+async function getCofheClient(): Promise<any> {
+  if (!cofheClientPromise) {
+    cofheClientPromise = (async () => {
+      const { createCofheClient, createCofheConfig } = require("@cofhe/sdk/node");
+      const { Ethers6Adapter } = require("@cofhe/sdk/adapters");
+      const { arbSepolia } = require("@cofhe/sdk/chains");
+      const config = createCofheConfig({ supportedChains: [arbSepolia] });
+      const client = createCofheClient(config);
+      const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+      const { publicClient, walletClient } = await Ethers6Adapter(provider, wallet);
+
+      await client.connect(publicClient, walletClient);
+      return client;
+    })().catch((error: unknown) => {
+      cofheClientPromise = null;
+      throw error;
+    });
+  }
+
+  return cofheClientPromise;
+}
+
+async function isDecryptResultReady(taskManager: DynamicContract, handle: bigint): Promise<boolean> {
+  try {
+    const result = await taskManager.getDecryptResultSafe(handle);
+    return Boolean(result?.[1]);
+  } catch {
+    return false;
+  }
+}
+
+async function publishDecryptHandle(
+  taskManager: DynamicContract,
+  handle: bigint,
+  label: string,
+  signal: AbortSignal
+): Promise<void> {
+  if (handle === 0n || signal.aborted) {
+    return;
+  }
+
+  if (await isDecryptResultReady(taskManager, handle)) {
+    return;
+  }
+
+  if (process.env.COFHE_USE_MOCK_DECRYPT === "true") {
+    try {
+      await sendTransaction(
+        `[CoFHE] MOCK_resolveDecrypt(${label}:${handle.toString().slice(0, 10)}...)`,
+        signal,
+        () => taskManager.MOCK_resolveDecrypt(handle)
+      );
+      if (await isDecryptResultReady(taskManager, handle)) {
+        return;
+      }
+    } catch {
+      // Not a local MockTaskManager. Continue with the production CoFHE flow.
+    }
+  }
+
+  try {
+    const client = await getCofheClient();
+    const result = await withRetry(
+      `[CoFHE] decryptForTx(${label}:${handle.toString().slice(0, 10)}...)`,
+      signal,
+      () => client.decryptForTx(handle).withoutPermit().execute()
+    );
+
+    await sendTransaction(
+      `[CoFHE] publishDecryptResult(${label}:${handle.toString().slice(0, 10)}...)`,
+      signal,
+      () => taskManager.publishDecryptResult(result.ctHash ?? handle, result.decryptedValue, result.signature)
+    );
+  } catch (error) {
+    if (!(await isDecryptResultReady(taskManager, handle))) {
+      console.warn(`[CoFHE] decrypt result not ready for ${label}: ${formatError(error)}`);
+    }
+  }
+}
+
+async function publishDecryptHandles(
+  taskManager: DynamicContract,
+  handles: bigint[],
+  label: string,
+  signal: AbortSignal
+): Promise<void> {
+  for (const handle of handles) {
+    await publishDecryptHandle(taskManager, handle, label, signal);
+  }
+}
+
 function isPendingFinalizeError(error: unknown): boolean {
   const message = formatError(error).toLowerCase();
   return (
@@ -376,14 +470,15 @@ async function runCasinoKeeper(
   const dice = toDynamicContract(process.env.ENCRYPTED_DICE_GAME_ADDRESS, encryptedDiceAbi);
   const crash = toDynamicContract(process.env.ENCRYPTED_CRASH_GAME_ADDRESS, encryptedCrashAbi);
 
-  // CoFHE task manager — on Arbitrum Sepolia testnet this is a MockTaskManager.
-  // MOCK_resolveDecrypt(handle) instantly marks a pending decrypt as ready so
-  // finalizeResolution can be called in the very next poll instead of waiting
-  // 15-30 s for the threshold network to respond.
-  const COFHE_TASK_MANAGER_ADDRESS = process.env.COFHE_TASK_MANAGER_ADDRESS || "0xeA30c4B8b44078Bbf8a6ef5b9f1eC1626C7848D9";
+  // CoFHE task manager. Local tests may expose MOCK_resolveDecrypt; testnet uses
+  // decryptForTx + publishDecryptResult after contracts call FHE.allowPublic.
   const taskManager = new ethers.Contract(
     COFHE_TASK_MANAGER_ADDRESS,
-    ["function MOCK_resolveDecrypt(uint256 ctHash) external"],
+    [
+      "function MOCK_resolveDecrypt(uint256 ctHash) external",
+      "function getDecryptResultSafe(uint256 ctHash) view returns (uint256,bool)",
+      "function publishDecryptResult(uint256 ctHash,uint256 result,bytes signature) external"
+    ],
     signer
   );
 
@@ -613,23 +708,8 @@ async function runCasinoKeeper(
     return [pendingWonFlag, BigInt(bet[3])];
   };
 
-  // Calls MOCK_resolveDecrypt on each handle so finalizeResolution can proceed
-  // immediately without waiting for CoFHE threshold nodes (testnet only).
-  // Errors are silently swallowed — if the task manager isn't a MockTaskManager
-  // this is a no-op and the keeper falls back to waiting for the threshold network.
-  const tryMockResolveDecrypt = async (handles: bigint[]): Promise<void> => {
-    for (const handle of handles) {
-      if (handle === 0n) continue;
-      try {
-        await sendTransaction(
-          `[CoFHE] MOCK_resolveDecrypt(${handle.toString().slice(0, 10)}...)`,
-          signal,
-          () => taskManager.MOCK_resolveDecrypt(handle)
-        );
-      } catch {
-        // Not a MockTaskManager, or handle already resolved — carry on
-      }
-    }
+  const publishCasinoDecrypts = async (handles: bigint[]): Promise<void> => {
+    await publishDecryptHandles(taskManager as DynamicContract, handles, "casino", signal);
   };
 
   const processResolvableBet = async (
@@ -658,12 +738,12 @@ async function runCasinoKeeper(
           // Immediately fulfill the CoFHE decrypt task so finalizeResolution
           // can run on the very next poll instead of waiting for threshold nodes.
           const updatedBet = await contract.bets(betId);
-          await tryMockResolveDecrypt(getDecryptHandles(label, updatedBet));
+          await publishCasinoDecrypts(getDecryptHandles(label, updatedBet));
           continue;
         }
 
         // resolutionPending = true: try to ensure decrypt is ready before finalizing.
-        await tryMockResolveDecrypt(getDecryptHandles(label, bet));
+        await publishCasinoDecrypts(getDecryptHandles(label, bet));
 
         console.log(`[Casino][${label}] resolving id=${id}`);
         const txHash = await sendTransaction(
@@ -680,7 +760,7 @@ async function runCasinoKeeper(
           // CoFHE hasn't returned the result yet. Attempt to mock-resolve and retry next poll.
           try {
             const bet = await contract.bets(BigInt(id));
-            await tryMockResolveDecrypt(getDecryptHandles(label, bet));
+            await publishCasinoDecrypts(getDecryptHandles(label, bet));
           } catch {
             // ignore
           }
@@ -718,11 +798,14 @@ async function runCasinoKeeper(
         if (!closeRequested) {
           console.log(`[Casino][Crash] resolving round=${roundId}`);
           const txHash = await sendTransaction(`[Casino][Crash] closeRound(${roundId})`, signal, () => crash.closeRound(id));
+          const updatedRound = await crash.rounds(id);
+          await publishDecryptHandles(taskManager as DynamicContract, [BigInt(updatedRound[1])], `crash:${roundId}`, signal);
           publishProtocolEvent({ type: "crash:round_closed", roundId, txHash });
           continue;
         }
 
         if (!closed) {
+          await publishDecryptHandles(taskManager as DynamicContract, [BigInt(round[1])], `crash:${roundId}`, signal);
           console.log(`[Casino][Crash] resolving round=${roundId}`);
           const txHash = await sendTransaction(`[Casino][Crash] finalizeRound(${roundId})`, signal, () => crash.finalizeRound(id));
           publishProtocolEvent({ type: "crash:round_finalized", roundId, txHash });

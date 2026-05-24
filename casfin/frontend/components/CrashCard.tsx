@@ -5,6 +5,7 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_CRASH_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth, parseRequiredInteger, parseCashOutMultiplier, formatMultiplier } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
+import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const RECENT_ROUNDS_MOCK = [
   { val: "3.21", won: true }, { val: "1.08", won: false }, { val: "7.44", won: true },
@@ -29,6 +30,36 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
   const roundOpen = latestRound && !latestRound.closed;
   const maxCashOut = formatMultiplier(casinoState.crash.maxCashOutMultiplierBps);
   const usesEncryptedGame = casinoState.isFhe;
+  const latestPlayerBet = casinoState.crash.latestPlayerBet;
+  const crashOutcomeTone: "idle" | "pending" | "win" | "loss" = !latestPlayerBet?.exists
+    ? roundOpen ? "pending" : "idle"
+    : latestPlayerBet.settled ? (latestPlayerBet.won ? "win" : "loss") : "pending";
+  const crashTargetLabel = latestPlayerBet?.exists
+    ? formatMultiplier(latestPlayerBet.cashOutMultiplierBps)
+    : `${cashOutMultiplier}x`;
+  const crashResolvedLabel = latestRound?.closed ? formatMultiplier(latestRound.crashMultiplierBps) : "Open";
+  const crashOutcomeCard = {
+    tone: crashOutcomeTone,
+    eyebrow: "Your crash position",
+    title: !latestPlayerBet?.exists
+      ? roundOpen ? "Round is accepting bets" : "Waiting for a live round"
+      : latestPlayerBet.settled
+        ? latestPlayerBet.won ? "Auto cash-out landed" : "Position caught by crash"
+        : "Position awaiting settlement",
+    badge: !latestPlayerBet?.exists ? `Max ${maxCashOut}` : latestPlayerBet.settled ? "Settled" : "Open bet",
+    detail: !latestPlayerBet?.exists
+      ? "Start from the current multiplier and choose a private encrypted stake for the active round."
+      : latestPlayerBet.settled
+        ? latestPlayerBet.won
+          ? "Your cash-out target cleared before the crash point."
+          : "The crash point landed before your cash-out target."
+        : "The keeper will settle this position once the crash multiplier is published.",
+    metrics: [
+      { label: "Round", value: `#${roundId}` },
+      { label: "Target", value: crashTargetLabel },
+      { label: "Crash", value: crashResolvedLabel }
+    ]
+  };
 
   // Animate the multiplier counter when round is open
   useEffect(() => {
@@ -124,6 +155,8 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
         </div>
       </div>
 
+      <CasinoOutcomeCard {...crashOutcomeCard} />
+
       <div className="crash-controls">
         <div className="crash-inputs-row">
           <div className="crash-input-group">
@@ -218,7 +251,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
         </div>
       </div>
       {usesEncryptedGame ? (
-        <p className="game-footer-text">Crash bets now submit CoFHE-encrypted stake amounts when the wallet is connected on Arbitrum Sepolia.</p>
+        <p className="game-footer-text">Encrypted crash settlement runs through the keeper.</p>
       ) : null}
     </div>
   );

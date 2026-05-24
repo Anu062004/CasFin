@@ -7,8 +7,7 @@ import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
 import {MathLib} from "../libraries/MathLib.sol";
 import {IEncryptedCasinoVault} from "./IEncryptedCasinoVault.sol";
 import {GameRandomnessLib} from "./GameRandomness.sol";
-import {FHE, InEuint128, TASK_MANAGER_ADDRESS, euint32, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
-import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
+import {FHE, InEuint128, euint32, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
     struct Round {
@@ -149,9 +148,12 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         require(!round.closeRequested, "ROUND_CLOSE_PENDING");
 
         euint32 crashMultiplierHandle = GameRandomnessLib.randomCrashMultiplierBps();
+        FHE.allowThis(crashMultiplierHandle);
+        // Current CoFHE decryption is keeper-driven: publish permission on-chain,
+        // then the keeper decrypts off-chain and publishes the signed result.
+        FHE.allowPublic(crashMultiplierHandle);
         round.crashMultiplierHandle = crashMultiplierHandle;
         round.closeRequested = true;
-        _requestDecrypt(crashMultiplierHandle);
 
         emit RoundCloseRequested(roundId);
     }
@@ -222,7 +224,4 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         return FHE.div(netNumerator, ENCRYPTED_BPS_DENOMINATOR);
     }
 
-    function _requestDecrypt(euint32 value) internal {
-        ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(uint256(bytes32(euint32.unwrap(value))), address(this));
-    }
 }
