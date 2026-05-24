@@ -2160,7 +2160,7 @@ button {
 
 .landing-grid {
   width: min(1180px, calc(100% - 2rem));
-  align-items: end;
+  align-items: flex-end;
 }
 
 .landing-content {
@@ -4042,7 +4042,7 @@ button {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  align-items: end;
+  align-items: flex-end;
 }
 
 .casino-operator-panel {
@@ -7145,7 +7145,7 @@ body.shell-collapsed .chrome-topbar {
 
 .dashboard-section-head {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
 }
@@ -8484,7 +8484,7 @@ body.shell-collapsed .fhe-progress-bar {
 
 .cfl-section-head {
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
 }
@@ -8951,5 +8951,674 @@ body.shell-collapsed .fhe-progress-bar {
 
   .cfl-bg .cfl-fe {
     opacity: 0.42;
+  }
+}
+
+/* ==========================================================================
+   Frontend design pass: refined encrypted casino command deck
+   ========================================================================== */
+
+.casfin-body {
+  --chrome-bg: #050806;
+  --chrome-bg-soft: rgba(9, 15, 12, 0.9);
+  --chrome-panel: rgba(7, 12, 10, 0.94);
+  --chrome-panel-soft: rgba(14, 22, 18, 0.9);
+  --chrome-card: rgba(15, 24, 20, 0.9);
+  --chrome-border: rgba(214, 168, 79, 0.17);
+  --chrome-border-strong: rgba(214, 168, 79, 0.32);
+  --chrome-text: #f8f3e6;
+  --chrome-text-soft: #c9d4c5;
+  --chrome-text-dim: #748171;
+  --chrome-green: #35d08b;
+  --chrome-green-soft: rgba(53, 208, 139, 0.14);
+  --chrome-amber: #d6a84f;
+  --chrome-violet: #7e6ad8;
+  --chrome-shadow: 0 24px 60px rgba(0, 0, 0, 0.46);
+  background:
+    linear-gradient(135deg, rgba(5, 8, 6, 0.98), rgba(8, 16, 14, 0.98) 42%, rgba(13, 13, 10, 0.98)),
+    #050806;
+  color: var(--chrome-text);
+  font-family: var(--font-mono-terminal);
+  font-weight: 400;
+}
+
+.casfin-global-bg {
+  background:
+    linear-gradient(115deg, rgba(4, 8, 6, 0.98), rgba(6, 17, 14, 0.94) 44%, rgba(14, 13, 8, 0.98)),
+    repeating-linear-gradient(90deg, rgba(214, 168, 79, 0.045) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 96px);
+}
+
+.casfin-global-bg .cfl-fe {
+  opacity: 0.18;
+}
+
+.casfin-global-bg .cfl-star {
+  background: #f3d990;
+  opacity: 0.34;
+}
+
+.chrome-sidebar {
+  background:
+    linear-gradient(180deg, rgba(10, 20, 15, 0.98), rgba(5, 8, 6, 0.98)),
+    repeating-linear-gradient(90deg, rgba(214, 168, 79, 0.04) 0 1px, transparent 1px 42px);
+  border-right-color: var(--chrome-border);
+}
+
+.chrome-brand-mark {
+  background: linear-gradient(135deg, #123d2c, #35d08b);
+  box-shadow: 0 0 18px rgba(53, 208, 139, 0.22);
+}
+
+.chrome-nav-item,
+.chrome-wallet-card,
+.chrome-search,
+.chrome-status-pill,
+.top-chain-selector,
+.wallet-launcher,
+.chrome-wallet-action,
+.chrome-sidebar-toggle {
+  border-radius: 8px;
+}
+
+.chrome-nav-item:hover {
+  background: rgba(214, 168, 79, 0.1);
+}
+
+.chrome-nav-item.is-active {
+  background: linear-gradient(135deg, rgba(53, 208, 139, 0.16), rgba(214, 168, 79, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(214, 168, 79, 0.26);
+}
+
+.chrome-wallet-card {
+  background:
+    linear-gradient(145deg, rgba(22, 61, 43, 0.8), rgba(12, 18, 14, 0.92)),
+    linear-gradient(90deg, rgba(214, 168, 79, 0.12), transparent);
+  border-color: rgba(214, 168, 79, 0.28);
+}
+
+.chrome-wallet-action,
+.wallet-launcher.is-primary,
+.chrome-wallet-launcher.is-primary {
+  background: linear-gradient(135deg, #d6a84f, #35d08b);
+  color: #07110b;
+  box-shadow: 0 16px 36px rgba(53, 208, 139, 0.16);
+}
+
+.chrome-topbar {
+  background: rgba(5, 8, 6, 0.88);
+  border-bottom-color: var(--chrome-border);
+  backdrop-filter: blur(20px);
+}
+
+.chrome-search,
+.chrome-status-pill,
+.top-chain-selector,
+.wallet-launcher {
+  border-color: rgba(214, 168, 79, 0.14);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.casfin-lobby {
+  --cfl-bg: #050806;
+  --cfl-bg2: #0b1712;
+  --cfl-card: rgba(13, 22, 18, 0.86);
+  --cfl-card-hover: rgba(18, 31, 25, 0.96);
+  --cfl-card-border: rgba(214, 168, 79, 0.18);
+  --cfl-p1: #35d08b;
+  --cfl-p2: #d6a84f;
+  --cfl-p3: #4ccbd3;
+  --cfl-gold: #d6a84f;
+  --cfl-gold2: #f0c96a;
+  --cfl-green: #35d08b;
+  --cfl-teal: #4ccbd3;
+  --cfl-text: #fff9ea;
+  --cfl-text-soft: #c9d4c5;
+  --cfl-muted: #7f8a7b;
+  gap: clamp(18px, 2vw, 28px);
+  font-family: var(--font-mono-terminal);
+}
+
+.casfin-lobby > .cfl-ticker,
+.casfin-lobby > .cfl-hero,
+.casfin-lobby > .cfl-section,
+.casfin-lobby > .cfl-stats-grid,
+.casfin-lobby > .cfl-market-section,
+.casfin-lobby > .cfl-partners {
+  animation: cflReveal 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.casfin-lobby > .cfl-hero { animation-delay: 70ms; }
+.casfin-lobby > .cfl-section:nth-of-type(3) { animation-delay: 140ms; }
+.casfin-lobby > .cfl-section:nth-of-type(4) { animation-delay: 210ms; }
+.casfin-lobby > .cfl-stats-grid { animation-delay: 280ms; }
+.casfin-lobby > .cfl-market-section { animation-delay: 350ms; }
+
+.cfl-ticker {
+  min-height: 40px;
+  border-color: rgba(214, 168, 79, 0.18);
+  border-radius: 8px;
+  background: rgba(10, 16, 13, 0.76);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.cfl-ticker-label {
+  color: var(--cfl-green);
+}
+
+.cfl-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.48fr);
+  align-items: stretch;
+  min-height: clamp(430px, 42vw, 560px);
+  aspect-ratio: auto;
+  padding: clamp(26px, 4vw, 52px);
+  border-color: rgba(214, 168, 79, 0.28);
+  border-radius: 8px;
+  background: #07100b;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.cfl-hero::before {
+  background:
+    linear-gradient(90deg, rgba(5, 8, 6, 0.96) 0%, rgba(5, 10, 8, 0.9) 39%, rgba(5, 10, 8, 0.28) 68%, rgba(5, 8, 6, 0.58) 100%),
+    linear-gradient(180deg, rgba(214, 168, 79, 0.1), transparent 38%);
+}
+
+.cfl-hero::after {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 52px),
+    repeating-linear-gradient(0deg, rgba(214, 168, 79, 0.025) 0 1px, transparent 1px 52px);
+  opacity: 0.72;
+}
+
+.cfl-hero-copy {
+  align-self: end;
+  gap: 18px;
+  max-width: 640px;
+}
+
+.cfl-badge {
+  border-color: rgba(214, 168, 79, 0.28);
+  background: rgba(214, 168, 79, 0.1);
+  color: #f1cf78;
+  font-size: 0.7rem;
+}
+
+.cfl-badge::before {
+  background: #f1cf78;
+  box-shadow: 0 0 10px rgba(241, 207, 120, 0.8);
+}
+
+.cfl-hero h1,
+.cfl-section-head h2,
+.cfl-qcopy strong,
+.cfl-game-meta strong,
+.cfl-stat-card strong,
+.cfl-market-card strong {
+  font-family: var(--font-serif-terminal);
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.cfl-hero h1 {
+  max-width: 10ch;
+  font-size: clamp(3.2rem, 7vw, 7rem);
+  line-height: 0.9;
+  text-shadow: 0 22px 58px rgba(0, 0, 0, 0.58);
+}
+
+.cfl-hero h1 span {
+  color: #f1cf78;
+  text-shadow: 0 0 30px rgba(214, 168, 79, 0.38);
+}
+
+.cfl-hero p {
+  max-width: 58ch;
+  color: rgba(248, 243, 230, 0.82);
+  font-size: clamp(0.94rem, 1vw, 1.04rem);
+  font-weight: 400;
+}
+
+.cfl-hero-btn,
+.cfl-ghost-btn,
+.cfl-link-btn,
+.cfl-play {
+  border-radius: 8px;
+  letter-spacing: 0.04em;
+}
+
+.cfl-hero-btn {
+  background: linear-gradient(135deg, #f1cf78, #35d08b);
+  color: #07110b;
+  box-shadow: 0 16px 36px rgba(53, 208, 139, 0.18);
+}
+
+.cfl-hero-btn:hover {
+  box-shadow: 0 18px 44px rgba(214, 168, 79, 0.24);
+}
+
+.cfl-ghost-btn,
+.cfl-link-btn {
+  border-color: rgba(248, 243, 230, 0.18);
+  background: rgba(248, 243, 230, 0.07);
+}
+
+.cfl-ghost-btn:hover,
+.cfl-link-btn:hover {
+  border-color: rgba(214, 168, 79, 0.42);
+  background: rgba(214, 168, 79, 0.12);
+}
+
+.cfl-hero-ledger {
+  position: relative;
+  z-index: 3;
+  align-self: end;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(214, 168, 79, 0.22);
+  border-radius: 8px;
+  background: rgba(4, 8, 6, 0.74);
+  backdrop-filter: blur(16px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.cfl-ledger-kicker {
+  color: #f1cf78;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cfl-ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(248, 243, 230, 0.08);
+}
+
+.cfl-ledger-row span,
+.cfl-qmeta small {
+  color: var(--cfl-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cfl-ledger-row strong {
+  color: var(--cfl-text);
+  font-size: 0.95rem;
+  text-align: right;
+}
+
+.cfl-ledger-row small {
+  grid-column: 1 / -1;
+  color: var(--cfl-text-soft);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.cfl-hero-art img {
+  object-fit: cover;
+  object-position: center right;
+  filter: saturate(1.04) contrast(1.08) brightness(0.74);
+}
+
+.cfl-section,
+.cfl-market-section {
+  gap: 16px;
+}
+
+.cfl-section-head p {
+  color: #f1cf78;
+}
+
+.cfl-section-head h2 {
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  line-height: 0.98;
+}
+
+.cfl-live-chip {
+  border-color: rgba(53, 208, 139, 0.28);
+  border-radius: 8px;
+  background: rgba(53, 208, 139, 0.1);
+  color: #7ef0b7;
+}
+
+.cfl-quick-grid {
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.cfl-qcard,
+.cfl-game-card,
+.cfl-stat-card,
+.cfl-market-card,
+.cfl-partners a {
+  position: relative;
+  border-color: var(--cfl-card-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    var(--cfl-card);
+  color: var(--cfl-text);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.22);
+  text-decoration: none;
+}
+
+.cfl-qcard,
+.cfl-game-card,
+.cfl-market-card,
+.cfl-partners a {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.cfl-qcard {
+  grid-template-columns: 64px minmax(0, 1fr) minmax(74px, auto) auto;
+  gap: 12px;
+  min-height: 108px;
+  padding: 14px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.cfl-qcard::before,
+.cfl-game-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+  opacity: 0.78;
+}
+
+.cfl-qcard:hover,
+.cfl-game-card:hover,
+.cfl-market-card:hover,
+.cfl-partners a:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--accent, #d6a84f) 54%, rgba(255, 255, 255, 0.18));
+  background: var(--cfl-card-hover);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+}
+
+.cfl-qart {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02)),
+    rgba(0, 0, 0, 0.16);
+}
+
+.cfl-qcopy strong {
+  font-size: 1.28rem;
+}
+
+.cfl-qcopy small,
+.cfl-game-meta small,
+.cfl-market-card small,
+.cfl-stat-card p {
+  color: var(--cfl-text-soft);
+}
+
+.cfl-qmeta {
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  min-width: 0;
+}
+
+.cfl-qmeta strong {
+  color: #f1cf78;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.cfl-play {
+  min-width: 48px;
+  background: rgba(241, 207, 120, 0.14);
+  color: #f1cf78;
+  box-shadow: inset 0 0 0 1px rgba(214, 168, 79, 0.2);
+}
+
+.cfl-game-grid {
+  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.cfl-game-card {
+  aspect-ratio: 0.76;
+  border-radius: 8px;
+}
+
+.cfl-game-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  padding: 5px 8px;
+  border: 1px solid rgba(248, 243, 230, 0.12);
+  border-radius: 6px;
+  background: rgba(5, 8, 6, 0.76);
+  color: #f1cf78;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+.cfl-game-visual {
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.28)),
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 56%);
+}
+
+.cfl-game-visual::after {
+  inset: 9px;
+  border-radius: 6px;
+  border-color: rgba(248, 243, 230, 0.08);
+}
+
+.cfl-game-meta strong {
+  font-size: 1.22rem;
+}
+
+.cfl-game-bottom em,
+.cfl-market-card em {
+  color: #f1cf78;
+}
+
+.cfl-stats-grid {
+  gap: 14px;
+}
+
+.cfl-stat-card {
+  min-height: 136px;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(53, 208, 139, 0.08), transparent 42%),
+    rgba(13, 22, 18, 0.86);
+}
+
+.cfl-stat-card::before {
+  display: none;
+}
+
+.cfl-stat-card strong {
+  font-size: 1.65rem;
+}
+
+.cfl-stat-card em {
+  border-radius: 6px;
+  background: rgba(53, 208, 139, 0.12);
+  color: #7ef0b7;
+}
+
+.cfl-market-card {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  border-radius: 8px;
+}
+
+.cfl-market-orb {
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(76, 203, 211, 0.94), rgba(53, 208, 139, 0.7)),
+    #17352d;
+  box-shadow: 0 0 20px rgba(76, 203, 211, 0.18);
+}
+
+.cfl-partners a {
+  border-radius: 8px;
+}
+
+.cfl-hero-btn:focus-visible,
+.cfl-ghost-btn:focus-visible,
+.cfl-link-btn:focus-visible,
+.cfl-qcard:focus-visible,
+.cfl-game-card:focus-visible,
+.cfl-market-card:focus-visible,
+.cfl-partners a:focus-visible,
+.chrome-nav-item:focus-visible,
+.wallet-launcher:focus-visible,
+.chrome-wallet-action:focus-visible,
+.chrome-search-submit:focus-visible,
+.chrome-sidebar-toggle:focus-visible,
+.chrome-mobile-toggle:focus-visible {
+  outline: 2px solid #f1cf78;
+  outline-offset: 3px;
+}
+
+@keyframes cflReveal {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1180px) {
+  .cfl-quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .cfl-hero {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .cfl-hero-copy {
+    align-self: start;
+  }
+
+  .cfl-hero-ledger {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-self: stretch;
+  }
+
+  .cfl-ledger-kicker {
+    grid-column: 1 / -1;
+  }
+
+  .cfl-ledger-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cfl-ledger-row strong {
+    text-align: left;
+  }
+}
+
+@media (max-width: 700px) {
+  .casfin-lobby {
+    gap: 22px;
+  }
+
+  .cfl-ticker {
+    padding: 8px 10px;
+  }
+
+  .cfl-hero {
+    padding: 24px 18px;
+  }
+
+  .cfl-hero::before {
+    background:
+      linear-gradient(180deg, rgba(5, 8, 6, 0.94) 0%, rgba(5, 8, 6, 0.82) 60%, rgba(5, 8, 6, 0.66) 100%);
+  }
+
+  .cfl-hero h1 {
+    font-size: clamp(3rem, 16vw, 4.6rem);
+  }
+
+  .cfl-hero-ledger {
+    grid-template-columns: 1fr;
+  }
+
+  .cfl-quick-grid,
+  .cfl-game-grid,
+  .cfl-market-grid,
+  .cfl-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cfl-qcard {
+    grid-template-columns: 58px minmax(0, 1fr) auto;
+  }
+
+  .cfl-qmeta {
+    grid-column: 2;
+    justify-items: start;
+  }
+
+  .cfl-play {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .cfl-game-card {
+    min-height: 310px;
+    aspect-ratio: auto;
+  }
+
+  .cfl-market-card {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .cfl-market-card em {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .casfin-lobby > .cfl-ticker,
+  .casfin-lobby > .cfl-hero,
+  .casfin-lobby > .cfl-section,
+  .casfin-lobby > .cfl-stats-grid,
+  .casfin-lobby > .cfl-market-section,
+  .casfin-lobby > .cfl-partners,
+  .cfl-ticker-track,
+  .cfl-star,
+  .cfl-fe-art,
+  .cfl-live-chip::before,
+  .cfl-badge::before {
+    animation: none;
+  }
+
+  .cfl-fe {
+    transition: none;
   }
 }

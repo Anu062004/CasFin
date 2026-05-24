@@ -1,5 +1,3 @@
-import initTfhe, { init_panic_hook } from "tfhe";
-
 type CofheClientLike = {
   connected?: boolean;
 } | null | undefined;
@@ -7,8 +5,14 @@ type CofheClientLike = {
 let tfheRuntimePromise: Promise<void> | null = null;
 
 export async function initializeTfheRuntime() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
   if (!tfheRuntimePromise) {
     tfheRuntimePromise = (async () => {
+      const { default: initTfhe, init_panic_hook } = await import("tfhe");
+
       await initTfhe({});
       await init_panic_hook();
     })().catch((error) => {

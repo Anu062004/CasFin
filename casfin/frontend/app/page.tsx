@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
@@ -23,6 +24,7 @@ const quickGames = [
     name: "Coin Toss",
     kicker: "Binary odds",
     payout: "1.96x",
+    pace: "Instant flip",
     kind: "coin",
     accent: "#f59e0b"
   },
@@ -31,6 +33,7 @@ const quickGames = [
     name: "Dice",
     kicker: "Number pick",
     payout: "5.88x",
+    pace: "Pick 1-6",
     kind: "dice",
     accent: "#8b5cf6"
   },
@@ -39,6 +42,7 @@ const quickGames = [
     name: "Crash",
     kicker: "Round game",
     payout: "Variable",
+    pace: "Cash out live",
     kind: "crash",
     accent: "#10b981"
   },
@@ -47,6 +51,7 @@ const quickGames = [
     name: "Video Poker",
     kicker: "Draw game",
     payout: "Jacks+",
+    pace: "Hold and draw",
     kind: "poker",
     accent: "#06b6d4"
   }
@@ -58,6 +63,7 @@ const forYouGames = [
     name: "Coin Toss",
     kicker: "Encrypted flip rail",
     payout: "1.96x",
+    tag: "Fastest",
     kind: "coin",
     accent: "#f59e0b"
   },
@@ -66,6 +72,7 @@ const forYouGames = [
     name: "Dice",
     kicker: "Private number pick",
     payout: "5.88x",
+    tag: "High odds",
     kind: "dice",
     accent: "#8b5cf6"
   },
@@ -74,6 +81,7 @@ const forYouGames = [
     name: "Crash",
     kicker: "Multiplier race",
     payout: "Live",
+    tag: "Live rail",
     kind: "crash",
     accent: "#10b981"
   },
@@ -82,6 +90,7 @@ const forYouGames = [
     name: "Video Poker",
     kicker: "Encrypted draw",
     payout: "250x",
+    tag: "Table game",
     kind: "poker",
     accent: "#06b6d4"
   },
@@ -90,6 +99,7 @@ const forYouGames = [
     name: "Prediction Markets",
     kicker: "Factory markets",
     payout: "Odds",
+    tag: "Markets",
     kind: "crystal",
     accent: "#a78bfa"
   }
@@ -131,10 +141,6 @@ const starParticles = Array.from({ length: 80 }, (_, index) => ({
   duration: 2 + ((index * 23) % 30) / 10,
   delay: -((index * 29) % 50) / 10
 }));
-
-function openRoute(href: string) {
-  window.open(href, "_self");
-}
 
 function FloatingScene() {
   useEffect(() => {
@@ -202,6 +208,23 @@ function HomePage() {
   const { isConnected, walletBalance, sessionActive, predictionState } = useWallet();
   const balanceLabel = isConnected ? `${formatEth(walletBalance)} ETH` : "0.0000 ETH";
   const marketCount = predictionState.totalMarkets || "Factory";
+  const heroStats = [
+    {
+      label: "Vault wallet",
+      value: isConnected ? balanceLabel : "Read only",
+      detail: isConnected ? "Connected for deposits and encrypted play" : "Connect once to unlock write actions"
+    },
+    {
+      label: "Private session",
+      value: sessionActive ? "Live" : "Ready",
+      detail: sessionActive ? "CoFHE session keys are active" : "Session keys activate from the wallet rail"
+    },
+    {
+      label: "Market floor",
+      value: String(marketCount),
+      detail: "Prediction rails and factory markets"
+    }
+  ];
 
   return (
     <main className="casfin-lobby">
@@ -219,27 +242,27 @@ function HomePage() {
       </section>
 
       <section className="cfl-hero">
-        <div className="cfl-hero-crystals" aria-hidden="true">
-          <CrystalShard height={58} color="#06b6d4" />
-          <CrystalShard height={84} color="#8b5cf6" />
-          <CrystalShard height={44} color="#06b6d4" />
-          <CrystalShard height={68} color="#a78bfa" />
+        <div className="cfl-hero-copy">
+          <span className="cfl-badge">Encrypted casino and markets</span>
+          <h1>
+            CasFin <span>Private Vault</span>
+          </h1>
+          <p>{CASINO_GAMES.length} encrypted game rails, private wagers, CoFHE sessions, and on-chain settlement on {CASFIN_CONFIG.chainName}.</p>
+          <div className="cfl-hero-actions">
+            <Link className="cfl-hero-btn" href="/casino/coin-toss">Play Coin Toss</Link>
+            <Link className="cfl-ghost-btn" href="/predictions">Explore Markets</Link>
+          </div>
         </div>
 
-        <div className="cfl-hero-copy">
-          <span className="cfl-badge">Encrypted Gaming - Arbitrum Sepolia</span>
-          <h1>
-            Grand Reveal From <span>Cosmic Vault</span>
-          </h1>
-          <p>+{CASINO_GAMES.length} encrypted game rails live with private wagers, CoFHE sessions, and on-chain settlement.</p>
-          <div className="cfl-hero-actions">
-            <button className="cfl-hero-btn" onClick={() => openRoute("/casino/coin-toss")} type="button">
-              Enter Casino
-            </button>
-            <button className="cfl-ghost-btn" onClick={() => openRoute("/predictions")} type="button">
-              Explore Markets
-            </button>
-          </div>
+        <div className="cfl-hero-ledger" aria-label="CasFin live snapshot">
+          <span className="cfl-ledger-kicker">Live Snapshot</span>
+          {heroStats.map((stat) => (
+            <div className="cfl-ledger-row" key={stat.label}>
+              <span>{stat.label}</span>
+              <strong>{stat.value}</strong>
+              <small>{stat.detail}</small>
+            </div>
+          ))}
         </div>
 
         <div className="cfl-hero-art">
@@ -250,27 +273,31 @@ function HomePage() {
       <section className="cfl-section">
         <div className="cfl-section-head">
           <div>
-            <p>Quick Game Rails</p>
-            <h2>Pick a private rail</h2>
+            <p>Fast rails</p>
+            <h2>Choose by odds, speed, or style</h2>
           </div>
           <span className="cfl-live-chip">4 live</span>
         </div>
         <div className="cfl-quick-grid">
           {quickGames.map((game) => (
-            <button
+            <Link
+              aria-label={`Play ${game.name}`}
               className="cfl-qcard"
+              href={game.href}
               key={game.href}
-              onClick={() => openRoute(game.href)}
               style={{ "--accent": game.accent } as CSSProperties}
-              type="button"
             >
               <span className="cfl-qart"><GameArt kind={game.kind} /></span>
               <span className="cfl-qcopy">
                 <strong>{game.name}</strong>
-                <small>{game.kicker} - {game.payout}</small>
+                <small>{game.kicker} - {game.pace}</small>
+              </span>
+              <span className="cfl-qmeta">
+                <small>Payout</small>
+                <strong>{game.payout}</strong>
               </span>
               <span className="cfl-play">Play</span>
-            </button>
+            </Link>
           ))}
         </div>
       </section>
@@ -278,22 +305,21 @@ function HomePage() {
       <section className="cfl-section">
         <div className="cfl-section-head">
           <div>
-            <p>For You</p>
-            <h2>Lobby favorites</h2>
+            <p>Main floor</p>
+            <h2>Featured rails</h2>
           </div>
-          <button className="cfl-link-btn" onClick={() => openRoute("/casino/coin-toss")} type="button">
-            Open casino
-          </button>
+          <Link className="cfl-link-btn" href="/casino/coin-toss">Open casino</Link>
         </div>
         <div className="cfl-game-grid">
           {forYouGames.map((game) => (
-            <button
+            <Link
+              aria-label={`Open ${game.name}`}
               className="cfl-game-card"
+              href={game.href}
               key={game.name}
-              onClick={() => openRoute(game.href)}
               style={{ "--accent": game.accent } as CSSProperties}
-              type="button"
             >
+              <span className="cfl-game-chip">{game.tag}</span>
               <span className="cfl-game-visual"><GameArt kind={game.kind} /></span>
               <span className="cfl-game-meta">
                 <small>{game.kicker}</small>
@@ -303,7 +329,7 @@ function HomePage() {
                 <em>{game.payout}</em>
                 <span>Play</span>
               </span>
-            </button>
+            </Link>
           ))}
         </div>
       </section>
@@ -320,20 +346,18 @@ function HomePage() {
             <p>Prediction Markets</p>
             <h2>Encrypted odds board</h2>
           </div>
-          <button className="cfl-link-btn" onClick={() => openRoute("/predictions")} type="button">
-            View all
-          </button>
+          <Link className="cfl-link-btn" href="/predictions">View all</Link>
         </div>
         <div className="cfl-market-grid">
           {markets.map((market) => (
-            <button className="cfl-market-card" key={market.title} onClick={() => openRoute(market.href)} type="button">
+            <Link className="cfl-market-card" href={market.href} key={market.title}>
               <span className="cfl-market-orb" />
               <span>
                 <strong>{market.title}</strong>
                 <small>{market.detail}</small>
               </span>
               <em>{market.odds}</em>
-            </button>
+            </Link>
           ))}
         </div>
       </section>

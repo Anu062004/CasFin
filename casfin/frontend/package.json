@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "typecheck": "tsc --noEmit --pretty false",
     "start": "next start",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
