@@ -363,21 +363,6 @@ async function publishDecryptHandle(
     return;
   }
 
-  if (process.env.COFHE_USE_MOCK_DECRYPT === "true") {
-    try {
-      await sendTransaction(
-        `[CoFHE] MOCK_resolveDecrypt(${label}:${handle.toString().slice(0, 10)}...)`,
-        signal,
-        () => taskManager.MOCK_resolveDecrypt(handle)
-      );
-      if (await isDecryptResultReady(taskManager, handle)) {
-        return;
-      }
-    } catch {
-      // Not a local MockTaskManager. Continue with the production CoFHE flow.
-    }
-  }
-
   try {
     const client = await getCofheClient();
     const result = await withRetry(
@@ -470,12 +455,11 @@ async function runCasinoKeeper(
   const dice = toDynamicContract(process.env.ENCRYPTED_DICE_GAME_ADDRESS, encryptedDiceAbi);
   const crash = toDynamicContract(process.env.ENCRYPTED_CRASH_GAME_ADDRESS, encryptedCrashAbi);
 
-  // CoFHE task manager. Local tests may expose MOCK_resolveDecrypt; testnet uses
-  // decryptForTx + publishDecryptResult after contracts call FHE.allowPublic.
+  // CoFHE task manager. Testnet uses decryptForTx + publishDecryptResult
+  // after contracts call FHE.allowPublic.
   const taskManager = new ethers.Contract(
     COFHE_TASK_MANAGER_ADDRESS,
     [
-      "function MOCK_resolveDecrypt(uint256 ctHash) external",
       "function getDecryptResultSafe(uint256 ctHash) view returns (uint256,bool)",
       "function publishDecryptResult(uint256 ctHash,uint256 result,bytes signature) external"
     ],
@@ -757,7 +741,7 @@ async function runCasinoKeeper(
         publishBetEvent(label === "CoinFlip" ? "coinflip" : "dice", id, player, txHash);
       } catch (error) {
         if (isPendingFinalizeError(error)) {
-          // CoFHE hasn't returned the result yet. Attempt to mock-resolve and retry next poll.
+          // CoFHE hasn't returned the result yet. Keep publishing/retrying next poll.
           try {
             const bet = await contract.bets(BigInt(id));
             await publishCasinoDecrypts(getDecryptHandles(label, bet));
