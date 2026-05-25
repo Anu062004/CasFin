@@ -12,9 +12,9 @@ export const FHE_CASFIN_CONFIG = {
   rpcUrl: CASFIN_CONFIG.fheRpcUrl,
   addresses: {
     encryptedCasinoVault: process.env.NEXT_PUBLIC_FHE_VAULT_ADDRESS || "0xA6406C70FaF7E86B9B8b1cdbC21F7148f6d3E175",
-    encryptedCoinFlip: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || "0x7Bc01d9e3437126345Cd9201ccbAB43D51201411",
-    encryptedDiceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || "0x9FA71Fa44a4a1128288D88Dd48E2B4e2D00FB778",
-    encryptedCrashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || "0xDA1d641BfAfef4A6D435Da67AAE1760c1Ce0eF9E"
+    encryptedCoinFlip: process.env.NEXT_PUBLIC_FHE_COIN_FLIP_ADDRESS || "0xBD4F422FCbA6e197729074eB0eA41Fdb805Bc71C",
+    encryptedDiceGame: process.env.NEXT_PUBLIC_FHE_DICE_ADDRESS || "0xc95b343bA9dfd00e6a345Eb552FD3a4576EfCBb7",
+    encryptedCrashGame: process.env.NEXT_PUBLIC_FHE_CRASH_ADDRESS || "0xB68F64AbC208e5c011Cb2D6e23f52Aa43599e5Ee"
   }
 };
 

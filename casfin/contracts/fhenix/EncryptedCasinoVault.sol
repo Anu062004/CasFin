@@ -150,6 +150,8 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         _storeBalance(player, updatedBalance);
         _storeLockedBalance(player, updatedLockedBalance);
 
+        // The vault must retain access because settleBet later compares this same locked handle.
+        FHE.allowThis(lockedHandle);
         // The calling game must decrypt or reuse the returned handle in later settlement logic.
         FHE.allow(lockedHandle, msg.sender);
         return lockedHandle;

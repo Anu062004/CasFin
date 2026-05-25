@@ -74,6 +74,15 @@ describe("EncryptedDiceGame", function () {
     expect(await mockDecrypt(asHandle((await dice.bets(0n))[2]))).to.equal(1n);
   });
 
+  it("placeBet grants vault access to the locked stake handle", async function () {
+    await placeBet(ethers.parseEther("0.01"), 3n);
+
+    const bet = await dice.bets(0n);
+    const lockedHandle = asHandle(bet[1]);
+
+    expect(await taskManager.isAllowed(lockedHandle, await vault.getAddress())).to.equal(true);
+  });
+
   it("requestResolution publicly allows both wonFlag and rolled value", async function () {
     await placeBet(ethers.parseEther("0.01"), 3n);
 

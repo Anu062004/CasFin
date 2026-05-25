@@ -193,7 +193,8 @@ contract EncryptedCrashGame is Ownable, Pausable, ReentrancyGuard {
         // won is a plaintext bool from a plaintext comparison — use a direct ternary, not FHE.select.
         euint128 returnHandle = won ? winReturn : ENCRYPTED_ZERO;
 
-        // The vault needs access to consume the encrypted return during settlement.
+        // The vault needs access to consume both the encrypted lock and return during settlement.
+        FHE.allow(bet.lockedHandle, address(vault));
         FHE.allow(returnHandle, address(vault));
         vault.settleBet(player, bet.lockedHandle, returnHandle);
 

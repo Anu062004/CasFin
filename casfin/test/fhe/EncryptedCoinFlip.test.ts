@@ -66,6 +66,15 @@ describe("EncryptedCoinFlip", function () {
     expect(await coinFlip.nextBetId()).to.equal(1n);
   });
 
+  it("placeBet grants vault access to the locked stake handle", async function () {
+    await placeBet(ethers.parseEther("0.01"), true);
+
+    const bet = await coinFlip.bets(0n);
+    const lockedHandle = asHandle(bet[1]);
+
+    expect(await taskManager.isAllowed(lockedHandle, await vault.getAddress())).to.equal(true);
+  });
+
   it("requestResolution sets resolutionPending and publicly allows the win flag", async function () {
     await placeBet(ethers.parseEther("0.01"), true);
 

@@ -119,6 +119,8 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
 
         // The game must retain access to the stored encrypted stake for later payout settlement.
         FHE.allowThis(lockedHandle);
+        // The vault must be able to consume the stored lock when settleBet is called later.
+        FHE.allow(lockedHandle, address(vault));
 
         emit EncryptedDiceBetPlaced(betId, msg.sender);
     }
@@ -161,7 +163,8 @@ contract EncryptedDiceGame is Ownable, Pausable, ReentrancyGuard {
         // won is plaintext from getDecryptResultSafe — use a direct ternary, not FHE.select.
         euint128 returnHandle = won ? winReturn : ENCRYPTED_ZERO;
 
-        // The vault needs access to consume the encrypted return during settlement.
+        // The vault needs access to consume both the encrypted lock and return during settlement.
+        FHE.allow(bet.lockedHandle, address(vault));
         FHE.allow(returnHandle, address(vault));
         vault.settleBet(bet.player, bet.lockedHandle, returnHandle);
 

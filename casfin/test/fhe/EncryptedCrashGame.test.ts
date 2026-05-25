@@ -26,6 +26,7 @@ describe("EncryptedCrashGame", function () {
   let resolver: Awaited<ReturnType<typeof ethers.getSigners>>[number];
   let vault: any;
   let crash: any;
+  let taskManager: any;
 
   async function decryptVaultBalance(signer: typeof player): Promise<bigint> {
     return mockDecrypt(asHandle(await vault.connect(signer).getEncryptedBalance()));
@@ -60,7 +61,7 @@ describe("EncryptedCrashGame", function () {
     await network.provider.request({ method: "hardhat_reset", params: [] });
 
     [owner, player, playerTwo, playerThree, resolver] = await ethers.getSigners();
-    await deployMockFheEnvironment();
+    ({ taskManager } = await deployMockFheEnvironment());
 
     vault = await ethers.deployContract("EncryptedCasinoVault", [await owner.getAddress()]);
     await vault.waitForDeployment();
@@ -92,6 +93,16 @@ describe("EncryptedCrashGame", function () {
     expect(playerBet[4]).to.equal(true);
     expect(playerBet[5]).to.equal(true);
     expect(await decryptVaultBalance(player)).to.equal(ethers.parseEther("0.0147"));
+  });
+
+  it("placeBet grants vault access to the locked stake handle", async function () {
+    await startRound();
+    await fundAndBet(player, 0n, ethers.parseEther("0.01"), 15000);
+
+    const playerBet = await crash.playerBets(0n, await player.getAddress());
+    const lockedHandle = asHandle(playerBet[0]);
+
+    expect(await taskManager.isAllowed(lockedHandle, await vault.getAddress())).to.equal(true);
   });
 
   it("player loses if cashOut target > crashMultiplier", async function () {
