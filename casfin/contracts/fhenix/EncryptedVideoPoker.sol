@@ -86,10 +86,11 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
             euint8 card = GameRandomnessLib.randomCardIndex();
             FHE.allowThis(card);
             FHE.allowSender(card);
+            FHE.allow(card, player);
             game.cards[i] = card;
         }
 
-        emit PokerDealt(gameId, msg.sender);
+        emit PokerDealt(gameId, player);
     }
 
     function draw(uint256 gameId, InEbool[5] calldata holds)
@@ -98,7 +99,8 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
         whenNotPaused
     {
         PokerGame storage game = games[gameId];
-        require(game.player == msg.sender, "NOT_PLAYER");
+        address player = vault.resolvePlayer(msg.sender);
+        require(game.player == player, "NOT_PLAYER");
         require(game.phase == GamePhase.DEALT, "NOT_DEALT");
 
         for (uint256 i = 0; i < 5; i++) {
@@ -112,10 +114,11 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
             game.finalCards[i] = FHE.select(holdFlag, game.cards[i], replacement);
             FHE.allowThis(game.finalCards[i]);
             FHE.allowSender(game.finalCards[i]);
+            FHE.allow(game.finalCards[i], player);
         }
 
         game.phase = GamePhase.DRAWN;
-        emit PokerDrawn(gameId, msg.sender);
+        emit PokerDrawn(gameId, player);
     }
 
     function requestResolution(uint256 gameId)
@@ -129,6 +132,7 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
         require(game.phase == GamePhase.DRAWN, "NOT_DRAWN");
 
         for (uint256 i = 0; i < 5; i++) {
+            FHE.allowPublic(game.finalCards[i]);
             ITaskManager(TASK_MANAGER_ADDRESS).createDecryptTask(
                 uint256(bytes32(euint8.unwrap(game.finalCards[i]))), address(this)
             );

@@ -58,8 +58,12 @@ contract EncryptedLiquidityPool is Ownable, Pausable, ReentrancyGuard, Initializ
     }
 
     function addLiquidity(InEuint128 calldata encAssets, address beneficiary) external payable whenNotPaused {
-        euint128 assets = FHE.asEuint128(encAssets);
-        FHE.allowThis(assets);
+        require(msg.value > 0, "NO_VALUE");
+        require(msg.value <= type(uint128).max, "LIQUIDITY_TOO_LARGE");
+        // Validate encrypted input for ABI/client compatibility; ETH value backs the minted LP balance.
+        euint128 providedAssets = FHE.asEuint128(encAssets);
+        FHE.allowThis(providedAssets);
+        euint128 assets = _encUint128(msg.value);
         _addLiquidity(beneficiary, assets);
     }
 

@@ -6,14 +6,21 @@ import {Pausable} from "../base/Pausable.sol";
 import {ReentrancyGuard} from "../base/ReentrancyGuard.sol";
 import {Initializable} from "../base/Initializable.sol";
 import {PredictionTypes} from "../libraries/PredictionTypes.sol";
+import {FeeDistributor} from "../FeeDistributor.sol";
+import {ILiquidityPool} from "../interfaces/ILiquidityPool.sol";
 import {EncryptedMarketAMM} from "./EncryptedMarketAMM.sol";
-import {FHE, InEuint128, TASK_MANAGER_ADDRESS, ebool, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
+import {FHE, InEuint128, TASK_MANAGER_ADDRESS, euint128} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 import {ITaskManager} from "@fhenixprotocol/cofhe-contracts/ICofhe.sol";
+
+interface IMarketResolverFeeRecipient {
+    function feeRecipient() external view returns (address);
+}
 
 contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initializable {
     struct ClaimRequest {
         address claimant;
         euint128 encPayout;
+        euint128 encResolverFee;
         bool pending;
         bool completed;
     }
@@ -40,6 +47,7 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
 
     mapping(address => mapping(uint8 => euint128)) private encShares;
     euint128[] public encTotalSharesPerOutcome;
+    uint256[] public publicCollateralPerOutcome;
     euint128 public encCollateralPool;
     euint128 public encFinalPayoutPool;
     mapping(address => bool) public hasClaimed;
@@ -47,8 +55,6 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
 
     euint128 private ENCRYPTED_ZERO;
     euint128 private ENCRYPTED_BPS_DENOMINATOR;
-    euint128 private ENCRYPTED_PLATFORM_FEE_BPS;
-    euint128 private ENCRYPTED_LP_FEE_BPS;
     euint128 private ENCRYPTED_RESOLVER_FEE_BPS;
 
     event SharesBought(address indexed buyer, uint8 indexed outcomeIndex);
@@ -119,14 +125,13 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
 
         ENCRYPTED_ZERO = _encUint128(0);
         ENCRYPTED_BPS_DENOMINATOR = _encUint128(10_000);
-        ENCRYPTED_PLATFORM_FEE_BPS = _encUint128(marketFeeConfig.platformFeeBps);
-        ENCRYPTED_LP_FEE_BPS = _encUint128(marketFeeConfig.lpFeeBps);
         ENCRYPTED_RESOLVER_FEE_BPS = _encUint128(marketFeeConfig.resolverFeeBps);
         _storeCollateralPool(ENCRYPTED_ZERO);
         _storeFinalPayoutPool(ENCRYPTED_ZERO);
 
         for (uint256 i = 0; i < marketOutcomes.length; i++) {
             encTotalSharesPerOutcome.push(ENCRYPTED_ZERO);
+            publicCollateralPerOutcome.push(0);
         }
     }
 
@@ -139,21 +144,25 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
 
     function buyShares(uint8 outcomeIndex, InEuint128 calldata encAmount)
         external
+        payable
         nonReentrant
         whenNotPaused
         onlyTradingWindow
     {
         require(outcomeIndex < outcomes.length, "BAD_OUTCOME");
+        require(msg.value > 0, "ZERO_COLLATERAL");
+        require(msg.value <= type(uint128).max, "COLLATERAL_TOO_LARGE");
 
-        euint128 amount = FHE.asEuint128(encAmount);
-        FHE.allowThis(amount);
+        // Validate the encrypted payload for ABI/client compatibility. ETH value is the collateral source of truth.
+        euint128 providedAmount = FHE.asEuint128(encAmount);
+        FHE.allowThis(providedAmount);
 
-        euint128 platformFee = _mulDiv(amount, ENCRYPTED_PLATFORM_FEE_BPS, ENCRYPTED_BPS_DENOMINATOR);
-        euint128 lpFee = _mulDiv(amount, ENCRYPTED_LP_FEE_BPS, ENCRYPTED_BPS_DENOMINATOR);
-        euint128 afterPlatformFee = FHE.sub(amount, platformFee);
-        FHE.allowThis(afterPlatformFee);
-        euint128 netCollateral = FHE.sub(afterPlatformFee, lpFee);
-        FHE.allowThis(netCollateral);
+        uint256 platformFeeWei = (msg.value * feeConfig.platformFeeBps) / 10_000;
+        uint256 lpFeeWei = (msg.value * feeConfig.lpFeeBps) / 10_000;
+        uint256 netCollateralWei = msg.value - platformFeeWei - lpFeeWei;
+        euint128 netCollateral = _encUint128(netCollateralWei);
+        FHE.allow(netCollateral, amm);
+        _allowTotalsForAmm();
 
         euint128[] memory totalShareSnapshot = _copyEncryptedTotals();
         euint128 sharesOut = EncryptedMarketAMM(amm).encPreviewBuy(outcomeIndex, netCollateral, totalShareSnapshot);
@@ -171,6 +180,9 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
         euint128 newPool = FHE.add(encCollateralPool, netCollateral);
         FHE.allowThis(newPool);
         _storeCollateralPool(newPool);
+        publicCollateralPerOutcome[outcomeIndex] += netCollateralWei;
+
+        _routeBuyFees(platformFeeWei, lpFeeWei);
 
         emit SharesBought(msg.sender, outcomeIndex);
     }
@@ -181,6 +193,7 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
 
         ClaimRequest storage req = claimRequests[msg.sender];
         require(!req.pending, "CLAIM_PENDING");
+        require(publicCollateralPerOutcome[winningOutcome] > 0, "NO_WINNING_SHARES");
 
         euint128 userShares = encShares[msg.sender][winningOutcome];
         euint128 winningSupply = encTotalSharesPerOutcome[winningOutcome];
@@ -192,13 +205,17 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
         euint128 netPayout = FHE.sub(grossPayout, resolverFee);
         FHE.allowThis(netPayout);
         FHE.allow(netPayout, msg.sender);
+        FHE.allowPublic(netPayout);
+        FHE.allowPublic(resolverFee);
 
         req.claimant = msg.sender;
         req.encPayout = netPayout;
+        req.encResolverFee = resolverFee;
         req.pending = true;
         req.completed = false;
 
         _requestDecrypt(netPayout);
+        _requestDecrypt(resolverFee);
         emit ClaimRequested(msg.sender);
     }
 
@@ -209,13 +226,24 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
 
         (uint128 payout, bool ready) = FHE.getDecryptResultSafe(req.encPayout);
         require(ready, "DECRYPT_PENDING");
+        (uint128 resolverFeeAmount, bool feeReady) = FHE.getDecryptResultSafe(req.encResolverFee);
+        require(feeReady, "FEE_DECRYPT_PENDING");
+
+        uint256 totalOwed = uint256(payout) + uint256(resolverFeeAmount);
+        require(address(this).balance >= totalOwed, "INSUFFICIENT_MARKET_ETH");
 
         req.completed = true;
         req.pending = false;
         hasClaimed[msg.sender] = true;
 
-        (bool ok,) = msg.sender.call{value: payout}("");
-        require(ok, "CLAIM_TRANSFER_FAILED");
+        if (resolverFeeAmount > 0) {
+            FeeDistributor(payable(feeDistributor)).routeResolverFee{value: resolverFeeAmount}(_resolverFeeRecipient());
+        }
+
+        if (payout > 0) {
+            (bool ok,) = msg.sender.call{value: payout}("");
+            require(ok, "CLAIM_TRANSFER_FAILED");
+        }
 
         emit WinningsClaimed(msg.sender, payout);
     }
@@ -311,6 +339,27 @@ contract EncryptedPredictionMarket is Ownable, Pausable, ReentrancyGuard, Initia
         FHE.allowThis(numerator);
         value = FHE.div(numerator, denominator);
         FHE.allowThis(value);
+    }
+
+    function _routeBuyFees(uint256 platformFeeWei, uint256 lpFeeWei) internal {
+        if (platformFeeWei > 0) {
+            FeeDistributor(payable(feeDistributor)).routePlatformFee{value: platformFeeWei}();
+        }
+
+        if (lpFeeWei > 0) {
+            ILiquidityPool(pool).accrueTraderFee{value: lpFeeWei}();
+        }
+    }
+
+    function _resolverFeeRecipient() internal view returns (address recipient) {
+        recipient = IMarketResolverFeeRecipient(resolver).feeRecipient();
+        require(recipient != address(0), "ZERO_RESOLVER_FEE_RECIPIENT");
+    }
+
+    function _allowTotalsForAmm() internal {
+        for (uint256 i = 0; i < encTotalSharesPerOutcome.length; i++) {
+            FHE.allow(encTotalSharesPerOutcome[i], amm);
+        }
     }
 
     function _storeShares(address account, uint8 outcomeIndex, euint128 value) internal {

@@ -6,7 +6,7 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "test:unit": "hardhat test test/fhe/EncryptedCasinoVault.test.ts test/fhe/EncryptedCoinFlip.test.ts test/fhe/EncryptedCrashGame.test.ts test/fhe/EncryptedDiceGame.test.ts",
+    "test:unit": "hardhat test test/fhe/EncryptedCasinoVault.test.ts test/fhe/EncryptedCoinFlip.test.ts test/fhe/EncryptedCrashGame.test.ts test/fhe/EncryptedDiceGame.test.ts test/fhe/EncryptedPredictionMarket.test.ts",
     "test:keeper": "jest --config keeper/jest.config.json --testPathPatterns=keeper/test --runInBand",
     "test:integration": "cross-env HARDHAT_FORK=true hardhat test test/fhe/EncryptedCasinoVault.test.ts test/fhe/EncryptedCoinFlip.test.ts test/fhe/EncryptedCrashGame.test.ts test/fhe/EncryptedDiceGame.test.ts",
     "test:all": "npm run test:unit && npm run test:keeper",

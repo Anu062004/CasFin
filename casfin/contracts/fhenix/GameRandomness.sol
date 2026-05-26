@@ -255,6 +255,7 @@ contract GameRandomness is IGameRandomness {
         require(!selection.revealRequested, "REVEAL_PENDING");
 
         selection.revealRequested = true;
+        FHE.allowPublic(selection.winnerIndex);
         _requestDecrypt(selection.winnerIndex);
 
         emit WinnerRevealRequested(selectionId);

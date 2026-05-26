@@ -204,6 +204,8 @@ contract EncryptedCasinoVault is Ownable, Pausable, ReentrancyGuard {
         FHE.allowThis(actualWithdrawal);
         // The player also needs access because the async decrypt task is requested on their behalf.
         FHE.allowSender(actualWithdrawal);
+        // Withdrawal amounts become public through the ETH transfer, so publish decrypt permission for keeper flow.
+        FHE.allowPublic(actualWithdrawal);
 
         _requestDecrypt(actualWithdrawal);
 

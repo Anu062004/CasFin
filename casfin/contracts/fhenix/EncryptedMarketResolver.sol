@@ -11,6 +11,8 @@ import {EncryptedPredictionMarket} from "./EncryptedPredictionMarket.sol";
 import {FHE, euint8} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
+    uint256 public constant CHAINLINK_MAX_STALENESS = 10 minutes;
+
     address payable public market;
     address public oracleAddress;
     address public feeRecipient;
@@ -85,6 +87,7 @@ contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
             msg.sender == manualResolver || msg.sender == owner || msg.sender == factoryOwner,
             "NOT_AUTHORIZED"
         );
+        require(EncryptedPredictionMarket(market).resolved(), "NOT_RESOLVED");
         FHE.allowPublic(encryptedResolvedOutcome);
         publicOutcomeAllowed = true;
         emit ResolvedOutcomeMadePublic(EncryptedPredictionMarket(market).winningOutcome());
@@ -103,11 +106,15 @@ contract EncryptedMarketResolver is Ownable, Pausable, Initializable {
         require(oracleParams.length > 0, "MISSING_PARAMS");
 
         (int256 threshold, bool resolveAbove) = abi.decode(oracleParams, (int256, bool));
-        (, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+        require(threshold > 0, "BAD_THRESHOLD");
+
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
             IChainlinkAggregator(oracleAddress).latestRoundData();
 
-        require(answeredInRound > 0, "STALE_ROUND");
-        require(updatedAt + 10 minutes >= block.timestamp, "STALE_PRICE");
+        require(updatedAt != 0, "INCOMPLETE_ROUND");
+        require(updatedAt <= block.timestamp, "FUTURE_PRICE");
+        require(answeredInRound >= roundId, "STALE_ROUND");
+        require(block.timestamp - updatedAt <= CHAINLINK_MAX_STALENESS, "STALE_PRICE");
         require(answer > 0, "BAD_PRICE");
 
         bool yesWins = resolveAbove ? answer >= threshold : answer <= threshold;

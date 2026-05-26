@@ -72,6 +72,8 @@ contract EncryptedEscrow is Ownable, Pausable, ReentrancyGuard, Initializable {
 
         FHE.allowThis(amount);
         FHE.allowSender(amount);
+        // Released ETH amount is public after transfer; allow keeper-side public decryption.
+        FHE.allowPublic(amount);
         _requestDecrypt(amount);
 
         emit ReleaseRequested(msg.sender, player);

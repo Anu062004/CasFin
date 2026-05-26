@@ -10,6 +10,7 @@
   "event ResolutionRequested(uint8,bytes)",
   "event ResolvedOutcomeMadePublic(uint8 indexed)",
   "event Unpaused(address indexed)",
+  "function CHAINLINK_MAX_STALENESS() view returns (uint256)",
   "function acceptOwnership()",
   "function allowPublicResolvedOutcome()",
   "function factoryOwner() view returns (address)",
