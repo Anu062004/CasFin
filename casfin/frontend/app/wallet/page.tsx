@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ethers } from "ethers";
 import GlassButton from "@/components/GlassButton";
 import GlassCard from "@/components/GlassCard";
 import VaultCard from "@/components/VaultCard";
@@ -8,6 +9,19 @@ import UserProfileCard from "@/components/UserProfileCard";
 import { useWallet } from "@/components/WalletProvider";
 import { buildExplorerUrl, CASFIN_CONFIG } from "@/lib/casfin-config";
 import { formatAddress, formatEth } from "@/lib/casfin-client";
+import { useCofhe } from "@/lib/cofhe-provider";
+
+function isZeroHandle(handle) {
+  if (!handle) {
+    return true;
+  }
+
+  try {
+    return ethers.toBigInt(handle) === 0n;
+  } catch {
+    return false;
+  }
+}
 
 export default function WalletPage() {
   const {
@@ -30,15 +44,91 @@ export default function WalletPage() {
     walletBalance,
     walletBlocked
   } = useWallet();
+  const { decryptForView, FheTypes, connected: cofheConnected } = useCofhe();
 
   const [vaultForm, setVaultForm] = useState({
     depositAmount: "0.05",
     withdrawAmount: "0.01",
     bankrollAmount: "0.10"
   });
+  const [decryptedBalance, setDecryptedBalance] = useState(null);
+  const [decryptedLockedBalance, setDecryptedLockedBalance] = useState(null);
+  const [balanceDecryptionFailed, setBalanceDecryptionFailed] = useState(false);
 
-  const availableBalanceLabel = casinoState.isFhe ? "Encrypted" : `${formatEth(casinoState.playerBalance)} ETH`;
-  const lockedBalanceLabel = casinoState.isFhe ? "Encrypted" : `${formatEth(casinoState.playerLockedBalance)} ETH`;
+  const availableBalanceLabel = casinoState.isFhe
+    ? decryptedBalance !== null
+      ? `${ethers.formatEther(decryptedBalance)} ETH`
+      : cofheConnected && casinoState.playerBalanceHandle
+        ? balanceDecryptionFailed
+          ? "Encrypted"
+          : "Decrypting..."
+        : "Encrypted"
+    : `${formatEth(casinoState.playerBalance)} ETH`;
+  const lockedBalanceLabel = casinoState.isFhe
+    ? decryptedLockedBalance !== null
+      ? `${ethers.formatEther(decryptedLockedBalance)} ETH`
+      : "Encrypted"
+    : `${formatEth(casinoState.playerLockedBalance)} ETH`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDecryptedBalances() {
+      if (!casinoState.isFhe || !cofheConnected) {
+        if (!cancelled) {
+          setDecryptedBalance(null);
+          setDecryptedLockedBalance(null);
+          setBalanceDecryptionFailed(false);
+        }
+        return;
+      }
+
+      if (isZeroHandle(casinoState.playerBalanceHandle)) {
+        if (!cancelled) {
+          setDecryptedBalance(0n);
+          setDecryptedLockedBalance(isZeroHandle(casinoState.playerLockedBalanceHandle) ? 0n : null);
+          setBalanceDecryptionFailed(false);
+        }
+        return;
+      }
+
+      try {
+        const [balance, lockedBalance] = await Promise.all([
+          decryptForView(casinoState.playerBalanceHandle, FheTypes.Uint128),
+          isZeroHandle(casinoState.playerLockedBalanceHandle)
+            ? Promise.resolve(0n)
+            : decryptForView(casinoState.playerLockedBalanceHandle, FheTypes.Uint128)
+        ]);
+
+        if (!cancelled) {
+          setDecryptedBalance(balance);
+          setDecryptedLockedBalance(lockedBalance);
+          setBalanceDecryptionFailed(false);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDecryptedBalance(null);
+          setDecryptedLockedBalance(null);
+          setBalanceDecryptionFailed(true);
+        }
+
+        console.warn("[WalletPage] Balance decryption failed.", error);
+      }
+    }
+
+    loadDecryptedBalances();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    casinoState.isFhe,
+    casinoState.playerBalanceHandle,
+    casinoState.playerLockedBalanceHandle,
+    cofheConnected,
+    decryptForView,
+    FheTypes.Uint128
+  ]);
 
   function handlePrimaryAction() {
     if (!isConnected) { void connectWallet(); return; }

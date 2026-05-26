@@ -216,6 +216,23 @@ export function CofheProvider({ children }) {
     return toEncryptedInputTuple(encrypted);
   }, [ensureSessionReady]);
 
+  const encryptUint128ForWallet = useCallback(async (value) => {
+    await ensureSessionReady();
+    // Owner-only vault actions must use a proof from the connected wallet,
+    // even when gameplay encryption has been switched to a session key.
+    const client = clientRef.current;
+
+    if (!client?.connected) {
+      throw new Error("CoFHE not connected.");
+    }
+
+    const [encrypted] = await disableWorkerIfAvailable(
+      client.encryptInputs([Encryptable.uint128(toBigIntValue(value))])
+    ).execute();
+
+    return toEncryptedInputTuple(encrypted);
+  }, [ensureSessionReady]);
+
   const encryptUint8 = useCallback(async (value) => {
     await ensureSessionReady();
     const client = encryptClientRef.current ?? clientRef.current;
@@ -248,8 +265,11 @@ export function CofheProvider({ children }) {
       throw new Error("CoFHE not connected.");
     }
 
-    await clientRef.current.permits.getOrCreateSelfPermit();
-    return await clientRef.current.decryptForView(ctHash, fheType).execute();
+    const permit = await clientRef.current.permits.getOrCreateSelfPermit();
+    return await clientRef.current
+      .decryptForView(ethers.toBigInt(ctHash), fheType)
+      .withPermit(permit)
+      .execute();
   }, []);
 
   const contextValue = useMemo(
@@ -267,6 +287,7 @@ export function CofheProvider({ children }) {
       switchEncryptToSessionKey,
       switchEncryptToRealWallet,
       encryptUint128,
+      encryptUint128ForWallet,
       encryptUint8,
       encryptBool,
       encryptMultiple,
@@ -288,6 +309,7 @@ export function CofheProvider({ children }) {
       switchEncryptToSessionKey,
       switchEncryptToRealWallet,
       encryptUint128,
+      encryptUint128ForWallet,
       encryptUint8,
       encryptBool,
       encryptMultiple,

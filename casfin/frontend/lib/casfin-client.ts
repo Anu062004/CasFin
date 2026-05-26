@@ -275,6 +275,14 @@ export function extractError(error) {
     return "Your wallet is not authorized for this action.";
   }
 
+  if (/SESSION_KEY_CANNOT_WITHDRAW/i.test(normalizedMessage)) {
+    return "Withdrawals must be signed by your main wallet. End the casino session or retry from the wallet page.";
+  }
+
+  if (/SESSION_KEY_CANNOT_DEPOSIT/i.test(normalizedMessage)) {
+    return "Deposits must be signed by your main wallet. End the casino session or retry from the wallet page.";
+  }
+
   if (
     /RPC endpoint returned too many errors|rate limit|too many requests|429|missing response for request|failed to detect network|cannot start up/i.test(
       normalizedMessage

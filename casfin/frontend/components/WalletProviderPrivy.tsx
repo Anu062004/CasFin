@@ -32,6 +32,7 @@ import {
 import EncryptedCasinoVaultAbi from "@/lib/generated-abis/EncryptedCasinoVault.json";
 import type {
   LastTransactionState,
+  RunTransactionOptions,
   StatusTone,
   SyncWalletOptions,
   WalletContextValue,
@@ -1008,7 +1009,11 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     }, 3_000);
   }
 
-  async function runTransaction(label, handler): Promise<boolean> {
+  async function runTransaction(
+    label,
+    handler,
+    options: RunTransactionOptions = {}
+  ): Promise<boolean> {
     if (!activeWalletRef.current) {
       pushStatus("Connect a wallet before sending transactions.", "warning");
       return false;
@@ -1040,7 +1045,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         Date.now() < sessionExpiryRef.current &&
         sessionPlayerRef.current.toLowerCase() === nextAccount.toLowerCase();
 
-      if (isSessionKeyActive) {
+      if (options.useSessionKey !== false && isSessionKeyActive) {
         // Session key path — no wallet popup
         setPendingAction(label);
         pushStatus(`${label} signing silently via session key.`, "info");
@@ -1072,7 +1077,9 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         return true;
       }
 
-      await ensureEncryptedSession(nextAccount);
+      if (options.requiresEncryptedSession !== false) {
+        await ensureEncryptedSession(nextAccount);
+      }
 
       setPendingAction(label);
       pushStatus(`${label} is ready. Approve it in your wallet when prompted.`, "info");

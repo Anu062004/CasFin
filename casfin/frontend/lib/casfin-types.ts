@@ -216,7 +216,16 @@ export interface SyncWalletOptions {
 }
 
 export type RunTransactionHandler = (signer: JsonRpcSigner) => Promise<ContractTransactionResponse>;
-export type RunTransaction = (label: string, handler: RunTransactionHandler) => Promise<boolean>;
+export interface RunTransactionOptions {
+  requiresEncryptedSession?: boolean;
+  useSessionKey?: boolean;
+}
+
+export type RunTransaction = (
+  label: string,
+  handler: RunTransactionHandler,
+  options?: RunTransactionOptions
+) => Promise<boolean>;
 
 export interface WalletContextValue {
   walletAvailable: boolean;

@@ -25,7 +25,7 @@ export default function VaultCard({
   vaultForm,
   walletBlocked
 }) {
-  const { decryptForView, encryptUint128, FheTypes, connected: cofheConnected } = useCofhe();
+  const { decryptForView, encryptUint128ForWallet, FheTypes, connected: cofheConnected } = useCofhe();
   const { connectWallet, ensureTargetNetwork, isConnected, isCorrectChain } = useWallet();
   const [decryptedBalance, setDecryptedBalance] = useState(null);
   const [decryptionFailed, setDecryptionFailed] = useState(false);
@@ -76,7 +76,7 @@ export default function VaultCard({
     await runTransaction("Vault deposit", async (signer) => {
       const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
       return vault.depositETH({ value: parseRequiredEth(vaultForm.depositAmount, "Deposit") });
-    });
+    }, { requiresEncryptedSession: false, useSessionKey: false });
   }
 
   async function handleWithdraw() {
@@ -89,9 +89,9 @@ export default function VaultCard({
       const withdrawWei = hasPendingWithdrawal
         ? 0n
         : parseRequiredEth(vaultForm.withdrawAmount, "Withdraw amount");
-      const encAmount = await encryptUint128(withdrawWei);
+      const encAmount = await encryptUint128ForWallet(withdrawWei);
       return vault.withdrawETH(encAmount);
-    });
+    }, { useSessionKey: false });
   }
 
   async function handleFundBankroll() {
@@ -102,7 +102,7 @@ export default function VaultCard({
     await runTransaction("Fund house bankroll", async (signer) => {
       const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
       return vault.fundHouseBankroll({ value: parseRequiredEth(vaultForm.bankrollAmount, "Bankroll") });
-    });
+    }, { requiresEncryptedSession: false, useSessionKey: false });
   }
 
   const depositButtonLabel = pendingAction === "Vault deposit"

@@ -39,7 +39,7 @@ export default function CasinoRail({
   vaultForm,
   walletBlocked
 }) {
-  const { encryptUint128, encryptUint8, encryptBool, connected: cofheConnected } = useCofhe();
+  const { encryptUint128, encryptUint128ForWallet, encryptUint8, encryptBool, connected: cofheConnected } = useCofhe();
 
   return (
     <div className="rail-grid">
@@ -86,7 +86,7 @@ export default function CasinoRail({
                   runTransaction("Vault deposit", async (signer) => {
                     const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
                     return vault.depositETH({ value: parseRequiredEth(vaultForm.depositAmount, "Deposit") });
-                  })
+                  }, { requiresEncryptedSession: false, useSessionKey: false })
                 }
               >
                 {pendingAction === "Vault deposit" ? "Depositing..." : "Deposit"}
@@ -108,9 +108,9 @@ export default function CasinoRail({
                     const withdrawWei = casinoState.pendingWithdrawal?.exists
                       ? 0n
                       : parseRequiredEth(vaultForm.withdrawAmount, "Withdraw amount");
-                    const encAmount = await encryptUint128(withdrawWei);
+                    const encAmount = await encryptUint128ForWallet(withdrawWei);
                     return vault.withdrawETH(encAmount);
-                  })
+                  }, { useSessionKey: false })
                 }
               >
                 {pendingAction === "Withdraw vault balance" ? "Withdrawing..." : "Withdraw"}
@@ -132,7 +132,7 @@ export default function CasinoRail({
                   runTransaction("Fund house bankroll", async (signer) => {
                     const vault = new ethers.Contract(CASFIN_CONFIG.addresses.casinoVault, ENCRYPTED_VAULT_ABI, signer);
                     return vault.fundHouseBankroll({ value: parseRequiredEth(vaultForm.bankrollAmount, "Bankroll") });
-                  })
+                  }, { requiresEncryptedSession: false, useSessionKey: false })
                 }
               >
                 {pendingAction === "Fund house bankroll" ? "Funding..." : "Fund bankroll"}
