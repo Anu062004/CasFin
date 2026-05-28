@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/components/WalletProvider";
 import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
@@ -11,8 +11,10 @@ import { parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 type Phase = "bet" | "dealt" | "waiting" | "result";
+type PokerCard = { rank: number; suit: number } | null;
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
+const EMPTY_HAND: PokerCard[] = [null, null, null, null, null];
 
 const HAND_NAMES: Record<number, string> = {
   250: "Royal Flush", 50: "Straight Flush", 25: "Four of a Kind",
@@ -37,14 +39,19 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
   const [phase, setPhase] = useState<Phase>("bet");
   const [gameId, setGameId] = useState<bigint | null>(null);
   const [held, setHeld] = useState([false, false, false, false, false]);
+  const [dealtCards, setDealtCards] = useState<PokerCard[]>(EMPTY_HAND);
+  const [finalCards, setFinalCards] = useState<PokerCard[]>(EMPTY_HAND);
   const [result, setResult] = useState<{ won: boolean; handName: string; multiplier: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDecryptingCards, setIsDecryptingCards] = useState(false);
   const [cardError, setCardError] = useState("");
 
   const {
     encryptUint128,
     encryptMultiple,
+    decryptForView,
     Encryptable,
+    FheTypes,
     connected: cofheConnected,
     ready: cofheReady,
     sessionReady: cofheSessionReady,
@@ -87,26 +94,162 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
     return new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
   }
 
+  function toPokerCard(cardValue: unknown): PokerCard {
+    const cardIndex = Number(cardValue);
+
+    if (!Number.isInteger(cardIndex) || cardIndex < 0 || cardIndex >= 52) {
+      return null;
+    }
+
+    return {
+      rank: cardIndex % 13,
+      suit: Math.floor(cardIndex / 13)
+    };
+  }
+
+  async function getGameIdFromDealReceipt(tx: ethers.ContractTransactionResponse | null) {
+    if (!tx) {
+      return null;
+    }
+
+    const receipt = await tx.wait();
+    const pokerAddress = CASFIN_CONFIG.addresses.pokerGame.toLowerCase();
+    const pokerInterface = new ethers.Interface(ENCRYPTED_VIDEO_POKER_ABI);
+
+    for (const log of receipt?.logs ?? []) {
+      if (log.address.toLowerCase() !== pokerAddress) {
+        continue;
+      }
+
+      try {
+        const parsed = pokerInterface.parseLog(log);
+        if (parsed?.name === "PokerDealt") {
+          return BigInt((parsed.args.gameId ?? parsed.args[0]).toString());
+        }
+      } catch {
+        // Ignore non-poker logs emitted by the same transaction.
+      }
+    }
+
+    return null;
+  }
+
+  async function resolveDealtGameId(tx: ethers.ContractTransactionResponse | null) {
+    const eventGameId = await getGameIdFromDealReceipt(tx);
+    if (eventGameId !== null) {
+      return eventGameId;
+    }
+
+    if (!ethers.isAddress(account)) {
+      throw new Error("Wallet account is unavailable after the deal transaction confirmed.");
+    }
+
+    const pokerRead = getReadContract();
+    return await pokerRead.latestGameIdByPlayer(account);
+  }
+
+  async function decryptCards(gid: bigint, final = false) {
+    const pokerRead = getReadContract();
+    const handles: string[] = final
+      ? await pokerRead.getFinalCardHandles(gid)
+      : await pokerRead.getCardHandles(gid);
+    const values = await Promise.all(handles.map((handle) => decryptForView(handle, FheTypes.Uint8)));
+
+    return values.map(toPokerCard);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resumeActiveHand() {
+      if (phase !== "bet" || gameId !== null || !ethers.isAddress(account) || !cofheConnected || !cofheSessionReady) {
+        return;
+      }
+
+      try {
+        const pokerRead = getReadContract();
+        const latestId: bigint = await pokerRead.latestGameIdByPlayer(account);
+        const [player, gamePhase] = await pokerRead.getGame(latestId);
+
+        if (cancelled || player.toLowerCase() !== account.toLowerCase()) {
+          return;
+        }
+
+        const phaseNum = Number(gamePhase);
+
+        if (phaseNum !== 1 && phaseNum !== 2 && phaseNum !== 3) {
+          return;
+        }
+
+        setGameId(latestId);
+        setHeld([false, false, false, false, false]);
+        setResult(null);
+        setCardError("");
+        setPhase(phaseNum === 1 ? "dealt" : "waiting");
+        setIsDecryptingCards(true);
+
+        try {
+          if (phaseNum === 1) {
+            const cards = await decryptCards(latestId);
+            if (!cancelled) setDealtCards(cards);
+          } else {
+            const cards = await decryptCards(latestId, true);
+            if (!cancelled) setFinalCards(cards);
+          }
+        } catch (decryptError) {
+          console.warn("[CleanPokerCard] Active hand resumed, but card decrypt failed.", decryptError);
+          if (!cancelled) {
+            setCardError("Active poker hand found, but the cards could not be decrypted. Reconnect the encrypted session and try again.");
+          }
+        } finally {
+          if (!cancelled) setIsDecryptingCards(false);
+        }
+      } catch (err) {
+        console.warn("[CleanPokerCard] Active hand resume failed.", err);
+      }
+    }
+
+    void resumeActiveHand();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [account, cofheConnected, cofheSessionReady, gameId, phase]);
+
   async function handleDeal() {
     setIsSubmitting(true);
     setCardError("");
+    let dealTx: ethers.ContractTransactionResponse | null = null;
+
     try {
       if (!(await ensureActionReady())) return;
 
       const ok = await runTransaction("Deal poker hand", async (signer: ethers.JsonRpcSigner) => {
         const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
         const encAmount = await encryptUint128(parseRequiredEth(amount, "Bet amount"));
-        return poker.deal(encAmount);
+        dealTx = await poker.deal(encAmount);
+        return dealTx;
       });
 
-      if (!ok) return;
+      if (!ok && !dealTx) return;
 
-      const pokerRead = getReadContract();
-      const gid: bigint = await pokerRead.latestGameIdByPlayer(account);
+      const gid = await resolveDealtGameId(dealTx);
       setGameId(gid);
       setHeld([false, false, false, false, false]);
+      setDealtCards(EMPTY_HAND);
+      setFinalCards(EMPTY_HAND);
       setResult(null);
       setPhase("dealt");
+
+      setIsDecryptingCards(true);
+      try {
+        setDealtCards(await decryptCards(gid));
+      } catch (decryptError) {
+        console.warn("[CleanPokerCard] Deal confirmed, but card decrypt failed.", decryptError);
+        setCardError("Deal confirmed, but the encrypted cards could not be decrypted. Reconnect the encrypted session and try again.");
+      } finally {
+        setIsDecryptingCards(false);
+      }
     } catch (err) {
       console.warn("[CleanPokerCard] Deal failed.", err);
       setCardError("Deal failed — check your bet amount and try again.");
@@ -119,18 +262,30 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
     if (gameId === null) return;
     setIsSubmitting(true);
     setCardError("");
+    let drawTx: ethers.ContractTransactionResponse | null = null;
+
     try {
       if (!(await ensureActionReady())) return;
 
       const ok = await runTransaction("Draw poker cards", async (signer: ethers.JsonRpcSigner) => {
         const poker = new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, signer);
         const encHolds = await encryptMultiple(held.map((h) => Encryptable.bool(h)));
-        return poker.draw(gameId, encHolds);
+        drawTx = await poker.draw(gameId, encHolds);
+        return drawTx;
       });
 
-      if (!ok) return;
+      if (!ok && !drawTx) return;
 
       setPhase("waiting");
+      setIsDecryptingCards(true);
+      try {
+        setFinalCards(await decryptCards(gameId, true));
+      } catch (decryptError) {
+        console.warn("[CleanPokerCard] Draw confirmed, but final card decrypt failed.", decryptError);
+        setCardError("Draw confirmed, but the final cards could not be decrypted yet.");
+      } finally {
+        setIsDecryptingCards(false);
+      }
     } catch (err) {
       console.warn("[CleanPokerCard] Draw failed.", err);
       setCardError("Draw failed — try again.");
@@ -183,13 +338,16 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
     setPhase("bet");
     setGameId(null);
     setHeld([false, false, false, false, false]);
+    setDealtCards(EMPTY_HAND);
+    setFinalCards(EMPTY_HAND);
     setResult(null);
     setCardError("");
   }
 
   const isPending = pendingAction === "Deal poker hand" || pendingAction === "Draw poker cards" ||
     pendingAction === "Request resolution" || pendingAction === "Finalize resolution" || isSubmitting;
-  const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked);
+  const actionsBusy = Boolean(pendingAction) || Boolean(walletBlocked) || isDecryptingCards;
+  const visibleCards = phase === "waiting" || phase === "result" ? finalCards : dealtCards;
 
   const outcomeCard = result
     ? {
@@ -249,8 +407,10 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
               key={i}
               index={i}
               dealing={false}
-              faceDown={true}
+              faceDown={!visibleCards[i]}
               held={phase === "dealt" && held[i]}
+              rank={visibleCards[i]?.rank}
+              suit={visibleCards[i]?.suit}
               disabled={phase !== "dealt" || actionsBusy}
               onClick={() => {
                 if (phase !== "dealt") return;
@@ -336,7 +496,7 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
           onClick={() => void handleDraw()}
           type="button"
         >
-          {isPending ? "Drawing..." : `Draw ${held.filter(Boolean).length === 0 ? "all 5" : `(hold ${held.filter(Boolean).length})`}`}
+          {isDecryptingCards ? "Decrypting..." : isPending ? "Drawing..." : `Draw ${held.filter(Boolean).length === 0 ? "all 5" : `(hold ${held.filter(Boolean).length})`}`}
         </button>
       )}
 
