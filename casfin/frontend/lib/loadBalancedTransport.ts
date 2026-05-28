@@ -8,13 +8,19 @@ const RPC_ENDPOINTS = [
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4
 ].filter(Boolean) as string[];
 
-const MISSING = RPC_ENDPOINTS.filter(
-  (url) => !url || !url.startsWith("https://arb-sepolia.g.alchemy.com")
+const SUPPORTED_RPC_PREFIXES = [
+  "https://arb-sepolia.g.alchemy.com",
+  "https://arbitrum-sepolia.infura.io",
+  "https://sepolia-rollup.arbitrum.io/rpc"
+];
+
+const INVALID_ENDPOINTS = RPC_ENDPOINTS.filter(
+  (url) => !SUPPORTED_RPC_PREFIXES.some((prefix) => url.startsWith(prefix))
 );
-if (MISSING.length > 0 || RPC_ENDPOINTS.length < 4) {
+if (INVALID_ENDPOINTS.length > 0 || RPC_ENDPOINTS.length < 4) {
   console.error(
-    "❌ BROKEN RPC CONFIG — Variables not loaded from Vercel env.",
-    "\nExpected: https://arb-sepolia.g.alchemy.com/v2/YOUR_KEY",
+    "Invalid Arbitrum Sepolia RPC config.",
+    "\nExpected Alchemy, Infura, or public Arbitrum Sepolia RPC URLs.",
     "\nGot:",
     RPC_ENDPOINTS
   );
@@ -25,7 +31,7 @@ const BASE_BACKOFF_MS = 500;
 const THROTTLE_COOLDOWN_MS = 30_000;
 const SERVER_ERROR_COOLDOWN_MS = 10_000;
 const ALL_DEAD_ERROR_MESSAGE =
-  "All Alchemy keys returning 403. Go to dashboard.alchemy.com → verify each app is set to Chain: Arbitrum, Network: Arbitrum Sepolia. Then update NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1..4 in Vercel.";
+  "All configured Arbitrum Sepolia RPC endpoints returned 403. Verify the RPC provider apps allow Arbitrum Sepolia, then update NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1..4 in Vercel.";
 const ALL_COOLING_ERROR_MESSAGE = "All RPC endpoints throttled. Retry in 30 seconds.";
 const BACKUP_RPC_ERROR_MESSAGE = "RPC error — retrying with backup endpoint";
 const NETWORK_BUSY_MESSAGE = "Network is busy, please try again shortly.";

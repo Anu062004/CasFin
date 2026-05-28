@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 
-const EXPECTED_ALCHEMY_PREFIX = "https://arb-sepolia.g.alchemy.com";
+const SUPPORTED_RPC_PREFIXES = [
+  "https://arb-sepolia.g.alchemy.com",
+  "https://arbitrum-sepolia.infura.io",
+  "https://sepolia-rollup.arbitrum.io/rpc"
+];
 
 const RPC_ENV_CONFIG = [
   {
@@ -51,8 +55,12 @@ function shortenValue(value: string): string {
   return value.length <= 40 ? value : `${value.slice(0, 40)}...`;
 }
 
+function hasSupportedRpcHost(value: string | undefined): boolean {
+  return Boolean(value && SUPPORTED_RPC_PREFIXES.some((prefix) => value.startsWith(prefix)));
+}
+
 function hasExpectedPrefix(value: string | undefined): boolean {
-  return Boolean(value && value.startsWith(EXPECTED_ALCHEMY_PREFIX));
+  return hasSupportedRpcHost(value);
 }
 
 async function testRpcEndpoint(url: string | undefined): Promise<RpcTestResult> {
@@ -161,7 +169,7 @@ export default function DebugPage() {
           <tr>
             <th style={{ textAlign: "left", padding: 10, borderBottom: "1px solid #374151" }}>Variable</th>
             <th style={{ textAlign: "left", padding: 10, borderBottom: "1px solid #374151" }}>Loaded Value</th>
-            <th style={{ textAlign: "left", padding: 10, borderBottom: "1px solid #374151" }}>Prefix Check</th>
+            <th style={{ textAlign: "left", padding: 10, borderBottom: "1px solid #374151" }}>RPC Host</th>
             <th style={{ textAlign: "left", padding: 10, borderBottom: "1px solid #374151" }}>RPC Test</th>
           </tr>
         </thead>
@@ -175,7 +183,7 @@ export default function DebugPage() {
                   {value ? shortenValue(value) : "❌ Missing"}
                 </td>
                 <td style={{ padding: 10, borderBottom: "1px solid #1f2937" }}>
-                  {hasExpectedPrefix(value) ? "✅ Valid Alchemy Arbitrum Sepolia URL" : "❌ Invalid prefix"}
+                  {hasExpectedPrefix(value) ? "Supported Arbitrum Sepolia RPC URL" : "Invalid RPC host"}
                 </td>
                 <td style={{ padding: 10, borderBottom: "1px solid #1f2937" }}>
                   {result ? result.message : "Not tested"}
