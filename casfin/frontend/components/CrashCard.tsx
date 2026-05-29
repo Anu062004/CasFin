@@ -5,6 +5,7 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_CRASH_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth, parseRequiredInteger, parseCashOutMultiplier, formatMultiplier } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
+import { useWallet } from "@/components/WalletProvider";
 import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const RECENT_ROUNDS_MOCK = [
@@ -13,6 +14,7 @@ const RECENT_ROUNDS_MOCK = [
 ];
 
 export default function CrashCard({ casinoState, isOperator, pendingAction, runTransaction, walletBlocked }) {
+  const { account } = useWallet();
   const [amount, setAmount] = useState("0.01");
   const [cashOutMultiplier, setCashOutMultiplier] = useState("2.0");
   const [settlePlayer, setSettlePlayer] = useState("");
@@ -53,7 +55,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
         ? latestPlayerBet.won
           ? "Your cash-out target cleared before the crash point."
           : "The crash point landed before your cash-out target."
-        : "The keeper will settle this position once the crash multiplier is published.",
+        : "Closing the round and settling your position on-chain.",
     metrics: [
       { label: "Round", value: `#${roundId}` },
       { label: "Target", value: crashTargetLabel },
@@ -114,10 +116,20 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
       const amountWei = parseRequiredEth(amount, "Crash amount");
       const targetCashOut = parseCashOutMultiplier(cashOutMultiplier);
       const encAmount = await encryptUint128(amountWei);
-      await runTransaction("Place crash bet", async (signer) => {
-        const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
-        return crash.placeBet(currentRoundId, encAmount, targetCashOut);
-      });
+      await runTransaction(
+        "Place crash bet",
+        async (signer) => {
+          const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
+          return crash.placeBet(currentRoundId, encAmount, targetCashOut);
+        },
+        {
+          autoResolve: {
+            game: "crash",
+            roundId: String(currentRoundId),
+            player: account
+          }
+        }
+      );
     } finally {
       setIsBetting(false);
     }

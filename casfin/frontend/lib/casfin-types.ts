@@ -219,6 +219,13 @@ export type RunTransactionHandler = (signer: JsonRpcSigner) => Promise<ContractT
 export interface RunTransactionOptions {
   requiresEncryptedSession?: boolean;
   useSessionKey?: boolean;
+  /** After a successful encrypted casino bet, trigger server-side keeper resolution. */
+  autoResolve?: {
+    game: "coinflip" | "dice" | "crash";
+    betId?: string;
+    roundId?: string;
+    player?: string;
+  };
 }
 
 export type RunTransaction = (

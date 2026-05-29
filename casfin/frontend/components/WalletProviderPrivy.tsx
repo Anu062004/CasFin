@@ -31,6 +31,11 @@ import {
   restoreSessionKey
 } from "@/lib/session-key-manager";
 import EncryptedCasinoVaultAbi from "@/lib/generated-abis/EncryptedCasinoVault.json";
+import {
+  ENCRYPTED_COIN_FLIP_ABI,
+  ENCRYPTED_DICE_ABI
+} from "@/lib/casfin-abis";
+import { requestCasinoAutoResolveWithRetry } from "@/lib/casino-auto-resolve";
 import type {
   LastTransactionState,
   RunTransactionOptions,
@@ -987,7 +992,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     pushStatus("Session ended. Wallet required for future transactions.", "info");
   }
 
-  function startPostTransactionPolling(acct: string) {
+  function startPostTransactionPolling(acct: string, intervalMs = 1_500, maxAttempts = 40) {
     if (postTxPollingRef.current) {
       clearInterval(postTxPollingRef.current);
       postTxPollingRef.current = null;
@@ -995,7 +1000,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     let attempts = 0;
     postTxPollingRef.current = setInterval(() => {
       attempts++;
-      if (attempts >= 30 || !mountedRef.current) {
+      if (attempts >= maxAttempts || !mountedRef.current) {
         clearInterval(postTxPollingRef.current!);
         postTxPollingRef.current = null;
         return;
@@ -1003,7 +1008,51 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       loadPolledProtocolState(acct).catch((error) => {
         logBackgroundWalletError("Post-tx polling refresh failed.", error);
       });
-    }, 3_000);
+    }, intervalMs);
+  }
+
+  async function maybeAutoResolveCasinoBet(
+    account: string,
+    options: RunTransactionOptions
+  ): Promise<void> {
+    const ctx = options.autoResolve;
+    if (!ctx || !account) {
+      return;
+    }
+
+    let betId = ctx.betId;
+    if ((ctx.game === "coinflip" || ctx.game === "dice") && !betId) {
+      const gameAddress =
+        ctx.game === "coinflip"
+          ? CASFIN_CONFIG.addresses.coinFlipGame
+          : CASFIN_CONFIG.addresses.diceGame;
+      const abi = ctx.game === "coinflip" ? ENCRYPTED_COIN_FLIP_ABI : ENCRYPTED_DICE_ABI;
+      const gameContract = new ethers.Contract(gameAddress, abi, publicProvider);
+      const nextBetId = (await gameContract.nextBetId()) as bigint;
+      if (nextBetId === 0n) {
+        return;
+      }
+      betId = (nextBetId - 1n).toString();
+    }
+
+    pushStatus("Settling your encrypted bet on-chain…", "info");
+
+    try {
+      await requestCasinoAutoResolveWithRetry({
+        game: ctx.game,
+        betId,
+        roundId: ctx.roundId,
+        player: ctx.player || account
+      });
+      await loadProtocolState(account);
+      pushStatus("Bet settled.", "success");
+    } catch (error) {
+      logBackgroundWalletError("Auto-resolve failed after bet placement.", error);
+      pushStatus(
+        "Bet confirmed. Settlement is still finishing — the UI will refresh automatically.",
+        "warning"
+      );
+    }
   }
 
   async function runTransaction(
@@ -1070,6 +1119,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
         setLastTransaction({ label, hash: transaction.hash, status: "confirmed", timestamp: Date.now() });
         pushStatus(`${label} confirmed.`, "success");
         await loadProtocolState(nextAccount);
+        await maybeAutoResolveCasinoBet(nextAccount, options);
         startPostTransactionPolling(nextAccount);
         return true;
       }
@@ -1102,6 +1152,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       });
       pushStatus(`${label} confirmed.`, "success");
       await loadProtocolState(nextAccount);
+      await maybeAutoResolveCasinoBet(nextAccount, options);
       startPostTransactionPolling(nextAccount);
       return true;
     } catch (error) {

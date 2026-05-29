@@ -5,11 +5,13 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_COIN_FLIP_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
+import { useWallet } from "@/components/WalletProvider";
 import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 
 export default function CoinFlipCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
+  const { account } = useWallet();
   const [amount, setAmount] = useState("0.01");
   const [guessHeads, setGuessHeads] = useState(true);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -31,7 +33,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
       ? "Ready for the first flip"
       : latestBet.resolved
         ? latestBet.won ? "Winning flip paid" : "Flip settled as loss"
-        : latestBet.resolutionPending ? "Keeper finalizing result" : "Keeper resolving bet",
+        : latestBet.resolutionPending ? "Finalizing flip" : "Settling flip",
     badge: !latestBet ? "2x payout" : `Bet ${coinBetLabel}`,
     detail: !latestBet
       ? "Place an encrypted heads or tails wager and the keeper will settle the outcome on-chain."
@@ -39,7 +41,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
         ? latestBet.won
           ? "The latest settled coin flip finished in profit."
           : "The latest settled coin flip missed the pick."
-        : "The keeper has picked up the encrypted result path and will publish the settlement.",
+        : "Your flip is being settled on-chain (FHE decrypt + payout).",
     metrics: [
       { label: "Pick", value: coinGuessLabel },
       { label: "Edge", value: `${houseEdge}%` }
@@ -65,10 +67,19 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
       const amountWei = parseRequiredEth(amount, "Bet amount");
       const encAmount = await encryptUint128(amountWei);
       const encGuess = await encryptBool(guessHeads);
-      await runTransaction("Place coin flip bet", async (signer) => {
-        const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
-        return coin.placeBet(encAmount, encGuess);
-      });
+      await runTransaction(
+        "Place coin flip bet",
+        async (signer) => {
+          const coin = new ethers.Contract(CASFIN_CONFIG.addresses.coinFlipGame, ENCRYPTED_COIN_FLIP_ABI, signer);
+          return coin.placeBet(encAmount, encGuess);
+        },
+        {
+          autoResolve: {
+            game: "coinflip",
+            player: account
+          }
+        }
+      );
     } finally {
       setIsFlipping(false);
     }
@@ -160,7 +171,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
       </div>
 
       <p className="game-footer-text">{houseEdge}% house edge · Provably fair on-chain</p>
-      {usesEncryptedGame ? <p className="game-footer-text">Encrypted settlement runs through the keeper.</p> : null}
+      {usesEncryptedGame ? <p className="game-footer-text">Bets auto-settle right after your transaction confirms.</p> : null}
     </div>
   );
 }

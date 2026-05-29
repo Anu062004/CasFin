@@ -5,12 +5,14 @@ import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_DICE_ABI } from "@/lib/casfin-abis";
 import { parseRequiredEth, parseRequiredInteger } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
+import { useWallet } from "@/components/WalletProvider";
 import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
 const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
 
 export default function DiceCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
+  const { account } = useWallet();
   const [amount, setAmount] = useState("0.01");
   const [guess, setGuess] = useState(3);
   const [resolveBetId, setResolveBetId] = useState("");
@@ -32,7 +34,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
       ? "Ready for the next roll"
       : latestBet.resolved
         ? latestBet.won ? "Exact match paid" : "Roll missed the pick"
-        : latestBet.resolutionPending ? "Keeper finalizing roll" : "Keeper resolving roll",
+        : latestBet.resolutionPending ? "Finalizing roll" : "Settling roll",
     badge: !latestBet ? "6x payout" : `Bet ${diceBetLabel}`,
     detail: !latestBet
       ? "Choose one number, encrypt the stake, and wait for the keeper-settled roll."
@@ -40,7 +42,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
         ? latestBet.won
           ? "The latest dice bet matched the resolved roll."
           : "The latest dice bet settled without a match."
-        : "The encrypted roll is moving through the keeper settlement path.",
+        : "Your roll is being settled on-chain (FHE decrypt + payout).",
     metrics: [
       { label: "Pick", value: diceGuessLabel },
       { label: "Roll", value: diceRollLabel }
@@ -69,10 +71,19 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
 
       const encAmount = await encryptUint128(amountWei);
       const encGuess = await encryptUint8(guessValue);
-      await runTransaction("Place dice bet", async (signer) => {
-        const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
-        return dice.placeBet(encAmount, encGuess);
-      });
+      await runTransaction(
+        "Place dice bet",
+        async (signer) => {
+          const dice = new ethers.Contract(CASFIN_CONFIG.addresses.diceGame, ENCRYPTED_DICE_ABI, signer);
+          return dice.placeBet(encAmount, encGuess);
+        },
+        {
+          autoResolve: {
+            game: "dice",
+            player: account
+          }
+        }
+      );
     } finally {
       setIsRolling(false);
     }
@@ -146,7 +157,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
           className="game-input resolve-input"
           disabled
           onChange={(e) => setResolveBetId(e.target.value)}
-          placeholder={usesEncryptedGame ? `Keeper resolves bet #${latestBetId}` : `Bet ID (latest: ${latestBetId})`}
+          placeholder={usesEncryptedGame ? `Auto-settles bet #${latestBetId}` : `Bet ID (latest: ${latestBetId})`}
           type="number"
           value={resolveBetId}
         />
@@ -161,7 +172,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
       </div>
 
       <p className="game-footer-text">{houseEdge}% house edge · FHE-encrypted on Arbitrum</p>
-      {usesEncryptedGame ? <p className="game-footer-text">Encrypted settlement runs through the keeper.</p> : null}
+      {usesEncryptedGame ? <p className="game-footer-text">Bets auto-settle right after your transaction confirms.</p> : null}
     </div>
   );
 }
