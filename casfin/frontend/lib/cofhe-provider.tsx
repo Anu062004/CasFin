@@ -261,16 +261,41 @@ export function CofheProvider({ children }) {
   }, [ensureSessionReady]);
 
   const decryptForView = useCallback(async (ctHash, fheType) => {
-    if (!clientRef.current?.connected) {
+    await ensureSessionReady();
+
+    const hash = ethers.toBigInt(ctHash);
+    const clients = [];
+
+    if (clientRef.current?.connected) {
+      clients.push(clientRef.current);
+    }
+
+    // Session-key bets grant FHE.allowSender to the ephemeral signer; retry decrypt with
+    // that connected client when the main-wallet permit cannot access the handle.
+    if (
+      encryptClientRef.current?.connected &&
+      encryptClientRef.current !== clientRef.current
+    ) {
+      clients.push(encryptClientRef.current);
+    }
+
+    if (!clients.length) {
       throw new Error("CoFHE not connected.");
     }
 
-    const permit = await clientRef.current.permits.getOrCreateSelfPermit();
-    return await clientRef.current
-      .decryptForView(ethers.toBigInt(ctHash), fheType)
-      .withPermit(permit)
-      .execute();
-  }, []);
+    let lastError: unknown;
+
+    for (const client of clients) {
+      try {
+        const permit = await client.permits.getOrCreateSelfPermit();
+        return await client.decryptForView(hash, fheType).withPermit(permit).execute();
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError ?? new Error("CoFHE decrypt failed.");
+  }, [ensureSessionReady]);
 
   const contextValue = useMemo(
     () => ({

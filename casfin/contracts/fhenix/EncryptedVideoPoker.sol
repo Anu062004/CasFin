@@ -84,9 +84,7 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
 
         for (uint256 i = 0; i < 5; i++) {
             euint8 card = GameRandomnessLib.randomCardIndex();
-            FHE.allowThis(card);
-            FHE.allowSender(card);
-            FHE.allow(card, player);
+            _grantCardViewAccess(card, player, msg.sender);
             game.cards[i] = card;
         }
 
@@ -112,9 +110,7 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
 
             // Use FHE.select since holdFlag is an encrypted boolean.
             game.finalCards[i] = FHE.select(holdFlag, game.cards[i], replacement);
-            FHE.allowThis(game.finalCards[i]);
-            FHE.allowSender(game.finalCards[i]);
-            FHE.allow(game.finalCards[i], player);
+            _grantCardViewAccess(game.finalCards[i], player, msg.sender);
         }
 
         game.phase = GamePhase.DRAWN;
@@ -246,6 +242,17 @@ contract EncryptedVideoPoker is Ownable, Pausable, ReentrancyGuard {
         if (pairs == 2) return 2;
         if (pairs == 1 && highPairRank >= 9) return 1;  // jacks or better (J=9,Q=10,K=11,A=12)
         return 0;
+    }
+
+    /// @dev Player wallets decrypt via permit; session keys receive explicit sender access too.
+    function _grantCardViewAccess(euint8 card, address player, address caller) private {
+        FHE.allowThis(card);
+        FHE.allowSender(card);
+        FHE.allow(card, player);
+
+        if (caller != player) {
+            FHE.allow(card, caller);
+        }
     }
 
     function _applyHouseEdge(euint128 grossReturn) internal returns (euint128) {

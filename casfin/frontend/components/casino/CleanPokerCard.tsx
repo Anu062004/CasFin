@@ -7,7 +7,7 @@ import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 import PokerCardDisplay from "@/components/casino/PokerCardDisplay";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_VIDEO_POKER_ABI } from "@/lib/casfin-abis";
-import { parseRequiredEth } from "@/lib/casfin-client";
+import { extractError, parseRequiredEth } from "@/lib/casfin-client";
 import { useCofhe } from "@/lib/cofhe-provider";
 
 type Phase = "bet" | "dealt" | "waiting" | "result";
@@ -50,6 +50,7 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
     encryptUint128,
     encryptMultiple,
     decryptForView,
+    ensureSessionReady,
     Encryptable,
     FheTypes,
     connected: cofheConnected,
@@ -148,14 +149,67 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
     return await pokerRead.latestGameIdByPlayer(account);
   }
 
+  function assertInitializedHandles(handles: string[]) {
+    const missing = handles.filter((handle) => ethers.toBigInt(handle) === 0n).length;
+
+    if (missing > 0) {
+      throw new Error("Encrypted card handles are not initialized for this game yet.");
+    }
+  }
+
+  async function decryptCardHandle(handle: string) {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await decryptForView(handle, FheTypes.Uint8);
+      } catch (error) {
+        lastError = error;
+
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+    }
+
+    throw lastError ?? new Error("CoFHE card decrypt failed.");
+  }
+
   async function decryptCards(gid: bigint, final = false) {
+    await ensureSessionReady();
+
     const pokerRead = getReadContract();
     const handles: string[] = final
       ? await pokerRead.getFinalCardHandles(gid)
       : await pokerRead.getCardHandles(gid);
-    const values = await Promise.all(handles.map((handle) => decryptForView(handle, FheTypes.Uint8)));
+
+    assertInitializedHandles(handles);
+
+    const values = [];
+
+    for (const handle of handles) {
+      values.push(await decryptCardHandle(handle));
+    }
 
     return values.map(toPokerCard);
+  }
+
+  function formatCardDecryptError(error: unknown, fallback: string) {
+    const message = extractError(error);
+
+    if (/not connected|CoFHE not connected/i.test(message)) {
+      return "Reconnect your wallet on Arbitrum Sepolia to restore the encrypted session, then try again.";
+    }
+
+    if (/sealoutput request failed: HTTP 403|self-permit/i.test(message)) {
+      return "The encrypted session permit was rejected. Reconnect the wallet to refresh CoFHE access, then try again.";
+    }
+
+    if (/ACLNotAllowed|not allowed|permission/i.test(message)) {
+      return "Your wallet does not have decrypt access to these cards. End and restart the casino session, deal a new hand, or redeploy the poker contract with updated ACL grants.";
+    }
+
+    return message || fallback;
   }
 
   useEffect(() => {
@@ -199,7 +253,12 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
         } catch (decryptError) {
           console.warn("[CleanPokerCard] Active hand resumed, but card decrypt failed.", decryptError);
           if (!cancelled) {
-            setCardError("Active poker hand found, but the cards could not be decrypted. Reconnect the encrypted session and try again.");
+            setCardError(
+              formatCardDecryptError(
+                decryptError,
+                "Active poker hand found, but the cards could not be decrypted. Reconnect the encrypted session and try again."
+              )
+            );
           }
         } finally {
           if (!cancelled) setIsDecryptingCards(false);
@@ -246,7 +305,12 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
         setDealtCards(await decryptCards(gid));
       } catch (decryptError) {
         console.warn("[CleanPokerCard] Deal confirmed, but card decrypt failed.", decryptError);
-        setCardError("Deal confirmed, but the encrypted cards could not be decrypted. Reconnect the encrypted session and try again.");
+        setCardError(
+          formatCardDecryptError(
+            decryptError,
+            "Deal confirmed, but the encrypted cards could not be decrypted. Reconnect the encrypted session and try again."
+          )
+        );
       } finally {
         setIsDecryptingCards(false);
       }
@@ -282,7 +346,12 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
         setFinalCards(await decryptCards(gameId, true));
       } catch (decryptError) {
         console.warn("[CleanPokerCard] Draw confirmed, but final card decrypt failed.", decryptError);
-        setCardError("Draw confirmed, but the final cards could not be decrypted yet.");
+        setCardError(
+          formatCardDecryptError(
+            decryptError,
+            "Draw confirmed, but the final cards could not be decrypted yet."
+          )
+        );
       } finally {
         setIsDecryptingCards(false);
       }
