@@ -1,28 +1,32 @@
 import { ethers, type JsonRpcPayload, type JsonRpcResult } from "ethers";
 import { custom } from "viem";
 
-const RPC_ENDPOINTS = [
+const PUBLIC_ARBITRUM_SEPOLIA_RPC = "https://sepolia-rollup.arbitrum.io/rpc";
+
+function isValidRpcUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+const CONFIGURED_RPC_ENDPOINTS = [
+  process.env.NEXT_PUBLIC_CASFIN_RPC_URL,
+  process.env.NEXT_PUBLIC_ARB_SEPOLIA_RPC_URL,
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1,
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_2,
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_3,
   process.env.NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4
-].filter(Boolean) as string[];
+].filter((url): url is string => Boolean(url && isValidRpcUrl(url)));
 
-const SUPPORTED_RPC_PREFIXES = [
-  "https://arb-sepolia.g.alchemy.com",
-  "https://arbitrum-sepolia.infura.io",
-  "https://sepolia-rollup.arbitrum.io/rpc"
-];
+const RPC_ENDPOINTS = [...new Set([...CONFIGURED_RPC_ENDPOINTS, PUBLIC_ARBITRUM_SEPOLIA_RPC])];
 
-const INVALID_ENDPOINTS = RPC_ENDPOINTS.filter(
-  (url) => !SUPPORTED_RPC_PREFIXES.some((prefix) => url.startsWith(prefix))
-);
-if (INVALID_ENDPOINTS.length > 0 || RPC_ENDPOINTS.length < 4) {
-  console.error(
-    "Invalid Arbitrum Sepolia RPC config.",
-    "\nExpected Alchemy, Infura, or public Arbitrum Sepolia RPC URLs.",
-    "\nGot:",
-    RPC_ENDPOINTS
+if (CONFIGURED_RPC_ENDPOINTS.length === 0) {
+  console.warn(
+    "[loadBalanced] No custom RPC URLs configured; using public Arbitrum Sepolia endpoint only.",
+    "Set NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1..4 or NEXT_PUBLIC_CASFIN_RPC_URL (e.g. EC2 proxy)."
   );
 }
 
@@ -86,6 +90,11 @@ function isRateLimitedError(error: JsonRpcErrorObject): boolean {
   const code = toErrorCode(error.code);
   const message = typeof error.message === "string" ? error.message : "";
   return code === -32005 || /too many requests|rate limit|429/i.test(message);
+}
+
+function isPaymentRequiredError(error: JsonRpcErrorObject): boolean {
+  const message = typeof error.message === "string" ? error.message : "";
+  return /payment required|402/i.test(message) || toErrorCode(error.code) === -32002;
 }
 
 function isInternalRpcError(error: JsonRpcErrorObject): boolean {
@@ -226,6 +235,7 @@ export function getHealthyRpc(): string {
 
 async function inspectResponseForRetryableErrors(response: Response): Promise<{
   rateLimited: boolean;
+  paymentRequired: boolean;
   internalRpcError: boolean;
 }> {
   let payload: unknown;
@@ -233,12 +243,13 @@ async function inspectResponseForRetryableErrors(response: Response): Promise<{
   try {
     payload = await response.clone().json();
   } catch {
-    return { rateLimited: false, internalRpcError: false };
+    return { rateLimited: false, paymentRequired: false, internalRpcError: false };
   }
 
   const errors = extractRpcErrors(payload);
   return {
     rateLimited: errors.some(isRateLimitedError),
+    paymentRequired: errors.some(isPaymentRequiredError),
     internalRpcError: errors.some(isInternalRpcError)
   };
 }
@@ -289,7 +300,10 @@ export async function sendRpcRequest(body: unknown): Promise<Response> {
         body: JSON.stringify(body)
       });
 
-      if (response.status === 403) {
+      if (response.status === 403 || response.status === 402) {
+        console.warn(
+          `[loadBalanced] ${response.status} from endpoint (quota/billing): ${url}`
+        );
         markDead(index);
         if (areAllEndpointsDead()) {
           console.error("[loadBalanced] All endpoints are exhausted.");
@@ -337,6 +351,16 @@ export async function sendRpcRequest(body: unknown): Promise<Response> {
       }
 
       const inspection = await inspectResponseForRetryableErrors(response);
+
+      if (inspection.paymentRequired) {
+        console.warn(`[loadBalanced] Infura/provider payment required on: ${url}`);
+        markDead(index);
+        if (areAllEndpointsDead()) {
+          console.error("[loadBalanced] All endpoints are exhausted.");
+          throw new Error(ALL_DEAD_ERROR_MESSAGE);
+        }
+        continue;
+      }
 
       if (inspection.rateLimited) {
         console.warn(`[loadBalanced] 429 throttled endpoint: ${url}`);

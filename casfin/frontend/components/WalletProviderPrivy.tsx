@@ -5,6 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { usePathname } from "next/navigation";
 import { ethers } from "ethers";
 import { usePrivyWallet, type WalletAdapter } from "@/components/PrivyAppProvider";
+import { createArbitrumSepoliaProvider } from "@/lib/arbitrum-provider";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { useCofhe } from "@/lib/cofhe-provider";
 import {
@@ -904,11 +905,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
     if (!fundOk) throw new Error("Session key gas funding failed.");
 
     // Step 3: connect CoFHE encrypt client to session key signer
-    const sessionProvider = new ethers.JsonRpcProvider(
-      CASFIN_CONFIG.publicRpcUrl,
-      { chainId: CASFIN_CONFIG.chainId, name: "arbitrum-sepolia" },
-      { staticNetwork: true }
-    );
+    const sessionProvider = createArbitrumSepoliaProvider();
     const connectedWallet = sessionWallet.connect(sessionProvider);
     await switchEncryptToSessionKey(connectedWallet, sessionProvider);
 
@@ -1258,11 +1255,7 @@ export default function WalletProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const sessionProvider = new ethers.JsonRpcProvider(
-      CASFIN_CONFIG.publicRpcUrl,
-      { chainId: CASFIN_CONFIG.chainId, name: "arbitrum-sepolia" },
-      { staticNetwork: true }
-    );
+    const sessionProvider = createArbitrumSepoliaProvider();
     const wallet = getSessionWallet(stored, sessionProvider);
     sessionWalletRef.current = wallet;
     sessionExpiryRef.current = stored.expiresAt;

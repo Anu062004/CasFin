@@ -10,14 +10,9 @@ import {
   MARKET_RESOLVER_ABI,
   PREDICTION_MARKET_ABI
 } from "@/lib/casfin-abis";
-import { createLoadBalancedProvider } from "@/lib/loadBalancedTransport";
+import { arbitrumSepoliaProvider } from "@/lib/arbitrum-provider";
 
-const ARBITRUM_SEPOLIA_NETWORK = {
-  chainId: CASFIN_CONFIG.chainId,
-  name: "arbitrum-sepolia"
-} as const;
-
-const sharedReadProvider = createLoadBalancedProvider(ARBITRUM_SEPOLIA_NETWORK);
+const sharedReadProvider = arbitrumSepoliaProvider;
 const predictionReadLimit = pLimit(4);
 
 function schedulePredictionRead<T>(task: () => Promise<T>) {
@@ -283,12 +278,16 @@ export function extractError(error) {
     return "Deposits must be signed by your main wallet. End the casino session or retry from the wallet page.";
   }
 
+  if (/Payment Required|402|payment required/i.test(normalizedMessage)) {
+    return "The configured Infura/Alchemy RPC hit a billing or quota limit (HTTP 402). The app will retry public Arbitrum Sepolia RPCs automatically after redeploy; update Vercel env vars or set NEXT_PUBLIC_CASFIN_RPC_URL to your EC2 RPC proxy.";
+  }
+
   if (
     /RPC endpoint returned too many errors|rate limit|too many requests|429|missing response for request|failed to detect network|cannot start up/i.test(
       normalizedMessage
     )
   ) {
-    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1, NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_2, NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_3, and NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_4, then restart the app and reconnect the wallet network if needed.";
+    return "One of the configured Arbitrum Sepolia RPC endpoints is rate-limited or unhealthy. Check NEXT_PUBLIC_ALCHEMY_ARB_SEPOLIA_RPC_1..4 or NEXT_PUBLIC_CASFIN_RPC_URL, then restart the app and reconnect the wallet.";
   }
 
   if (/NOT_CONNECTED|MISSING_PUBLIC_CLIENT|MISSING_WALLET_CLIENT|CoFHE not connected/i.test(normalizedMessage)) {

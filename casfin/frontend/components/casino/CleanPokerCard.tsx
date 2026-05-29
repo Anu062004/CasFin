@@ -5,6 +5,7 @@ import { ethers } from "ethers";
 import { useWallet } from "@/components/WalletProvider";
 import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 import PokerCardDisplay from "@/components/casino/PokerCardDisplay";
+import { arbitrumSepoliaProvider } from "@/lib/arbitrum-provider";
 import { CASFIN_CONFIG } from "@/lib/casfin-config";
 import { ENCRYPTED_VIDEO_POKER_ABI } from "@/lib/casfin-abis";
 import { extractError, parseRequiredEth } from "@/lib/casfin-client";
@@ -87,12 +88,7 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
   }
 
   function getReadContract() {
-    const provider = new ethers.JsonRpcProvider(
-      CASFIN_CONFIG.publicRpcUrl,
-      { chainId: CASFIN_CONFIG.chainId, name: "arbitrum-sepolia" },
-      { staticNetwork: true }
-    );
-    return new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, provider);
+    return new ethers.Contract(CASFIN_CONFIG.addresses.pokerGame, ENCRYPTED_VIDEO_POKER_ABI, arbitrumSepoliaProvider);
   }
 
   function toPokerCard(cardValue: unknown): PokerCard {
