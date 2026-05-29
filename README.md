@@ -1,14 +1,29 @@
+<div align="center">
+
 # CasFin
 
-**Privacy-first on-chain casino and prediction markets powered by Fully Homomorphic Encryption (FHE) on Arbitrum Sepolia.**
+**Encrypted casino & prediction markets on Arbitrum Sepolia**
 
-[![Live Demo](https://img.shields.io/badge/demo-live-7c3aed?style=flat-square)](https://casfin-frontend.vercel.app/)
-[![Network](https://img.shields.io/badge/network-Arbitrum%20Sepolia-28a0f0?style=flat-square)](https://sepolia.arbiscan.io/)
-[![Fhenix](https://img.shields.io/badge/FHE-Fhenix%20CoFHE-10b981?style=flat-square)](https://cofhe-docs.fhenix.zone/)
-[![Solidity](https://img.shields.io/badge/solidity-0.8.25-363636?style=flat-square)](https://soliditylang.org/)
+Play, stake, and resolve markets while wagers and balances stay **encrypted on-chain** — powered by [Fhenix CoFHE](https://cofhe-docs.fhenix.zone/), not plaintext “provably fair” rails.
 
-**Repository:** [github.com/Anu062004/CasFin](https://github.com/Anu062004/CasFin)  
-**Live app:** [casfin-frontend.vercel.app](https://casfin-frontend.vercel.app/)
+<br />
+
+[**Live Demo**](https://casfin-frontend.vercel.app/) · [**Contracts**](https://sepolia.arbiscan.io/address/0xA6406C70FaF7E86B9B8b1cdbC21F7148f6d3E175) · [**Developer Setup**](./casfin/README.md) · [**FHE Reference**](./casfin/FHENIX_COFHE_REFERENCE.md)
+
+<br />
+
+[![Live Demo](https://img.shields.io/badge/Live_Demo-casfin--frontend.vercel.app-7c3aed?style=for-the-badge&logo=vercel&logoColor=white)](https://casfin-frontend.vercel.app/)
+[![Arbitrum Sepolia](https://img.shields.io/badge/Network-Arbitrum_Sepolia-28a0f0?style=for-the-badge&logo=arbitrum&logoColor=white)](https://sepolia.arbiscan.io/)
+[![Fhenix CoFHE](https://img.shields.io/badge/Encryption-Fhenix_CoFHE-10b981?style=for-the-badge)](https://cofhe-docs.fhenix.zone/)
+[![Solidity](https://img.shields.io/badge/Contracts-Solidity_0.8.25-363636?style=for-the-badge&logo=solidity&logoColor=white)](https://github.com/Anu062004/CasFin/tree/main/casfin/contracts)
+
+<br />
+
+| **Judges** — verify in minutes | **Developers** — clone & run |
+| --- | --- |
+| Deposit → play encrypted games → inspect FHE contracts on Arbiscan | `cd casfin && npm install && npm run compile && npm run frontend:dev` |
+
+</div>
 
 ---
 
