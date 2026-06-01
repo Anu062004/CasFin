@@ -208,23 +208,6 @@ function HomePage() {
   const { isConnected, walletBalance, sessionActive, predictionState } = useWallet();
   const balanceLabel = isConnected ? `${formatEth(walletBalance)} ETH` : "0.0000 ETH";
   const marketCount = predictionState.totalMarkets || "Factory";
-  const heroStats = [
-    {
-      label: "Vault wallet",
-      value: isConnected ? balanceLabel : "Read only",
-      detail: isConnected ? "Connected for deposits and encrypted play" : "Connect once to unlock write actions"
-    },
-    {
-      label: "Private session",
-      value: sessionActive ? "Live" : "Ready",
-      detail: sessionActive ? "CoFHE session keys are active" : "Session keys activate from the wallet rail"
-    },
-    {
-      label: "Market floor",
-      value: String(marketCount),
-      detail: "Prediction rails and factory markets"
-    }
-  ];
 
   return (
     <main className="casfin-lobby">
@@ -242,6 +225,15 @@ function HomePage() {
       </section>
 
       <section className="cfl-hero">
+        <div className="cfl-hero-fx" aria-hidden="true">
+          <span className="cfl-fx-rail" />
+          <span className="cfl-fx-scan" />
+          <span className="cfl-fx-cipher cfl-fx-cipher-a">0110 1101 0011</span>
+          <span className="cfl-fx-cipher cfl-fx-cipher-b">1011 0001 1110</span>
+          <span className="cfl-fx-corner cfl-fx-corner-a" />
+          <span className="cfl-fx-corner cfl-fx-corner-b" />
+        </div>
+
         <div className="cfl-hero-copy">
           <span className="cfl-badge">Encrypted casino and markets</span>
           <h1>
@@ -252,17 +244,6 @@ function HomePage() {
             <Link className="cfl-hero-btn" href="/casino/coin-toss">Play Coin Toss</Link>
             <Link className="cfl-ghost-btn" href="/predictions">Explore Markets</Link>
           </div>
-        </div>
-
-        <div className="cfl-hero-ledger" aria-label="CasFin live snapshot">
-          <span className="cfl-ledger-kicker">Live Snapshot</span>
-          {heroStats.map((stat) => (
-            <div className="cfl-ledger-row" key={stat.label}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-              <small>{stat.detail}</small>
-            </div>
-          ))}
         </div>
 
         <div className="cfl-hero-art">

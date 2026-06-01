@@ -46,7 +46,7 @@ export default function UserProfileCard({ profile, onProfileUpdated, stagger }: 
     if (!account) return;
     const trimmed = nameInput.trim();
     if (trimmed && !/^[a-zA-Z0-9 ]{1,24}$/.test(trimmed)) {
-      setSaveError("Max 24 chars — letters, numbers and spaces only.");
+      setSaveError("Max 24 chars - letters, numbers and spaces only.");
       return;
     }
 
@@ -104,7 +104,7 @@ export default function UserProfileCard({ profile, onProfileUpdated, stagger }: 
                   value={nameInput}
                 />
                 <button className="profile-save-btn" disabled={saving} onClick={() => void handleSave()} type="button">
-                  {saving ? "…" : "Save"}
+                  {saving ? "Saving..." : "Save"}
                 </button>
                 <button className="profile-cancel-btn" disabled={saving} onClick={cancelEditing} type="button">
                   Cancel
@@ -116,7 +116,7 @@ export default function UserProfileCard({ profile, onProfileUpdated, stagger }: 
                   {profile?.displayName ?? "Anonymous Player"}
                 </span>
                 <button className="profile-edit-btn" onClick={startEditing} title="Edit name" type="button">
-                  ✎
+                  Edit
                 </button>
               </div>
             )}
@@ -124,7 +124,7 @@ export default function UserProfileCard({ profile, onProfileUpdated, stagger }: 
             <div className="profile-address-row">
               <span className="profile-address">{formatAddress(account)}</span>
               <button className="profile-copy-btn" onClick={handleCopy} title="Copy address" type="button">
-                {copied ? "✓" : "⎘"}
+                {copied ? "Copied" : "Copy"}
               </button>
             </div>
           </div>

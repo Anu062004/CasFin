@@ -3,7 +3,7 @@
 import ChainSelector from "@/components/layout/ChainSelector";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, type MouseEvent, type PointerEvent, useEffect, useRef, useState } from "react";
 import { useWallet } from "@/components/WalletProvider";
 import { buildExplorerUrl, CASFIN_CONFIG } from "@/lib/casfin-config";
 import { formatAddress, formatEth } from "@/lib/casfin-client";
@@ -91,6 +91,7 @@ export default function NavbarPrivy() {
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const suppressNextSidebarClickRef = useRef(false);
 
   const {
     account,
@@ -173,6 +174,29 @@ export default function NavbarPrivy() {
     setMenuOpen(false);
   }
 
+  function consumeSuppressedSidebarClick(event: MouseEvent<HTMLElement>) {
+    if (!suppressNextSidebarClickRef.current) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    suppressNextSidebarClickRef.current = false;
+    return true;
+  }
+
+  function expandCollapsedSidebar(event?: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>, suppressNextClick = false) {
+    if (!sidebarCollapsed || window.innerWidth < 1025) {
+      return false;
+    }
+
+    event?.preventDefault();
+    event?.stopPropagation();
+    suppressNextSidebarClickRef.current = suppressNextClick;
+    setSidebarCollapsed(false);
+    return true;
+  }
+
   function handleWalletBtnClick() {
     if (!isConnected) {
       void connectWallet();
@@ -239,6 +263,13 @@ export default function NavbarPrivy() {
           className={className}
           href={item.href}
           key={item.label}
+          onClick={(event) => {
+            if (consumeSuppressedSidebarClick(event)) {
+              return;
+            }
+
+            expandCollapsedSidebar(event);
+          }}
           rel="noreferrer"
           target="_blank"
         >
@@ -252,7 +283,22 @@ export default function NavbarPrivy() {
     }
 
     return (
-      <Link className={className} href={item.href} key={item.href} onClick={closeMenu}>
+      <Link
+        className={className}
+        href={item.href}
+        key={item.href}
+        onClick={(event) => {
+          if (consumeSuppressedSidebarClick(event)) {
+            return;
+          }
+
+          if (expandCollapsedSidebar(event)) {
+            return;
+          }
+
+          closeMenu();
+        }}
+      >
         <span className="chrome-nav-mark">{item.mark}</span>
         <span className="chrome-nav-copy">
           <strong>{item.label}</strong>
@@ -295,7 +341,15 @@ export default function NavbarPrivy() {
         type="button"
       />
 
-      <aside className={`chrome-sidebar ${sidebarCollapsed ? "is-collapsed" : ""} ${menuOpen ? "is-open" : ""}`}>
+      <aside
+        className={`chrome-sidebar ${sidebarCollapsed ? "is-collapsed" : ""} ${menuOpen ? "is-open" : ""}`}
+        onPointerDownCapture={(event) => {
+          expandCollapsedSidebar(event, true);
+        }}
+        onClick={() => {
+          expandCollapsedSidebar();
+        }}
+      >
         <div className="chrome-sidebar-brand">
           <Link aria-label="Back to overview" className="chrome-brand-link" href="/" onClick={closeMenu}>
             <span className="chrome-brand-mark is-logo">
@@ -309,6 +363,7 @@ export default function NavbarPrivy() {
 
           <button
             aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!sidebarCollapsed}
             className="chrome-sidebar-toggle"
             onClick={() => setSidebarCollapsed((current) => !current)}
             type="button"

@@ -1,5 +1,6 @@
 import "./globals.css";
 import "./casino-guide.css";
+import "./ui-polish.css";
 import { Inter, JetBrains_Mono, DM_Serif_Display } from "next/font/google";
 import FheProgressBar from "@/components/FheProgressBar";
 import CosmicBackground from "@/components/layout/CosmicBackground";

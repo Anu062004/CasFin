@@ -143,16 +143,15 @@ export default function WalletPage() {
 
   return (
     <main className="page-shell is-narrow">
-      {/* ── Balance hero ── */}
       <GlassCard className="wallet-hero" stagger={1}>
         <p className="wallet-balance-label">Your Balance</p>
         <h1 className="wallet-balance-value">{availableBalanceLabel}</h1>
         <p className="wallet-balance-subtitle">
           Locked: {lockedBalanceLabel}
-          {isConnected ? ` · ${formatAddress(account)}` : " · Connect wallet to begin"}
+          {isConnected ? ` - ${formatAddress(account)}` : " - Connect wallet to begin"}
         </p>
 
-        <div className="wallet-hero-actions" style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+        <div className="wallet-hero-actions">
           <GlassButton disabled={Boolean(pendingAction)} onClick={handlePrimaryAction}>
             {!isConnected ? "Connect Wallet" : !isCorrectChain ? "Switch Network" : "Refresh Wallet"}
           </GlassButton>
@@ -169,7 +168,6 @@ export default function WalletPage() {
         </div>
       </GlassCard>
 
-      {/* ── Player Profile ── */}
       <UserProfileCard
         onProfileUpdated={(p) => void refreshUserProfile()}
         profile={userProfile}
@@ -182,7 +180,6 @@ export default function WalletPage() {
         </GlassCard>
       ) : null}
 
-      {/* ── Main layout ── */}
       <div className="wallet-layout">
         <VaultCard
           casinoState={casinoState}
@@ -214,7 +211,7 @@ export default function WalletPage() {
               ))}
             </div>
 
-            <div style={{ marginTop: "1rem" }}>
+            <div className="wallet-card-action">
               <GlassButton disabled={Boolean(pendingAction)} onClick={handlePrimaryAction} variant="secondary">
                 {!isConnected ? "Connect" : !isCorrectChain ? "Switch Network" : "Refresh"}
               </GlassButton>

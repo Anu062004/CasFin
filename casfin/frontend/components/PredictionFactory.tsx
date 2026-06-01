@@ -98,7 +98,7 @@ export default function PredictionFactory({
       </div>
 
       {!predictionState.approvedCreator && (
-        <p className="subtle-copy" style={{ color: "var(--color-warning, #f59e0b)", marginBottom: "0.5rem" }}>
+        <p className="subtle-copy factory-warning">
           Your wallet is not approved to create markets. Ask the factory owner to whitelist your address.
         </p>
       )}

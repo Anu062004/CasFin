@@ -1,0 +1,1773 @@
+/*
+  Final UI polish layer.
+  Direction: compact encrypted finance floor with graphite surfaces,
+  emerald status, warm gold actions, and cyan data accents.
+*/
+
+:root {
+  --chrome-sidebar-w: 286px;
+  --chrome-sidebar-collapsed: 76px;
+  --chrome-topbar-h: 72px;
+  --chrome-content-gap: clamp(14px, 2vw, 28px);
+}
+
+html,
+body {
+  background: #050706;
+}
+
+body.casfin-body {
+  --bg: #050706;
+  --bg-soft: rgba(8, 13, 10, 0.88);
+  --bg-panel: rgba(12, 18, 15, 0.9);
+  --bg-panel-strong: rgba(15, 22, 18, 0.96);
+  --line: rgba(214, 168, 79, 0.18);
+  --line-strong: rgba(214, 168, 79, 0.34);
+  --text: #f8f1df;
+  --text-soft: #bacabc;
+  --text-dim: #768575;
+  --green: #38d58c;
+  --green-deep: #14784d;
+  --green-soft: #a9f3c8;
+  --terminal-bg: #050706;
+  --terminal-gold: #d8ad58;
+  --terminal-gold-deep: #a97825;
+  --terminal-gold-soft: rgba(216, 173, 88, 0.16);
+  --terminal-muted: #768575;
+  --terminal-border: rgba(216, 173, 88, 0.16);
+  --casino-bg: #050706;
+  --casino-base: #0a0f0c;
+  --casino-card: #101712;
+  --casino-raised: #151f18;
+  --casino-hover: #1b2a20;
+  --casino-border: rgba(216, 173, 88, 0.18);
+  --casino-border-strong: rgba(216, 173, 88, 0.34);
+  --accent-primary: #38d58c;
+  --accent-hover: #2aba77;
+  --accent-light: #a9f3c8;
+  --green-win: #38d58c;
+  --red-loss: #ef6a5b;
+  --yellow-warn: #d8ad58;
+  --text-primary: #f8f1df;
+  --text-secondary: #bacabc;
+  --text-muted: #768575;
+  --chrome-bg: #050706;
+  --chrome-bg-soft: rgba(8, 13, 10, 0.92);
+  --chrome-panel: rgba(10, 16, 13, 0.95);
+  --chrome-panel-soft: rgba(14, 22, 17, 0.94);
+  --chrome-card: rgba(15, 24, 18, 0.92);
+  --chrome-border: rgba(216, 173, 88, 0.18);
+  --chrome-border-strong: rgba(216, 173, 88, 0.34);
+  --chrome-text: #f8f1df;
+  --chrome-text-soft: #bacabc;
+  --chrome-text-dim: #768575;
+  --chrome-green: #38d58c;
+  --chrome-green-soft: rgba(56, 213, 140, 0.14);
+  --chrome-amber: #d8ad58;
+  --chrome-violet: #4fc7d8;
+  --chrome-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+  --ui-cyan: #4fc7d8;
+  --ui-danger: #ef6a5b;
+  --ui-radius: 8px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(56, 213, 140, 0.14), transparent 24%),
+    radial-gradient(circle at 88% 0%, rgba(216, 173, 88, 0.14), transparent 22%),
+    radial-gradient(circle at 56% 100%, rgba(79, 199, 216, 0.08), transparent 28%),
+    linear-gradient(135deg, #050706 0%, #07100c 48%, #0d100b 100%);
+  color: var(--text-primary);
+  font-family: var(--font-mono-terminal);
+}
+
+body.casfin-body::before {
+  opacity: 0.34;
+  background-image:
+    linear-gradient(rgba(216, 173, 88, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+body.casfin-body::after {
+  background:
+    radial-gradient(circle at 18% 14%, rgba(56, 213, 140, 0.08), transparent 20%),
+    radial-gradient(circle at 80% 18%, rgba(216, 173, 88, 0.08), transparent 22%),
+    radial-gradient(circle at 52% 92%, rgba(79, 199, 216, 0.08), transparent 28%);
+}
+
+.casfin-global-bg {
+  background:
+    linear-gradient(115deg, rgba(5, 7, 6, 0.96), rgba(7, 16, 12, 0.9) 50%, rgba(13, 16, 11, 0.96)),
+    repeating-linear-gradient(90deg, rgba(216, 173, 88, 0.04) 0 1px, transparent 1px 92px);
+}
+
+.casfin-global-bg .cfl-fe {
+  opacity: 0.13;
+}
+
+body.casfin-body a {
+  color: inherit;
+}
+
+body.casfin-body :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--terminal-gold);
+  outline-offset: 3px;
+}
+
+body.casfin-body input,
+body.casfin-body select,
+body.casfin-body textarea,
+body.casfin-body .glass-input,
+body.casfin-body .game-input,
+body.casfin-body .profile-name-input,
+body.casfin-body .casino-field-input {
+  border-color: rgba(216, 173, 88, 0.18);
+  border-radius: var(--ui-radius);
+  background: rgba(4, 8, 6, 0.84);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+body.casfin-body input:focus,
+body.casfin-body select:focus,
+body.casfin-body textarea:focus,
+body.casfin-body .glass-input:focus,
+body.casfin-body .game-input:focus,
+body.casfin-body .profile-name-input:focus,
+body.casfin-body .casino-field-input:focus {
+  border-color: rgba(216, 173, 88, 0.56);
+  background: rgba(7, 13, 10, 0.96);
+  box-shadow: 0 0 0 3px rgba(216, 173, 88, 0.12);
+}
+
+body.casfin-body .app-chrome {
+  padding-top: calc(var(--chrome-topbar-h) + 20px);
+}
+
+.chrome-sidebar,
+.chrome-sidebar.is-collapsed {
+  background:
+    linear-gradient(180deg, rgba(7, 13, 10, 0.98), rgba(4, 7, 6, 0.98)),
+    repeating-linear-gradient(0deg, rgba(216, 173, 88, 0.035) 0 1px, transparent 1px 48px);
+  border-right-color: var(--chrome-border);
+}
+
+.chrome-topbar {
+  background: rgba(5, 7, 6, 0.9);
+  border-bottom-color: var(--chrome-border);
+  backdrop-filter: blur(18px);
+}
+
+.chrome-brand-mark.is-logo,
+.site-footer-mark.is-logo {
+  border-color: rgba(216, 173, 88, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(56, 213, 140, 0.1),
+    0 0 24px rgba(216, 173, 88, 0.16);
+}
+
+.chrome-nav-item,
+.chrome-wallet-card,
+.chrome-search,
+.chrome-status-pill,
+.top-chain-selector,
+.wallet-launcher,
+.chrome-wallet-action,
+.chrome-sidebar-toggle,
+.chrome-mobile-toggle {
+  border-radius: var(--ui-radius);
+}
+
+.chrome-nav-mark {
+  border-radius: 7px;
+  color: var(--chrome-amber);
+  background: rgba(216, 173, 88, 0.08);
+  border-color: rgba(216, 173, 88, 0.14);
+}
+
+.chrome-nav-item:hover {
+  background: rgba(216, 173, 88, 0.08);
+  border-color: rgba(216, 173, 88, 0.14);
+}
+
+.chrome-nav-item.is-active {
+  background: linear-gradient(135deg, rgba(56, 213, 140, 0.16), rgba(216, 173, 88, 0.08));
+  border-color: rgba(56, 213, 140, 0.26);
+}
+
+.chrome-nav-item.is-active::before {
+  background: linear-gradient(180deg, var(--chrome-green), var(--chrome-amber));
+}
+
+.chrome-wallet-card {
+  background:
+    linear-gradient(145deg, rgba(19, 58, 39, 0.76), rgba(12, 17, 13, 0.94)),
+    linear-gradient(90deg, rgba(216, 173, 88, 0.1), transparent);
+  border-color: rgba(216, 173, 88, 0.26);
+}
+
+.chrome-wallet-action,
+.wallet-launcher.is-primary,
+.chrome-wallet-launcher.is-primary,
+.glass-button.is-primary,
+.casino-primary-button,
+.game-action-btn,
+.profile-save-btn,
+.wallet-inline-link,
+.vault-action-grid .casino-primary-button {
+  border-color: rgba(216, 173, 88, 0.44);
+  background: linear-gradient(135deg, #d8ad58, #38d58c);
+  color: #06100a;
+  box-shadow: 0 14px 32px rgba(56, 213, 140, 0.16);
+}
+
+.chrome-search {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  max-width: min(560px, 44vw);
+  min-width: 180px;
+  border-color: rgba(216, 173, 88, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.chrome-search input {
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chrome-search input:focus {
+  box-shadow: none;
+}
+
+.chrome-search-submit {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(216, 173, 88, 0.2);
+  border-radius: 7px;
+  background: rgba(216, 173, 88, 0.1);
+  color: var(--terminal-gold);
+}
+
+.chrome-status-pill,
+.top-chain-selector,
+.wallet-launcher {
+  border-color: rgba(216, 173, 88, 0.14);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.chrome-status-pill.is-live,
+.top-chain-selector.is-live {
+  border-color: rgba(56, 213, 140, 0.26);
+}
+
+.page-shell,
+.casino-route-shell,
+.landing-shell {
+  width: min(1240px, calc(100% - 32px));
+}
+
+.page-shell.is-narrow {
+  width: min(1120px, calc(100% - 32px));
+}
+
+.page-hero,
+.overview-card,
+.glass-card,
+.bet-data-panel,
+.bet-insight-card,
+.bet-feed-row,
+.casino-stage-card,
+.casino-control-dock,
+.callout-banner,
+.casino-session-banner,
+.game-tab-strip,
+.casino-canvas,
+.prediction-filter-card,
+.market-card,
+.market-card-root,
+.factory-card,
+.stat-card,
+.notice-card,
+.wallet-hero,
+.vault-card,
+.vault-action-card,
+.vault-operator-card,
+.profile-body,
+.site-footer-inner,
+.wm-panel {
+  border-color: var(--line);
+  border-radius: var(--ui-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    rgba(12, 18, 15, 0.9);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(14px);
+}
+
+.page-hero,
+.casino-page-hero,
+.wallet-hero {
+  background:
+    radial-gradient(circle at 78% 18%, rgba(216, 173, 88, 0.16), transparent 30%),
+    radial-gradient(circle at 10% 18%, rgba(56, 213, 140, 0.14), transparent 34%),
+    linear-gradient(128deg, rgba(8, 13, 10, 0.98), rgba(13, 25, 18, 0.94) 48%, rgba(17, 16, 10, 0.94));
+  border-color: rgba(216, 173, 88, 0.28);
+}
+
+.page-hero h1,
+.page-title,
+.glass-title,
+.cfl-hero h1,
+.cfl-section-head h2,
+.wallet-balance-value,
+.balance-figure,
+.site-footer-brand h2 {
+  font-family: var(--font-serif-terminal);
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.page-hero h1,
+.page-title {
+  font-size: clamp(2rem, 3.4vw, 3.5rem);
+  line-height: 0.98;
+}
+
+.hero-kicker,
+.section-kicker,
+.site-footer-kicker,
+.glass-eyebrow,
+.page-eyebrow,
+.wallet-balance-label,
+.control-chip,
+.profile-edit-btn,
+.profile-copy-btn {
+  color: var(--terminal-gold);
+}
+
+.hero-description,
+.glass-description,
+.overview-card p,
+.stat-detail,
+.subtle-copy,
+.vault-support-copy,
+.profile-member-since,
+.site-footer-legal,
+.sports-note,
+.sports-footer-note,
+.sports-final-note {
+  color: var(--text-soft);
+}
+
+.hero-actions-cluster,
+.page-actions,
+.wallet-hero-actions,
+.factory-footer,
+.wm-connected-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.hero-actions-cluster {
+  justify-content: flex-end;
+}
+
+.wallet-hero-actions {
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.glass-button,
+.casino-secondary-button,
+.profile-cancel-btn,
+.glass-button.is-secondary,
+.glass-button.is-pill,
+.casino-chip-button,
+.bet-data-tab,
+.game-tab-pill,
+.provably-fair-badge,
+.control-chip,
+.top-chain-selector,
+.wallet-launcher {
+  border-radius: var(--ui-radius);
+}
+
+.glass-button.is-secondary,
+.glass-button.is-pill,
+.casino-secondary-button,
+.profile-cancel-btn,
+.crash-operator-btn,
+.crash-close-btn,
+.crash-settle-btn,
+.resolve-btn {
+  border-color: rgba(216, 173, 88, 0.18);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text-soft);
+}
+
+.glass-button.is-secondary:hover:not(:disabled),
+.glass-button.is-pill:hover:not(:disabled),
+.casino-secondary-button:hover:not(:disabled),
+.casino-chip-button:hover:not(:disabled),
+.bet-data-tab:hover,
+.game-tab-pill:hover {
+  border-color: rgba(216, 173, 88, 0.42);
+  background: rgba(216, 173, 88, 0.1);
+  color: var(--text-primary);
+}
+
+.glass-button.is-pill.is-active,
+.game-tab-pill.is-active,
+.bet-data-tab.is-active,
+.casino-chip-button.is-active {
+  border-color: rgba(56, 213, 140, 0.34);
+  background: rgba(56, 213, 140, 0.14);
+  color: var(--green-soft);
+}
+
+.phase-badge,
+.result-pill,
+.card-badge,
+.callout-pill,
+.round-state-badge,
+.live-badge {
+  border-radius: 7px;
+}
+
+.phase-badge.phase-open,
+.phase-badge.phase-success,
+.round-state-badge.badge-open,
+.live-badge,
+.status-toast.tone-success {
+  border-color: rgba(56, 213, 140, 0.34);
+  background: rgba(56, 213, 140, 0.13);
+  color: var(--green-soft);
+}
+
+.phase-badge.phase-warning,
+.phase-badge.phase-gold,
+.callout-pill {
+  border-color: rgba(216, 173, 88, 0.34);
+  background: rgba(216, 173, 88, 0.13);
+  color: #f2cf7b;
+}
+
+.phase-badge.phase-muted,
+.round-state-badge.badge-closed {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+}
+
+.factory-warning {
+  margin-bottom: 0.5rem;
+  color: var(--yellow-warn);
+}
+
+.prediction-filter-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.prediction-layout {
+  grid-template-columns: minmax(320px, 0.86fr) minmax(0, 1.14fr);
+  gap: 18px;
+}
+
+.prediction-market-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.market-meta-grid,
+.mini-stat-grid,
+.field-grid-two,
+.factory-grid,
+.info-pairs,
+.history-list,
+.profile-stats-grid {
+  gap: 12px;
+}
+
+.outcome-bar-fill {
+  background: linear-gradient(90deg, var(--outcome-color, var(--ui-cyan)), rgba(216, 173, 88, 0.78));
+}
+
+.casino-main-grid {
+  grid-template-columns: minmax(0, 1.22fr) minmax(340px, 0.78fr);
+  gap: 18px;
+}
+
+.casino-stage-card,
+.casino-control-dock {
+  padding: clamp(16px, 2vw, 22px);
+}
+
+.casino-canvas {
+  background:
+    linear-gradient(160deg, rgba(79, 199, 216, 0.1), rgba(0, 0, 0, 0.24)),
+    radial-gradient(circle at 50% 30%, rgba(216, 173, 88, 0.12), transparent 55%),
+    rgba(5, 9, 7, 0.82);
+}
+
+.casino-canvas strong,
+.crash-multiplier-value,
+.wallet-balance-value,
+.balance-figure {
+  color: #f2cf7b;
+  text-shadow: 0 0 24px rgba(216, 173, 88, 0.18);
+}
+
+.game-card {
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    rgba(9, 15, 12, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+}
+
+.game-card-header,
+.crash-header {
+  align-items: center;
+  gap: 12px;
+}
+
+.game-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-primary);
+}
+
+.game-title::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--terminal-gold);
+  box-shadow: 0 0 12px rgba(216, 173, 88, 0.5);
+}
+
+.dice-title::before {
+  background: var(--ui-cyan);
+  box-shadow: 0 0 12px rgba(79, 199, 216, 0.48);
+}
+
+.crash-title::before {
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(56, 213, 140, 0.48);
+}
+
+.game-payout-badge,
+.coin-badge,
+.dice-badge {
+  border-radius: 7px;
+  background: rgba(216, 173, 88, 0.12);
+  color: #f2cf7b;
+}
+
+.coin-visual,
+.dice-visual {
+  border-color: rgba(216, 173, 88, 0.2);
+}
+
+.dice-face-display {
+  font-family: var(--font-serif-terminal);
+  font-size: clamp(3.4rem, 9vw, 5.5rem);
+  color: #f2cf7b;
+}
+
+.ht-btn,
+.dice-num-btn,
+.preset-chip,
+.casino-chip-button {
+  border-radius: 7px;
+  border-color: rgba(216, 173, 88, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-soft);
+}
+
+.ht-btn.ht-active,
+.dice-num-btn.dice-num-active {
+  border-color: rgba(56, 213, 140, 0.4);
+  background: rgba(56, 213, 140, 0.15);
+  color: var(--green-soft);
+}
+
+.game-action-btn:disabled,
+.casino-primary-button:disabled,
+.casino-secondary-button:disabled,
+.resolve-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.54;
+}
+
+.crash-stage {
+  border-radius: var(--ui-radius);
+  border-color: rgba(79, 199, 216, 0.18);
+  background:
+    linear-gradient(180deg, rgba(79, 199, 216, 0.08), rgba(0, 0, 0, 0.18)),
+    rgba(4, 8, 7, 0.86);
+}
+
+.recent-pill.pill-win {
+  color: var(--green-soft);
+}
+
+.recent-pill.pill-loss {
+  color: #ff998e;
+}
+
+.profile-edit-btn,
+.profile-copy-btn {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 7px;
+}
+
+.profile-save-btn,
+.profile-cancel-btn {
+  min-height: 40px;
+  border-radius: 7px;
+}
+
+.wallet-card-action {
+  margin-top: 1rem;
+}
+
+.poker-resolution-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.text-capitalize {
+  text-transform: capitalize;
+}
+
+.site-footer-inner {
+  border-radius: var(--ui-radius);
+}
+
+.site-footer-column a:hover,
+.status-toast-link,
+.wallet-inline-link,
+.sports-market-link {
+  color: var(--green-soft);
+}
+
+.status-toast {
+  position: fixed;
+  top: calc(var(--chrome-topbar-h) + 14px);
+  right: 24px;
+  bottom: auto;
+  left: auto;
+  z-index: 140;
+  width: min(360px, calc(100vw - var(--chrome-sidebar-w) - 56px));
+  max-width: calc(100vw - 32px);
+  border-color: rgba(216, 173, 88, 0.22);
+  border-radius: var(--ui-radius);
+  background: rgba(6, 10, 8, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.36);
+  transform: translateY(-8px);
+}
+
+.status-toast.is-visible {
+  transform: translateY(0);
+}
+
+.fhe-progress-bar {
+  position: fixed;
+  top: calc(var(--chrome-topbar-h) + 12px);
+  right: 24px;
+  bottom: auto;
+  left: calc(var(--chrome-sidebar-w) + 28px);
+  z-index: 135;
+  width: min(840px, calc(100vw - var(--chrome-sidebar-w) - 56px));
+  max-width: calc(100vw - var(--chrome-sidebar-w) - 56px);
+  padding: 10px 14px;
+  border: 1px solid rgba(216, 173, 88, 0.22);
+  border-radius: var(--ui-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    rgba(6, 10, 8, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  transform: none;
+  backdrop-filter: blur(16px);
+}
+
+.fhe-progress-inner {
+  max-width: none;
+}
+
+.fhe-progress-icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: rgba(216, 173, 88, 0.12);
+  color: var(--terminal-gold);
+  font-size: 0.95rem;
+}
+
+.fhe-progress-label {
+  color: var(--green-soft);
+  font-size: 0.76rem;
+}
+
+.fhe-progress-track {
+  background: rgba(56, 213, 140, 0.12);
+}
+
+.fhe-progress-fill {
+  background: linear-gradient(90deg, var(--green), var(--terminal-gold));
+}
+
+.fhe-progress-pct {
+  color: var(--text-soft);
+}
+
+.cfl-ticker,
+.cfl-hero,
+.cfl-qcard,
+.cfl-game-card,
+.cfl-stat-card,
+.cfl-market-card,
+.cfl-partners a {
+  border-radius: var(--ui-radius);
+}
+
+.casfin-lobby {
+  --cfl-bg: #050706;
+  --cfl-bg2: #0a150f;
+  --cfl-card: rgba(12, 18, 15, 0.88);
+  --cfl-card-hover: rgba(17, 28, 21, 0.96);
+  --cfl-card-border: rgba(216, 173, 88, 0.18);
+  --cfl-p1: #38d58c;
+  --cfl-p2: #d8ad58;
+  --cfl-p3: #4fc7d8;
+  --cfl-gold: #d8ad58;
+  --cfl-gold2: #f2cf7b;
+  --cfl-green: #38d58c;
+  --cfl-teal: #4fc7d8;
+  --cfl-text: #f8f1df;
+  --cfl-text-soft: #bacabc;
+  --cfl-muted: #768575;
+}
+
+.cfl-hero {
+  min-height: clamp(390px, 34vw, 500px);
+  height: auto;
+  background:
+    linear-gradient(90deg, rgba(5, 7, 6, 0.98) 0%, rgba(5, 10, 8, 0.9) 38%, rgba(5, 10, 8, 0.36) 70%, rgba(5, 7, 6, 0.72) 100%),
+    #07100b;
+  border-color: rgba(216, 173, 88, 0.3);
+}
+
+.cfl-hero h1 span,
+.cfl-section-head p,
+.cfl-badge,
+.cfl-game-bottom em,
+.cfl-market-card em,
+.cfl-qmeta strong {
+  color: #f2cf7b;
+}
+
+.cfl-badge,
+.cfl-live-chip,
+.cfl-play,
+.cfl-game-chip {
+  border-radius: 7px;
+}
+
+.cfl-hero-btn,
+.cfl-ghost-btn,
+.cfl-link-btn {
+  border-radius: var(--ui-radius);
+}
+
+.cfl-hero-btn {
+  background: linear-gradient(135deg, #d8ad58, #38d58c);
+  color: #06100a;
+}
+
+.cfl-market-orb {
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgba(79, 199, 216, 0.92), rgba(56, 213, 140, 0.72)),
+    #10231c;
+}
+
+.sports-tab-strip {
+  margin-bottom: 12px;
+}
+
+.sports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.sports-game-card {
+  min-width: 0;
+}
+
+.sports-scoreboard {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sports-team {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(216, 173, 88, 0.12);
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.035);
+  text-align: center;
+}
+
+.sports-team-label,
+.sports-odds-team {
+  margin: 0 0 4px;
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sports-team-abbr {
+  margin: 0 0 2px;
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.sports-team-name {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sports-score {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.9rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.sports-versus {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.sports-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 12px rgba(56, 213, 140, 0.74);
+}
+
+.sports-odds-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sports-odds-button {
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.sports-odds-value {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.sports-odds-value.is-selected,
+.sports-payout-value {
+  color: var(--green-soft);
+}
+
+.sports-bet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sports-payout-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px;
+  color: var(--text-soft);
+  font-size: 0.76rem;
+}
+
+.sports-note,
+.sports-market-link-row,
+.sports-footer-note,
+.sports-final-note {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+}
+
+.sports-market-link-row,
+.sports-final-note,
+.sports-footer-note {
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .prediction-filter-grid,
+  .overview-grid,
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .prediction-layout,
+  .casino-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 920px) {
+  .chrome-search {
+    max-width: none;
+  }
+
+  .chrome-topbar-right {
+    gap: 8px;
+  }
+
+  .page-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hero-actions-cluster,
+  .page-actions {
+    justify-content: flex-start;
+  }
+
+  .cfl-hero {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .fhe-progress-bar {
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-width: none;
+  }
+
+  .status-toast {
+    right: 14px;
+    width: min(360px, calc(100vw - 28px));
+  }
+}
+
+@media (max-width: 700px) {
+  .page-shell,
+  .page-shell.is-narrow,
+  .casino-route-shell,
+  .landing-shell {
+    width: min(100% - 20px, 1240px);
+  }
+
+  .prediction-filter-grid,
+  .overview-grid,
+  .stat-grid,
+  .prediction-market-grid,
+  .cfl-quick-grid,
+  .cfl-game-grid,
+  .cfl-market-grid,
+  .cfl-stats-grid,
+  .sports-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .page-hero,
+  .glass-card,
+  .wallet-hero,
+  .casino-stage-card,
+  .casino-control-dock {
+    padding: 18px;
+  }
+
+  .sports-scoreboard,
+  .sports-payout-row {
+    gap: 8px;
+  }
+
+  .sports-team {
+    padding: 10px;
+  }
+
+  .sports-team-name {
+    max-width: 90px;
+    margin-inline: auto;
+  }
+
+  .sports-odds-row,
+  .hero-actions-cluster,
+  .wallet-hero-actions {
+    flex-direction: column;
+  }
+
+  .cfl-hero h1 {
+    font-size: clamp(2.7rem, 14vw, 4.2rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.casfin-body *,
+  body.casfin-body *::before,
+  body.casfin-body *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Stable desktop shell: the sidebar should not slide over the top bar/search. */
+@media (min-width: 1025px) {
+  body.casfin-body .app-chrome,
+  body.casfin-body .site-footer,
+  body.shell-collapsed .app-chrome,
+  body.shell-collapsed .site-footer {
+    margin-left: var(--chrome-sidebar-w);
+  }
+
+  body.casfin-body .chrome-topbar,
+  body.shell-collapsed .chrome-topbar {
+    left: var(--chrome-sidebar-w);
+  }
+
+  body.casfin-body .fhe-progress-bar,
+  body.shell-collapsed .fhe-progress-bar {
+    left: calc(var(--chrome-sidebar-w) + 28px);
+  }
+
+  .chrome-sidebar,
+  .chrome-sidebar.is-collapsed,
+  .chrome-sidebar:hover,
+  .chrome-sidebar:focus-within,
+  .chrome-sidebar.is-open {
+    width: var(--chrome-sidebar-w);
+    overflow: hidden;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.04),
+      16px 0 44px rgba(0, 0, 0, 0.18);
+  }
+
+  .chrome-sidebar-brand {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .chrome-brand-copy,
+  .chrome-sidebar-label,
+  .chrome-nav-copy,
+  .chrome-nav-badge,
+  .chrome-wallet-label,
+  .chrome-wallet-balance,
+  .chrome-wallet-balance span,
+  .chrome-wallet-meta,
+  .chrome-wallet-action {
+    max-width: none;
+    width: auto;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+    white-space: normal;
+  }
+
+  .chrome-sidebar-label {
+    height: auto;
+    margin: 0 10px 6px;
+  }
+
+  .chrome-nav-item,
+  .chrome-sidebar:hover .chrome-nav-item,
+  .chrome-sidebar:focus-within .chrome-nav-item {
+    justify-content: flex-start;
+    gap: 12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .chrome-nav-live-dot,
+  .chrome-sidebar:hover .chrome-nav-live-dot,
+  .chrome-sidebar:focus-within .chrome-nav-live-dot {
+    position: static;
+  }
+
+  .chrome-sidebar-toggle {
+    display: none;
+  }
+
+  .chrome-sidebar-scroll,
+  .chrome-sidebar:hover .chrome-sidebar-scroll,
+  .chrome-sidebar:focus-within .chrome-sidebar-scroll {
+    gap: 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-left: 12px;
+    padding-right: 12px;
+    scrollbar-width: none;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 18px,
+      #000 calc(100% - 18px),
+      transparent 100%
+    );
+  }
+
+  .chrome-sidebar-scroll::-webkit-scrollbar,
+  .chrome-sidebar:hover .chrome-sidebar-scroll::-webkit-scrollbar,
+  .chrome-sidebar:focus-within .chrome-sidebar-scroll::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
+  .chrome-sidebar-scroll::-webkit-scrollbar-button,
+  .chrome-sidebar:hover .chrome-sidebar-scroll::-webkit-scrollbar-button,
+  .chrome-sidebar:focus-within .chrome-sidebar-scroll::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .chrome-sidebar-wallet {
+    padding: 12px 14px 14px;
+  }
+
+  .chrome-wallet-card,
+  .chrome-sidebar:hover .chrome-wallet-card,
+  .chrome-sidebar:focus-within .chrome-wallet-card {
+    align-items: stretch;
+    min-height: auto;
+    padding: 16px;
+  }
+
+  .chrome-wallet-card::before,
+  .chrome-sidebar:hover .chrome-wallet-card::before,
+  .chrome-sidebar:focus-within .chrome-wallet-card::before {
+    display: none;
+  }
+}
+
+/* CoFHE session loader: cinematic by default, compact after Skip. */
+.fhe-progress-bar.is-fullscreen,
+body.casfin-body .fhe-progress-bar.is-fullscreen,
+body.shell-collapsed .fhe-progress-bar.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  width: auto;
+  max-width: none;
+  min-height: 100vh;
+  padding: clamp(18px, 4vw, 56px);
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: #020504;
+  box-shadow: none;
+  transform: none;
+  animation: fheOverlayIn 220ms ease forwards;
+}
+
+.fhe-progress-bar.is-fullscreen.is-exiting {
+  animation: fheOverlayOut 420ms ease forwards;
+}
+
+.fhe-progress-video,
+.fhe-progress-scrim {
+  position: absolute;
+  inset: 0;
+}
+
+.fhe-progress-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.08) contrast(1.08) brightness(0.56);
+  transform: scale(1.02);
+}
+
+.fhe-progress-scrim {
+  background:
+    radial-gradient(circle at 72% 18%, rgba(216, 173, 88, 0.16), transparent 28%),
+    radial-gradient(circle at 16% 68%, rgba(56, 213, 140, 0.13), transparent 30%),
+    linear-gradient(90deg, rgba(2, 5, 4, 0.88), rgba(2, 5, 4, 0.58) 48%, rgba(2, 5, 4, 0.82));
+}
+
+.fhe-progress-bar.is-fullscreen .fhe-progress-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  width: min(780px, calc(100vw - 32px));
+  min-height: 310px;
+  gap: 16px;
+  align-items: start;
+  padding: clamp(22px, 3vw, 34px);
+  border: 1px solid rgba(216, 173, 88, 0.26);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent),
+    rgba(4, 8, 7, 0.78);
+  box-shadow:
+    0 34px 110px rgba(0, 0, 0, 0.56),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(18px);
+}
+
+.fhe-progress-copy {
+  display: grid;
+  gap: 10px;
+  margin-bottom: clamp(28px, 6vw, 76px);
+}
+
+.fhe-progress-kicker {
+  color: var(--terminal-gold);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.fhe-progress-copy h2 {
+  max-width: 10ch;
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-serif-terminal);
+  font-size: clamp(2.5rem, 6vw, 5.8rem);
+  font-weight: 400;
+  line-height: 0.9;
+}
+
+.fhe-progress-copy p {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.7;
+}
+
+.fhe-progress-bar.is-fullscreen .fhe-progress-icon {
+  width: 42px;
+  height: 42px;
+  font-size: 0.72rem;
+}
+
+.fhe-progress-bar.is-fullscreen .fhe-progress-content {
+  gap: 12px;
+}
+
+.fhe-progress-bar.is-fullscreen .fhe-progress-track {
+  height: 4px;
+}
+
+.fhe-progress-bar.is-fullscreen .fhe-progress-pct {
+  padding-top: 12px;
+  font-size: 0.86rem;
+}
+
+.fhe-progress-skip {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(216, 173, 88, 0.28);
+  border-radius: 8px;
+  background: rgba(216, 173, 88, 0.12);
+  color: #f4d782;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.fhe-progress-skip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(216, 173, 88, 0.48);
+  background: rgba(216, 173, 88, 0.18);
+}
+
+.fhe-progress-bar.is-compact,
+body.casfin-body .fhe-progress-bar.is-compact,
+body.shell-collapsed .fhe-progress-bar.is-compact {
+  position: fixed;
+  top: calc(var(--chrome-topbar-h) + 12px);
+  right: 24px;
+  bottom: auto;
+  left: auto;
+  z-index: 150;
+  width: min(430px, calc(100vw - var(--chrome-sidebar-w) - 56px));
+  max-width: calc(100vw - 32px);
+  min-height: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(216, 173, 88, 0.24);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    rgba(6, 10, 8, 0.96);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  transform: none;
+  animation: fheCompactIn 220ms ease forwards;
+}
+
+.fhe-progress-bar.is-compact.is-exiting {
+  animation: fheOverlayOut 420ms ease forwards;
+}
+
+.fhe-progress-bar.is-compact .fhe-progress-inner {
+  display: flex;
+  max-width: none;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+}
+
+.fhe-progress-bar.is-compact .fhe-progress-icon {
+  width: 30px;
+  height: 30px;
+  font-size: 0.62rem;
+}
+
+.fhe-progress-bar.is-compact .fhe-progress-content {
+  min-width: 0;
+}
+
+.fhe-progress-bar.is-compact .fhe-progress-label {
+  font-size: 0.74rem;
+}
+
+@keyframes fheOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fheOverlayOut {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fheCompactIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1024px) {
+  .fhe-progress-bar.is-compact,
+  body.casfin-body .fhe-progress-bar.is-compact,
+  body.shell-collapsed .fhe-progress-bar.is-compact {
+    right: 14px;
+    left: 14px;
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .fhe-progress-bar.is-fullscreen .fhe-progress-inner {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .fhe-progress-copy {
+    margin: 44px 0 22px;
+  }
+
+  .fhe-progress-copy h2 {
+    max-width: 9ch;
+    font-size: clamp(2.4rem, 16vw, 4.1rem);
+  }
+
+  .fhe-progress-bar.is-fullscreen .fhe-progress-pct {
+    padding-top: 0;
+    text-align: left;
+  }
+}
+
+/* Landing hero effects and click-controlled desktop sidebar. */
+.cfl-hero {
+  isolation: isolate;
+}
+
+.cfl-hero-copy {
+  position: relative;
+  z-index: 4;
+}
+
+.cfl-hero-art {
+  position: relative;
+  z-index: 2;
+}
+
+.cfl-hero-art::before {
+  content: "";
+  position: absolute;
+  inset: 11% 8% 12% 36%;
+  border: 1px solid rgba(216, 173, 88, 0.22);
+  clip-path: polygon(0 12%, 78% 0, 100% 34%, 82% 100%, 14% 86%);
+  opacity: 0.75;
+  animation: cflVaultTrace 4.8s ease-in-out infinite;
+}
+
+.cfl-hero-art::after {
+  content: "";
+  position: absolute;
+  top: 17%;
+  right: 7%;
+  width: 42%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(56, 213, 140, 0.78), rgba(216, 173, 88, 0.82), transparent);
+  filter: drop-shadow(0 0 12px rgba(56, 213, 140, 0.45));
+  transform: rotate(-11deg);
+  animation: cflLightSweep 3.8s ease-in-out infinite;
+}
+
+.cfl-hero-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cfl-fx-rail,
+.cfl-fx-scan,
+.cfl-fx-cipher,
+.cfl-fx-corner {
+  position: absolute;
+  display: block;
+}
+
+.cfl-fx-rail {
+  left: 3%;
+  right: 3%;
+  bottom: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(216, 173, 88, 0.58), rgba(56, 213, 140, 0.46), transparent);
+  opacity: 0.72;
+  animation: cflRailPulse 2.8s ease-in-out infinite;
+}
+
+.cfl-fx-scan {
+  top: -30%;
+  left: 50%;
+  width: 2px;
+  height: 160%;
+  background: linear-gradient(180deg, transparent, rgba(79, 199, 216, 0.55), rgba(216, 173, 88, 0.48), transparent);
+  opacity: 0.55;
+  transform: rotate(18deg);
+  animation: cflScanSweep 5.4s linear infinite;
+}
+
+.cfl-fx-cipher {
+  padding: 6px 8px;
+  border: 1px solid rgba(216, 173, 88, 0.15);
+  border-radius: 7px;
+  background: rgba(3, 7, 5, 0.42);
+  color: rgba(169, 243, 200, 0.68);
+  font-family: var(--font-mono-terminal);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+}
+
+.cfl-fx-cipher-a {
+  top: 19%;
+  right: 23%;
+  animation: cflCipherFloat 6s ease-in-out infinite;
+}
+
+.cfl-fx-cipher-b {
+  right: 9%;
+  bottom: 28%;
+  animation: cflCipherFloat 6s ease-in-out 1.6s infinite;
+}
+
+.cfl-fx-corner {
+  width: 72px;
+  height: 72px;
+  border-color: rgba(216, 173, 88, 0.42);
+  opacity: 0.75;
+}
+
+.cfl-fx-corner-a {
+  top: 22px;
+  right: 22px;
+  border-top: 1px solid;
+  border-right: 1px solid;
+}
+
+.cfl-fx-corner-b {
+  left: 22px;
+  bottom: 22px;
+  border-bottom: 1px solid;
+  border-left: 1px solid;
+}
+
+@keyframes cflVaultTrace {
+  0%, 100% {
+    opacity: 0.32;
+    transform: translateY(0) scale(0.98);
+  }
+
+  50% {
+    opacity: 0.82;
+    transform: translateY(-6px) scale(1);
+  }
+}
+
+@keyframes cflLightSweep {
+  0%, 100% {
+    opacity: 0.12;
+    transform: translateX(12%) rotate(-11deg);
+  }
+
+  48% {
+    opacity: 0.85;
+    transform: translateX(-22%) rotate(-11deg);
+  }
+}
+
+@keyframes cflRailPulse {
+  0%, 100% {
+    opacity: 0.28;
+    transform: scaleX(0.88);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cflScanSweep {
+  from {
+    transform: translateX(-42vw) rotate(18deg);
+  }
+
+  to {
+    transform: translateX(46vw) rotate(18deg);
+  }
+}
+
+@keyframes cflCipherFloat {
+  0%, 100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 0.72;
+    transform: translateY(-10px);
+  }
+}
+
+@media (min-width: 1025px) {
+  body.casfin-body .app-chrome,
+  body.casfin-body .site-footer {
+    margin-left: var(--chrome-sidebar-w);
+  }
+
+  body.shell-collapsed .app-chrome,
+  body.shell-collapsed .site-footer {
+    margin-left: var(--chrome-sidebar-collapsed);
+  }
+
+  body.casfin-body .chrome-topbar {
+    left: var(--chrome-sidebar-w);
+  }
+
+  body.shell-collapsed .chrome-topbar {
+    left: var(--chrome-sidebar-collapsed);
+  }
+
+  body.casfin-body .fhe-progress-bar.is-compact {
+    width: min(430px, calc(100vw - var(--chrome-sidebar-w) - 56px));
+  }
+
+  body.shell-collapsed .fhe-progress-bar.is-compact {
+    width: min(430px, calc(100vw - var(--chrome-sidebar-collapsed) - 56px));
+  }
+
+  .chrome-sidebar {
+    width: var(--chrome-sidebar-w);
+    overflow: hidden;
+    cursor: default;
+  }
+
+  .chrome-sidebar.is-collapsed {
+    width: var(--chrome-sidebar-collapsed);
+    cursor: pointer;
+  }
+
+  .chrome-sidebar:hover,
+  .chrome-sidebar:focus-within {
+    width: var(--chrome-sidebar-w);
+  }
+
+  .chrome-sidebar.is-collapsed:hover,
+  .chrome-sidebar.is-collapsed:focus-within {
+    width: var(--chrome-sidebar-collapsed);
+  }
+
+  .chrome-sidebar-toggle {
+    display: inline-flex;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .chrome-sidebar.is-collapsed .chrome-sidebar-toggle {
+    transform: translateY(-50%) rotate(180deg);
+  }
+
+  .chrome-sidebar:not(.is-collapsed) .chrome-sidebar-toggle {
+    transform: translateY(-50%) rotate(0deg);
+  }
+
+  .chrome-sidebar.is-collapsed .chrome-brand-copy,
+  .chrome-sidebar.is-collapsed .chrome-sidebar-label,
+  .chrome-sidebar.is-collapsed .chrome-nav-copy,
+  .chrome-sidebar.is-collapsed .chrome-nav-badge,
+  .chrome-sidebar.is-collapsed .chrome-wallet-label,
+  .chrome-sidebar.is-collapsed .chrome-wallet-balance,
+  .chrome-sidebar.is-collapsed .chrome-wallet-balance span,
+  .chrome-sidebar.is-collapsed .chrome-wallet-meta,
+  .chrome-sidebar.is-collapsed .chrome-wallet-action {
+    max-width: 0;
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .chrome-sidebar:not(.is-collapsed) .chrome-brand-copy,
+  .chrome-sidebar:not(.is-collapsed) .chrome-sidebar-label,
+  .chrome-sidebar:not(.is-collapsed) .chrome-nav-copy,
+  .chrome-sidebar:not(.is-collapsed) .chrome-nav-badge,
+  .chrome-sidebar:not(.is-collapsed) .chrome-wallet-label,
+  .chrome-sidebar:not(.is-collapsed) .chrome-wallet-balance,
+  .chrome-sidebar:not(.is-collapsed) .chrome-wallet-balance span,
+  .chrome-sidebar:not(.is-collapsed) .chrome-wallet-meta,
+  .chrome-sidebar:not(.is-collapsed) .chrome-wallet-action {
+    max-width: 190px;
+    width: auto;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+    white-space: normal;
+  }
+
+  .chrome-sidebar.is-collapsed .chrome-sidebar-label {
+    height: 0;
+    margin: 0;
+  }
+
+  .chrome-sidebar:not(.is-collapsed) .chrome-sidebar-label {
+    height: auto;
+    margin: 0 10px 6px;
+  }
+
+  .chrome-sidebar.is-collapsed .chrome-nav-item {
+    justify-content: center;
+    gap: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .chrome-sidebar:not(.is-collapsed) .chrome-nav-item {
+    justify-content: flex-start;
+    gap: 12px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .chrome-sidebar.is-collapsed .chrome-wallet-card {
+    align-items: center;
+    justify-content: center;
+    min-height: 54px;
+    padding: 10px;
+  }
+
+  .chrome-sidebar.is-collapsed .chrome-wallet-card::before {
+    content: "WL";
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: rgba(56, 213, 140, 0.14);
+    color: var(--green-soft);
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+  }
+
+  .chrome-sidebar:not(.is-collapsed) .chrome-wallet-card::before {
+    display: none;
+  }
+}
+
+@media (max-width: 920px) {
+  .cfl-fx-cipher,
+  .cfl-fx-corner {
+    display: none;
+  }
+}

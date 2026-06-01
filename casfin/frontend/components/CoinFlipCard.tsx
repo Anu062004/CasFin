@@ -49,9 +49,9 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
   };
 
   function applyPreset(preset) {
-    if (preset === "½") {
+    if (preset === "half") {
       setAmount((prev) => String((parseFloat(prev) / 2).toFixed(4)));
-    } else if (preset === "2×") {
+    } else if (preset === "double") {
       setAmount((prev) => String((parseFloat(prev) * 2).toFixed(4)));
     } else {
       setAmount(preset);
@@ -90,8 +90,8 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
   return (
     <div className="game-card coin-card">
       <div className="game-card-header">
-        <span className="game-title coin-title">🪙 Coin Flip</span>
-        <span className="game-payout-badge coin-badge">2×</span>
+        <span className="game-title coin-title">Coin Toss</span>
+        <span className="game-payout-badge coin-badge">2x</span>
       </div>
 
       <div className="coin-stage">
@@ -135,8 +135,8 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
               {p}
             </button>
           ))}
-          <button className="preset-chip" onClick={() => applyPreset("½")} type="button">½×</button>
-          <button className="preset-chip" onClick={() => applyPreset("2×")} type="button">2×</button>
+          <button className="preset-chip" onClick={() => applyPreset("half")} type="button">1/2x</button>
+          <button className="preset-chip" onClick={() => applyPreset("double")} type="button">2x</button>
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export default function CoinFlipCard({ casinoState, pendingAction, runTransactio
         </button>
       </div>
 
-      <p className="game-footer-text">{houseEdge}% house edge · Provably fair on-chain</p>
+      <p className="game-footer-text">{houseEdge}% house edge - Provably fair on-chain</p>
       {usesEncryptedGame ? <p className="game-footer-text">Bets auto-settle right after your transaction confirms.</p> : null}
     </div>
   );

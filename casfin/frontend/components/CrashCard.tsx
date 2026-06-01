@@ -28,7 +28,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
   const { encryptUint128, connected: cofheConnected, sessionInitializing } = useCofhe();
 
   const latestRound = casinoState.crash.latestRound;
-  const roundId = latestRound?.id?.toString() || "—";
+  const roundId = latestRound?.id?.toString() || "--";
   const roundOpen = latestRound && !latestRound.closed;
   const maxCashOut = formatMultiplier(casinoState.crash.maxCashOutMultiplierBps);
   const usesEncryptedGame = casinoState.isFhe;
@@ -101,10 +101,13 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
     ctx.shadowColor = "#00d4ff";
     ctx.shadowBlur = 8;
     ctx.stroke();
-    // Rocket at tip
     const last = pointsRef.current[pointsRef.current.length - 1];
-    ctx.font = "20px serif";
-    ctx.fillText("🚀", last.x - 10, last.y - 5);
+    ctx.beginPath();
+    ctx.arc(last.x, last.y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#f7c45f";
+    ctx.shadowColor = "#f7c45f";
+    ctx.shadowBlur = 10;
+    ctx.fill();
   }
 
   async function handleCrashBet() {
@@ -144,9 +147,9 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
     <div className="game-card crash-card">
       <div className="crash-header">
         <div className="crash-header-left">
-          <span className="game-title crash-title">💥 Crash</span>
+          <span className="game-title crash-title">Crash</span>
           <span className={`round-state-badge ${roundOpen ? "badge-open" : "badge-closed"}`}>
-            {roundOpen ? "● ROUND OPEN" : latestRound ? "● CLOSED" : "● NO ROUND"}
+            {roundOpen ? "ROUND OPEN" : latestRound ? "CLOSED" : "NO ROUND"}
           </span>
         </div>
         <div className="crash-header-right">
@@ -159,10 +162,10 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
         <canvas className="crash-canvas" height="200" ref={canvasRef} width="800" />
         <div className="crash-multiplier-display">
           <span className={`crash-multiplier-value ${displayMultiplier >= 2 ? "multiplier-hot" : ""}`}>
-            {displayMultiplier.toFixed(2)}×
+            {displayMultiplier.toFixed(2)}x
           </span>
           <span className="crash-multiplier-sub">
-            {roundOpen ? "LIVE — RISING" : latestRound?.closed ? `CRASHED AT ${formatMultiplier(latestRound.crashMultiplierBps)}` : "WAITING FOR BETS"}
+            {roundOpen ? "LIVE - RISING" : latestRound?.closed ? `CRASHED AT ${formatMultiplier(latestRound.crashMultiplierBps)}` : "WAITING FOR BETS"}
           </span>
         </div>
       </div>
@@ -195,11 +198,11 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
           </div>
           <button
             className="game-action-btn crash-action-btn"
-            disabled={walletBlocked || isBetPending || isBetting || !cofheConnected}
+            disabled={walletBlocked || isBetPending || isBetting || !cofheConnected || !roundOpen}
             onClick={handleCrashBet}
             type="button"
           >
-            {isBetPending ? (sessionInitializing ? "ENCRYPTING..." : "PLACING...") : !cofheConnected ? "CONNECT WALLET" : "PLACE BET"}
+            {isBetPending ? (sessionInitializing ? "ENCRYPTING..." : "PLACING...") : !cofheConnected ? "CONNECT WALLET" : !roundOpen ? "WAITING FOR ROUND" : "PLACE BET"}
           </button>
         </div>
 
@@ -219,7 +222,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
           )}
           <button
             className="crash-close-btn"
-            disabled={walletBlocked || isClosePending}
+            disabled={walletBlocked || isClosePending || !roundOpen}
             onClick={() => runTransaction("Close crash round", async (signer) => {
               const crash = new ethers.Contract(CASFIN_CONFIG.addresses.crashGame, ENCRYPTED_CRASH_ABI, signer);
               return crash.closeRound(parseRequiredInteger(roundId, "Round id"));
@@ -257,7 +260,7 @@ export default function CrashCard({ casinoState, isOperator, pendingAction, runT
         <div className="recent-pills">
           {RECENT_ROUNDS_MOCK.map((r, i) => (
             <span className={`recent-pill ${r.won ? "pill-win" : "pill-loss"}`} key={i}>
-              {r.val}×
+              {r.val}x
             </span>
           ))}
         </div>

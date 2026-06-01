@@ -455,16 +455,15 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
           <p className="casino-game-kicker">Video Poker</p>
           <h3>
             {phase === "dealt"
-              ? "Select positions to hold · then Draw"
+              ? "Select positions to hold, then Draw"
               : phase === "waiting"
                 ? "Waiting for resolution"
-                : "Jacks or Better — hold cards and draw replacements."}
+                : "Jacks or Better - hold cards and draw replacements."}
           </h3>
         </div>
         <span className="casino-game-badge">{phase === "dealt" ? "Select & Draw" : "Up to 250x"}</span>
       </div>
 
-      {/* Card area — always visible */}
       <div className="poker-table-area">
         <div className="poker-hand">
           {[0, 1, 2, 3, 4].map((i) => (
@@ -485,7 +484,7 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
           ))}
         </div>
         {phase === "bet" && <p className="poker-table-hint">Deal to start your hand</p>}
-        {phase === "dealt" && <p className="poker-table-hint">Tap cards to hold · then Draw</p>}
+        {phase === "dealt" && <p className="poker-table-hint">Tap cards to hold, then Draw</p>}
         {phase === "waiting" && (
           <p className="poker-table-hint poker-table-hint--resolving">
             Resolving hand<span className="dot-anim">...</span>
@@ -496,7 +495,6 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
         )}
       </div>
 
-      {/* Bet phase: amount + payout strip */}
       {phase === "bet" && (
         <>
           <div className="casino-field-block">
@@ -535,7 +533,6 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
 
       {cardError ? <p className="poker-error-msg">{cardError}</p> : null}
 
-      {/* Action buttons */}
       {phase === "bet" && (
         <button
           className="casino-primary-button"
@@ -566,7 +563,7 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
       )}
 
       {phase === "waiting" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div className="poker-resolution-actions">
           {isOperator && (
             <div className="casino-inline-actions">
               <button
@@ -611,11 +608,11 @@ export default function CleanPokerCard({ casinoState, isOperator, pendingAction,
       <div className="casino-status-grid">
         <div className="casino-status-item">
           <span>Game ID</span>
-          <strong>{gameId !== null ? gameId.toString() : "—"}</strong>
+          <strong>{gameId !== null ? gameId.toString() : "--"}</strong>
         </div>
         <div className="casino-status-item">
           <span>Phase</span>
-          <strong style={{ textTransform: "capitalize" }}>{phase}</strong>
+          <strong className="text-capitalize">{phase}</strong>
         </div>
       </div>
     </article>

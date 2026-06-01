@@ -9,7 +9,7 @@ import { useWallet } from "@/components/WalletProvider";
 import CasinoOutcomeCard from "@/components/casino/CasinoOutcomeCard";
 
 const PRESETS = ["0.001", "0.005", "0.01", "0.05"];
-const DICE_FACES = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+const DICE_FACES = ["1", "2", "3", "4", "5", "6"];
 
 export default function DiceCard({ casinoState, pendingAction, runTransaction, walletBlocked }) {
   const { account } = useWallet();
@@ -50,8 +50,8 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
   };
 
   function applyPreset(preset) {
-    if (preset === "½") setAmount((prev) => String((parseFloat(prev) / 2).toFixed(4)));
-    else if (preset === "2×") setAmount((prev) => String((parseFloat(prev) * 2).toFixed(4)));
+    if (preset === "half") setAmount((prev) => String((parseFloat(prev) / 2).toFixed(4)));
+    else if (preset === "double") setAmount((prev) => String((parseFloat(prev) * 2).toFixed(4)));
     else setAmount(preset);
   }
 
@@ -94,8 +94,8 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
   return (
     <div className="game-card dice-card">
       <div className="game-card-header">
-        <span className="game-title dice-title">🎲 Dice Roll</span>
-        <span className="game-payout-badge dice-badge">6×</span>
+        <span className="game-title dice-title">Dice Roll</span>
+        <span className="game-payout-badge dice-badge">6x</span>
       </div>
 
       <div className="dice-stage">
@@ -118,7 +118,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
         ))}
       </div>
 
-      <p className="dice-pick-hint">Pick a number — match the roll to win 6×</p>
+      <p className="dice-pick-hint">Pick a number - match the roll to win 6x</p>
 
       <div className="amount-section">
         <input
@@ -136,8 +136,8 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
               {p}
             </button>
           ))}
-          <button className="preset-chip" onClick={() => applyPreset("½")} type="button">½×</button>
-          <button className="preset-chip" onClick={() => applyPreset("2×")} type="button">2×</button>
+          <button className="preset-chip" onClick={() => applyPreset("half")} type="button">1/2x</button>
+          <button className="preset-chip" onClick={() => applyPreset("double")} type="button">2x</button>
         </div>
       </div>
 
@@ -171,7 +171,7 @@ export default function DiceCard({ casinoState, pendingAction, runTransaction, w
         </button>
       </div>
 
-      <p className="game-footer-text">{houseEdge}% house edge · FHE-encrypted on Arbitrum</p>
+      <p className="game-footer-text">{houseEdge}% house edge - FHE-encrypted on Arbitrum</p>
       {usesEncryptedGame ? <p className="game-footer-text">Bets auto-settle right after your transaction confirms.</p> : null}
     </div>
   );
